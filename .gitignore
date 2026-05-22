@@ -1,0 +1,9 @@
+node_modules/
+.dev.vars
+.env
+.env.*
+.DS_Store
+.Codex/settings.local.json
+.codex/settings.local.json
+.claude/
+.wrangler/
