@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.58.5">
+  <meta name="app-version" content="1.58.6">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -2964,6 +2964,9 @@
       var lastPolymarketData = null;
       var elements = {};
       var isFirstRun = false;
+      var dashboardStatus = { bin: {} };
+      var dashboardStatusLoaded = false;
+      var dashboardStatusLocalDirty = false;
 
       function initElements() {
         elements.currentTime = document.getElementById('currentTime');
@@ -3777,11 +3780,11 @@
               showBin = true;
               // "Bring bins in" is dismissable from 6pm on collection day through end of day-after.
               // A single click during the evening of collection should keep the card hidden the next day too.
-              var dismissedDate = localStorage.getItem('binDismissedDate');
+              var dismissedDate = getBinDismissedDate();
               var todayStr = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2);
               var hourNow = today.getHours();
               var inBringInWindowVis = (daysSince === 0 && hourNow >= 18) || daysSince === 1;
-              var takenOutDate = localStorage.getItem('binTakenOutDate');
+              var takenOutDate = getBinTakenOutDate();
               var collectionDate = new Date(today.getTime() + daysUntil * 86400000);
               var collectionStr = getLocalDateString(collectionDate);
               if (!inBringInWindowVis && takenOutDate === collectionStr) {
@@ -4744,7 +4747,7 @@
       function dismissBinCard() {
         var now = new Date();
         var todayStr = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2) + '-' + ('0' + now.getDate()).slice(-2);
-        localStorage.setItem('binDismissedDate', todayStr);
+        setBinDismissedDate(todayStr);
         updateCardVisibility();
       }
       window.dismissBinCard = dismissBinCard;
@@ -4752,7 +4755,7 @@
       function dismissBinTakenOut() {
         var collectionDate = getNextBinCollectionDateString();
         if (collectionDate) {
-          localStorage.setItem('binTakenOutDate', collectionDate);
+          setBinTakenOutDate(collectionDate);
         }
         updateCardVisibility();
       }
@@ -4771,6 +4774,139 @@
         if (config.dashboardToken) {
           xhr.setRequestHeader('X-Dashboard-Token', config.dashboardToken);
         }
+      }
+
+      function getCloudBaseUrl() {
+        if (config.busProxyUrl) return config.busProxyUrl;
+        if (window.location.hostname.indexOf('.workers.dev') !== -1) return window.location.origin;
+        return '';
+      }
+
+      function isDashboardStatusDate(value) {
+        return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+      }
+
+      function getLocalBinDismissedDate() {
+        try {
+          var value = localStorage.getItem('binDismissedDate');
+          return isDashboardStatusDate(value) ? value : '';
+        } catch (e) {}
+        return '';
+      }
+
+      function getLocalBinTakenOutDate() {
+        try {
+          var value = localStorage.getItem('binTakenOutDate');
+          return isDashboardStatusDate(value) ? value : '';
+        } catch (e) {}
+        return '';
+      }
+
+      function getBinDismissedDate() {
+        if (dashboardStatusLoaded && dashboardStatus.bin && isDashboardStatusDate(dashboardStatus.bin.dismissedDate)) {
+          return dashboardStatus.bin.dismissedDate;
+        }
+        return getLocalBinDismissedDate();
+      }
+
+      function getBinTakenOutDate() {
+        if (dashboardStatusLoaded && dashboardStatus.bin && isDashboardStatusDate(dashboardStatus.bin.takenOutDate)) {
+          return dashboardStatus.bin.takenOutDate;
+        }
+        return getLocalBinTakenOutDate();
+      }
+
+      function saveLocalBinStatus() {
+        try {
+          if (dashboardStatus.bin && isDashboardStatusDate(dashboardStatus.bin.dismissedDate)) {
+            localStorage.setItem('binDismissedDate', dashboardStatus.bin.dismissedDate);
+          }
+          if (dashboardStatus.bin && isDashboardStatusDate(dashboardStatus.bin.takenOutDate)) {
+            localStorage.setItem('binTakenOutDate', dashboardStatus.bin.takenOutDate);
+          }
+        } catch (e) {}
+      }
+
+      function setBinDismissedDate(value) {
+        if (!isDashboardStatusDate(value)) return;
+        if (!dashboardStatus.bin) dashboardStatus.bin = {};
+        dashboardStatus.bin.dismissedDate = value;
+        try { localStorage.setItem('binDismissedDate', value); } catch (e) {}
+        if (dashboardStatusLoaded) {
+          saveDashboardStatus();
+        } else {
+          dashboardStatusLocalDirty = true;
+        }
+      }
+
+      function setBinTakenOutDate(value) {
+        if (!isDashboardStatusDate(value)) return;
+        if (!dashboardStatus.bin) dashboardStatus.bin = {};
+        dashboardStatus.bin.takenOutDate = value;
+        try { localStorage.setItem('binTakenOutDate', value); } catch (e) {}
+        if (dashboardStatusLoaded) {
+          saveDashboardStatus();
+        } else {
+          dashboardStatusLocalDirty = true;
+        }
+      }
+
+      function applyDashboardStatus(data) {
+        var incoming = data || {};
+        var remoteBin = incoming.bin && typeof incoming.bin === 'object' ? incoming.bin : {};
+        var localDismissed = getLocalBinDismissedDate();
+        var localTakenOut = getLocalBinTakenOutDate();
+        var nextBin = {};
+        var shouldSave = false;
+
+        if (isDashboardStatusDate(remoteBin.dismissedDate)) nextBin.dismissedDate = remoteBin.dismissedDate;
+        if (isDashboardStatusDate(remoteBin.takenOutDate)) nextBin.takenOutDate = remoteBin.takenOutDate;
+
+        if ((dashboardStatusLocalDirty || !nextBin.dismissedDate) && localDismissed) {
+          if (nextBin.dismissedDate !== localDismissed) shouldSave = true;
+          nextBin.dismissedDate = localDismissed;
+        }
+        if ((dashboardStatusLocalDirty || !nextBin.takenOutDate) && localTakenOut) {
+          if (nextBin.takenOutDate !== localTakenOut) shouldSave = true;
+          nextBin.takenOutDate = localTakenOut;
+        }
+
+        dashboardStatus = { bin: nextBin };
+        dashboardStatusLoaded = true;
+        dashboardStatusLocalDirty = false;
+        saveLocalBinStatus();
+
+        if (shouldSave) saveDashboardStatus();
+        updateCardVisibility();
+      }
+
+      function loadDashboardStatus() {
+        var baseUrl = getCloudBaseUrl();
+        if (!baseUrl || !config.dashboardToken) return;
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', baseUrl + '/api/dashboard-status?_t=' + Date.now(), true);
+        setWorkerAuth(xhr);
+        xhr.onload = function() {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              applyDashboardStatus(JSON.parse(xhr.responseText));
+            } catch (e) {}
+          }
+        };
+        xhr.onerror = function() {};
+        xhr.send();
+      }
+
+      function saveDashboardStatus() {
+        var baseUrl = getCloudBaseUrl();
+        if (!baseUrl || !config.dashboardToken) return;
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('PUT', baseUrl + '/api/dashboard-status', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        setWorkerAuth(xhr);
+        xhr.send(JSON.stringify({ bin: dashboardStatus.bin || {} }));
       }
 
       function setFlightsError(message) {
@@ -5811,6 +5947,8 @@
         document.title = config.dashboardTitle;
 
         saveConfig();
+        dashboardStatusLoaded = false;
+        loadDashboardStatus();
         applyTheme();
         applyCardOrder();
         updateCardVisibility();
@@ -5866,6 +6004,8 @@
             }
 
             saveConfig();
+            dashboardStatusLoaded = false;
+            loadDashboardStatus();
             applyTheme();
             applyCardOrder();
             updateCardVisibility();
@@ -7666,6 +7806,7 @@
         if (!config.busProxyUrl && window.location.hostname.indexOf('.workers.dev') !== -1) {
           config.busProxyUrl = window.location.origin;
         }
+        loadDashboardStatus();
         initSettings();
         initTickerAndSpotlight();
         updateClock();

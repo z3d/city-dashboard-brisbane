@@ -49,6 +49,8 @@ npx wrangler secret put FUEL_API_TOKEN
 
 `DASHBOARD_TOKEN` protects API routes other than `/api/health`. Use the same value in Settings -> System -> Dashboard Token.
 
+Optional bin dismissal sync uses a Worker KV binding named `STATUS_KV` or `SETTINGS_KV`; without one, the dashboard keeps using local browser storage.
+
 ## Project Structure
 
 ```text
@@ -82,6 +84,7 @@ node --check src/worker.js
 | `GET /api/standings?leagues=eng.1` | Sports standings |
 | `GET /api/fuel?grades=e10\|Diesel&stations=Shell` | Queensland fuel prices |
 | `GET /api/polymarket?limit=5` | Polymarket events |
+| `GET/PUT /api/dashboard-status` | Optional KV-backed bin dismissal/taken-out status sync |
 
 ## Adapting For Another City
 

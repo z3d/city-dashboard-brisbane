@@ -37,6 +37,24 @@ let _routesCache = {};         // { callsign -> json string }
 let _routesTime = {};
 let _lastFeatureRequestTime = 0;
 
+const DASHBOARD_STATUS_KV_KEY = 'dashboard_status';
+
+function isDashboardStatusDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function sanitizeDashboardStatus(data) {
+  const input = data && typeof data === 'object' ? data : {};
+  const bin = input.bin && typeof input.bin === 'object' && !Array.isArray(input.bin) ? input.bin : {};
+  const status = {
+    bin: {},
+    updatedAt: typeof input.updatedAt === 'string' ? input.updatedAt : null
+  };
+  if (isDashboardStatusDate(bin.dismissedDate)) status.bin.dismissedDate = bin.dismissedDate;
+  if (isDashboardStatusDate(bin.takenOutDate)) status.bin.takenOutDate = bin.takenOutDate;
+  return status;
+}
+
 const ELECTRICITY_GRAPH_URL = 'https://www.nemweb.com.au/mms.GRAPHS/GRAPHS/GRAPH_5QLD1.csv';
 const ELECTRICITY_DATA_TTL = 60 * 1000;
 
@@ -1298,10 +1316,68 @@ export default {
       }
     }
 
+    // Dashboard status — optional KV-backed mutable state shared across devices
+    if (path === '/api/dashboard-status') {
+      const statusKv = env.STATUS_KV || env.SETTINGS_KV;
+      if (!statusKv) {
+        return new Response(JSON.stringify({ error: 'STATUS_KV not configured' }), {
+          status: 500,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+
+      if (request.method === 'GET') {
+        let stored = null;
+        try {
+          stored = await statusKv.get(DASHBOARD_STATUS_KV_KEY, 'json');
+        } catch (e) {
+          stored = null;
+        }
+        return new Response(JSON.stringify(sanitizeDashboardStatus(stored)), {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, corsHeaders)
+        });
+      }
+
+      if (request.method === 'PUT' || request.method === 'POST') {
+        let body;
+        try {
+          body = await request.json();
+        } catch (e) {
+          return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+            status: 400,
+            headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+          });
+        }
+
+        let stored = null;
+        try {
+          stored = await statusKv.get(DASHBOARD_STATUS_KV_KEY, 'json');
+        } catch (e) {
+          stored = null;
+        }
+
+        const existing = sanitizeDashboardStatus(stored);
+        const incoming = sanitizeDashboardStatus(body);
+        const next = sanitizeDashboardStatus({
+          bin: Object.assign({}, existing.bin, incoming.bin),
+          updatedAt: new Date().toISOString()
+        });
+
+        await statusKv.put(DASHBOARD_STATUS_KV_KEY, JSON.stringify(next));
+        return new Response(JSON.stringify(next), {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, corsHeaders)
+        });
+      }
+
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+        status: 405,
+        headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+      });
+    }
+
     return new Response(JSON.stringify({ error: 'Not Found' }), {
       status: 404,
       headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
     });
   }
 };
-
