@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.58.2">
+  <meta name="app-version" content="1.58.3">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -3483,36 +3483,25 @@
         return date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2) + '-' + ('0' + date.getDate()).slice(-2);
       }
 
-      function getBinAttentionInfo() {
-        if (!config.showBin || !config.binDay) return null;
+      function getBinCollectionDayIndex() {
+        if (!config.binDay) return -1;
         var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        var targetDayIndex = -1;
         for (var i = 0; i < days.length; i++) {
           if (days[i].toLowerCase().indexOf(config.binDay.toLowerCase()) === 0) {
-            targetDayIndex = i;
-            break;
+            return i;
           }
         }
-        if (targetDayIndex < 0) return null;
+        return -1;
+      }
 
+      function getNextBinCollectionDateString() {
+        var targetDayIndex = getBinCollectionDayIndex();
+        if (targetDayIndex < 0) return '';
         var today = new Date();
-        var dayIndex = today.getDay();
-        var daysUntil = targetDayIndex - dayIndex;
+        var daysUntil = targetDayIndex - today.getDay();
         if (daysUntil < 0) daysUntil += 7;
-        var daysSince = (dayIndex - targetDayIndex + 7) % 7;
         var collectionDate = new Date(today.getTime() + daysUntil * 86400000);
-        var collectionNoon = new Date(getLocalDateString(collectionDate) + 'T12:00:00');
-        var anchorNoon = new Date(config.binRecyclingAnchor + 'T12:00:00');
-        var daysDiff = Math.round((collectionNoon - anchorNoon) / 86400000);
-        var weekDiff = Math.floor(daysDiff / 7);
-        var isRecyclingWeek = (Math.abs(weekDiff) % 2 === 0);
-        return {
-          day: days[targetDayIndex],
-          daysUntil: daysUntil,
-          daysSince: daysSince,
-          hour: today.getHours(),
-          waste: isRecyclingWeek ? 'Recycling + general' : 'Garden + general'
-        };
+        return getLocalDateString(collectionDate);
       }
 
       function addWeatherNeedsAttention(items) {
@@ -3572,94 +3561,13 @@
           addNeedsAttentionItem(items, 82, 'urgent', 'Electricity', '$' + lastElecPrice.toFixed(0) + '/MWh', 'Price spike');
         } else if (lastElecPrice > 300) {
           addNeedsAttentionItem(items, 58, 'warn', 'Electricity', '$' + lastElecPrice.toFixed(0) + '/MWh', 'Unusually high price');
-        } else if (lastElecPrice < 0) {
-          addNeedsAttentionItem(items, 35, 'good', 'Electricity', '$' + lastElecPrice.toFixed(0) + '/MWh', 'Negative price');
-        }
-      }
-
-      function addBinNeedsAttention(items) {
-        var info = getBinAttentionInfo();
-        if (!info) return;
-        if (info.daysSince === 0 && info.hour >= 18) {
-          addNeedsAttentionItem(items, 62, 'warn', 'Bins', 'Bring bins in', info.waste);
-        } else if (info.daysUntil === 0) {
-          addNeedsAttentionItem(items, 56, 'warn', 'Bins', 'Collection today', info.waste);
-        } else if (info.daysUntil === 1 && info.hour >= 15) {
-          addNeedsAttentionItem(items, 52, 'warn', 'Bins', 'Bins tonight', info.waste);
         }
       }
 
       function addFlightsNeedsAttention(items) {
         if (!config.showFlights || !lastFlightsData || !lastFlightsData.states || lastFlightsData.states.length === 0) return;
-        var minFeet = null;
-        var callsign = '';
-        for (var i = 0; i < lastFlightsData.states.length; i++) {
-          var st = lastFlightsData.states[i];
-          var alt = st[7];
-          if (alt === null || alt === undefined) continue;
-          var feet = Math.round(alt * 3.28084);
-          if (minFeet === null || feet < minFeet) {
-            minFeet = feet;
-            callsign = (st[1] || '').trim();
-          }
-        }
-        if (minFeet !== null && minFeet < 3000) {
-          addNeedsAttentionItem(items, 50, 'warn', 'Flights', (callsign || 'Aircraft') + ' low', minFeet.toLocaleString() + ' ft overhead');
-        } else if (lastFlightsData.states.length >= 10) {
+        if (lastFlightsData.states.length >= 10) {
           addNeedsAttentionItem(items, 32, 'warn', 'Flights', lastFlightsData.states.length + ' aircraft', 'Busy overhead');
-        }
-      }
-
-      function getSportsEventDateTime(ev) {
-        if (!ev) return null;
-        if (ev.strTimestamp) {
-          var tsDate = new Date(ev.strTimestamp);
-          if (!isNaN(tsDate.getTime())) return tsDate;
-        }
-        if (!ev.dateEvent) return null;
-        var time = ev.strTime || '00:00:00';
-        if (time.length === 5) time += ':00';
-        var dt = new Date(ev.dateEvent + 'T' + time);
-        if (isNaN(dt.getTime())) return null;
-        return dt;
-      }
-
-      function addSportsNeedsAttention(items) {
-        var sportTypes = [
-          {key: 'soccer', show: 'showSoccer', label: 'Soccer'},
-          {key: 'rugby', show: 'showRugby', label: 'Rugby'},
-          {key: 'cricket', show: 'showCricket', label: 'Cricket'},
-          {key: 'tennis', show: 'showTennis', label: 'Tennis'},
-          {key: 'nfl', show: 'showNFL', label: 'NFL'}
-        ];
-        var now = new Date();
-        for (var si = 0; si < sportTypes.length; si++) {
-          var sport = sportTypes[si];
-          if (!config[sport.show]) continue;
-          var sections = lastSportsData[sport.key];
-          if (!sections || sections.length === 0) continue;
-          for (var sj = 0; sj < sections.length; sj++) {
-            var events = sections[sj].events || [];
-            for (var ei = 0; ei < events.length; ei++) {
-              var ev = events[ei];
-              var status = (ev.strStatus || '').toLowerCase();
-              var finished = status.indexOf('finished') !== -1 || status.indexOf('final') !== -1;
-              var scorePresent = ev.intHomeScore !== null && ev.intHomeScore !== undefined && ev.intHomeScore !== '';
-              var title = (ev.strHomeTeam || '?') + ' v ' + (ev.strAwayTeam || '?');
-              if (title.length > 40) title = title.substring(0, 37) + '...';
-              if (scorePresent && !finished) {
-                addNeedsAttentionItem(items, 64, 'warn', sport.label, title, 'Live now');
-                return;
-              }
-              var dt = getSportsEventDateTime(ev);
-              if (!dt || finished) continue;
-              var mins = Math.round((dt - now) / 60000);
-              if (mins >= 0 && mins <= 60) {
-                addNeedsAttentionItem(items, 50, 'warn', sport.label, title, 'Starts in ' + formatShortMinutes(mins));
-                return;
-              }
-            }
-          }
         }
       }
 
@@ -3669,9 +3577,7 @@
         addAirQualityNeedsAttention(items);
         addUvNeedsAttention(items);
         addElectricityNeedsAttention(items);
-        addBinNeedsAttention(items);
         addFlightsNeedsAttention(items);
-        addSportsNeedsAttention(items);
         items.sort(function(a, b) {
           return b.priority - a.priority;
         });
@@ -3834,16 +3740,24 @@
               var dismissedDate = localStorage.getItem('binDismissedDate');
               var todayStr = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2);
               var hourNow = today.getHours();
-              if (daysSince === 0 && hourNow >= 18 && dismissedDate === todayStr) {
+              var inBringInWindowVis = (daysSince === 0 && hourNow >= 18) || daysSince === 1;
+              var takenOutDate = localStorage.getItem('binTakenOutDate');
+              var collectionDate = new Date(today.getTime() + daysUntil * 86400000);
+              var collectionStr = getLocalDateString(collectionDate);
+              if (!inBringInWindowVis && takenOutDate === collectionStr) {
                 showBin = false;
-              } else if (daysSince === 1) {
-                if (dismissedDate === todayStr) {
+              } else {
+                if (daysSince === 0 && hourNow >= 18 && dismissedDate === todayStr) {
                   showBin = false;
-                } else {
-                  var yesterday = new Date(today.getTime() - 86400000);
-                  var yStr = yesterday.getFullYear() + '-' + ('0' + (yesterday.getMonth() + 1)).slice(-2) + '-' + ('0' + yesterday.getDate()).slice(-2);
-                  if (dismissedDate === yStr) {
+                } else if (daysSince === 1) {
+                  if (dismissedDate === todayStr) {
                     showBin = false;
+                  } else {
+                    var yesterday = new Date(today.getTime() - 86400000);
+                    var yStr = yesterday.getFullYear() + '-' + ('0' + (yesterday.getMonth() + 1)).slice(-2) + '-' + ('0' + yesterday.getDate()).slice(-2);
+                    if (dismissedDate === yStr) {
+                      showBin = false;
+                    }
                   }
                 }
               }
@@ -4721,10 +4635,12 @@
         }
 
         var daysUntil = '';
+        var daysUntilNum = -1;
         var daysSinceCollection = -1;
         if (targetDayIndex !== -1) {
           var diff = targetDayIndex - dayIndex;
           if (diff < 0) diff += 7;
+          daysUntilNum = diff;
           daysSinceCollection = (dayIndex - targetDayIndex + 7) % 7;
           if (diff === 0) {
             daysUntil = 'Today';
@@ -4771,6 +4687,9 @@
         }
         html += '<div class="bin-type"><span class="bin-emoji">&#x1F534;</span> General Waste</div>';
         html += '<div class="bin-type" style="color: #666; margin-top: 6px; font-size: 0.85em;">Zone ' + zone + '</div>';
+        if (config.binConditionalHide && targetDayIndex !== -1 && daysUntilNum >= 0 && daysUntilNum <= config.binShowDaysBefore) {
+          html += '<button onclick="dismissBinTakenOut()" style="margin-top:10px;padding:6px 16px;background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);border-radius:8px;font-size:0.85em;cursor:pointer;">Taken out</button>';
+        }
 
         elements.binContent.innerHTML = html;
         scheduleMasonry();
@@ -4783,6 +4702,15 @@
         updateCardVisibility();
       }
       window.dismissBinCard = dismissBinCard;
+
+      function dismissBinTakenOut() {
+        var collectionDate = getNextBinCollectionDateString();
+        if (collectionDate) {
+          localStorage.setItem('binTakenOutDate', collectionDate);
+        }
+        updateCardVisibility();
+      }
+      window.dismissBinTakenOut = dismissBinTakenOut;
 
       function getWeekNumber(date) {
         var d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
