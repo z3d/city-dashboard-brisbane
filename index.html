@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.58.4">
+  <meta name="app-version" content="1.58.5">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -2468,7 +2468,7 @@
           <div class="card-setting-body" id="radarSettingsCollapsible" style="display:none;">
             <div class="settings-group">
               <label class="checkbox-label">
-                <input type="checkbox" id="radarShowWhenWindy"> Only show when windy
+                <input type="checkbox" id="radarShowWhenRainy"> Only show when rainy
               </label>
             </div>
             <div class="settings-group">
@@ -2847,7 +2847,7 @@
         showFlights: false,
         showRadar: false,
         radarZoom: 8,
-        radarShowWhenWindy: false,
+        radarShowWhenRainy: false,
         showBomRadar: false,
         bomRadarShowWhenRainy: false,
         showBus1: true,
@@ -2998,7 +2998,7 @@
         elements.radarContent = document.getElementById('radarContent');
         elements.showRadar = document.getElementById('showRadar');
         elements.radarZoom = document.getElementById('radarZoom');
-        elements.radarShowWhenWindy = document.getElementById('radarShowWhenWindy');
+        elements.radarShowWhenRainy = document.getElementById('radarShowWhenRainy');
         elements.bomRadarCard = document.getElementById('bomRadarCard');
         elements.bomRadarContent = document.getElementById('bomRadarContent');
         elements.showBomRadar = document.getElementById('showBomRadar');
@@ -3222,7 +3222,8 @@
             config.showFlights = parsed.showFlights !== undefined ? parsed.showFlights : true;
             config.showRadar = parsed.showRadar !== undefined ? parsed.showRadar : false;
             config.radarZoom = parsed.radarZoom !== undefined ? parsed.radarZoom : 8;
-            config.radarShowWhenWindy = parsed.radarShowWhenWindy !== undefined ? parsed.radarShowWhenWindy : false;
+            config.radarShowWhenRainy = parsed.radarShowWhenRainy !== undefined ? parsed.radarShowWhenRainy :
+              (parsed.radarShowWhenWindy !== undefined ? parsed.radarShowWhenWindy : false);
             config.showBomRadar = parsed.showBomRadar !== undefined ? parsed.showBomRadar : false;
             config.bomRadarShowWhenRainy = parsed.bomRadarShowWhenRainy !== undefined ? parsed.bomRadarShowWhenRainy : false;
             // Migrate old showBus to showBus1/showBus2
@@ -3542,18 +3543,10 @@
         return rainProb !== null && rainProb >= 50;
       }
 
-      function isWindyWeather(data) {
-        if (!data || !data.current) return false;
-        var wind = data.current.wind_speed_10m;
-        var gust = data.current.wind_gusts_10m;
-        return (wind !== undefined && wind !== null && Number(wind) >= 25) ||
-               (gust !== undefined && gust !== null && Number(gust) >= 40);
-      }
-
       function shouldFetchWeather() {
         return config.showWeather ||
                (config.showBomRadar && config.bomRadarShowWhenRainy) ||
-               (config.showRadar && config.radarShowWhenWindy);
+               (config.showRadar && config.radarShowWhenRainy);
       }
 
       function addWeatherNeedsAttention(items) {
@@ -3820,7 +3813,7 @@
         }
         elements.flightsCard.style.display = showFlights ? '' : 'none';
         var showRadar = config.showRadar && isInSchedule(config.radarScheduleHide, config.radarScheduleStart, config.radarScheduleEnd);
-        if (showRadar && config.radarShowWhenWindy && !isWindyWeather(lastWeatherData)) {
+        if (showRadar && config.radarShowWhenRainy && !isRainyWeather(lastWeatherData)) {
           showRadar = false;
         }
         elements.radarCard.style.display = showRadar ? '' : 'none';
@@ -4143,7 +4136,7 @@
 
         var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + config.latitude +
                   '&longitude=' + config.longitude +
-                  '&current=temperature_2m,relative_humidity_2m,dew_point_2m,weather_code,uv_index,cloud_cover,wind_speed_10m,wind_gusts_10m' +
+                  '&current=temperature_2m,relative_humidity_2m,dew_point_2m,weather_code,uv_index,cloud_cover' +
                   '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
                   '&timezone=auto&forecast_days=2&timeformat=unixtime';
 
@@ -4288,7 +4281,7 @@
           '</div>';
 
         elements.weatherContent.innerHTML = html;
-        if (config.radarShowWhenWindy || config.bomRadarShowWhenRainy) {
+        if (config.radarShowWhenRainy || config.bomRadarShowWhenRainy) {
           updateCardVisibility();
         }
         scheduleMasonry();
@@ -5539,7 +5532,7 @@
         elements.showRadar.checked = config.showRadar;
         setMasterClass('showRadarMasterLabel', config.showRadar, config.showRadar);
         elements.radarZoom.value = config.radarZoom;
-        elements.radarShowWhenWindy.checked = config.radarShowWhenWindy;
+        elements.radarShowWhenRainy.checked = config.radarShowWhenRainy;
         elements.showBomRadar.checked = config.showBomRadar;
         setMasterClass('showBomRadarMasterLabel', config.showBomRadar, config.showBomRadar);
         elements.bomRadarShowWhenRainy.checked = config.bomRadarShowWhenRainy;
@@ -5702,7 +5695,7 @@
         config.showFlights = elements.showFlights.checked;
         config.showRadar = elements.showRadar.checked;
         config.radarZoom = parseInt(elements.radarZoom.value, 10) || 8;
-        config.radarShowWhenWindy = elements.radarShowWhenWindy.checked;
+        config.radarShowWhenRainy = elements.radarShowWhenRainy.checked;
         config.showBomRadar = elements.showBomRadar.checked;
         config.bomRadarShowWhenRainy = elements.bomRadarShowWhenRainy.checked;
         config.showBus1 = elements.showBus1.checked;
