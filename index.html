@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.58.3">
+  <meta name="app-version" content="1.58.4">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -2468,6 +2468,11 @@
           <div class="card-setting-body" id="radarSettingsCollapsible" style="display:none;">
             <div class="settings-group">
               <label class="checkbox-label">
+                <input type="checkbox" id="radarShowWhenWindy"> Only show when windy
+              </label>
+            </div>
+            <div class="settings-group">
+              <label class="checkbox-label">
                 <input type="checkbox" id="radarScheduleHide"> Only show during hours
               </label>
               <div class="settings-row" style="margin-top:4px;">
@@ -2613,6 +2618,11 @@
             </div>
           </div>
           <div class="card-setting-body" id="bomRadarSettingsCollapsible" style="display:none;">
+            <div class="settings-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="bomRadarShowWhenRainy"> Only show when rainy
+              </label>
+            </div>
             <div class="settings-group">
               <label class="checkbox-label">
                 <input type="checkbox" id="bomRadarScheduleHide"> Only show during hours
@@ -2837,7 +2847,9 @@
         showFlights: false,
         showRadar: false,
         radarZoom: 8,
+        radarShowWhenWindy: false,
         showBomRadar: false,
+        bomRadarShowWhenRainy: false,
         showBus1: true,
         showBus2: true,
         busScheduleHide: true,
@@ -2986,9 +2998,11 @@
         elements.radarContent = document.getElementById('radarContent');
         elements.showRadar = document.getElementById('showRadar');
         elements.radarZoom = document.getElementById('radarZoom');
+        elements.radarShowWhenWindy = document.getElementById('radarShowWhenWindy');
         elements.bomRadarCard = document.getElementById('bomRadarCard');
         elements.bomRadarContent = document.getElementById('bomRadarContent');
         elements.showBomRadar = document.getElementById('showBomRadar');
+        elements.bomRadarShowWhenRainy = document.getElementById('bomRadarShowWhenRainy');
         elements.fuelCard = document.getElementById('fuelCard');
         elements.fuelContent = document.getElementById('fuelContent');
         elements.fuelUpdated = document.getElementById('fuelUpdated');
@@ -3208,7 +3222,9 @@
             config.showFlights = parsed.showFlights !== undefined ? parsed.showFlights : true;
             config.showRadar = parsed.showRadar !== undefined ? parsed.showRadar : false;
             config.radarZoom = parsed.radarZoom !== undefined ? parsed.radarZoom : 8;
+            config.radarShowWhenWindy = parsed.radarShowWhenWindy !== undefined ? parsed.radarShowWhenWindy : false;
             config.showBomRadar = parsed.showBomRadar !== undefined ? parsed.showBomRadar : false;
+            config.bomRadarShowWhenRainy = parsed.bomRadarShowWhenRainy !== undefined ? parsed.bomRadarShowWhenRainy : false;
             // Migrate old showBus to showBus1/showBus2
             if (parsed.showBus !== undefined && parsed.showBus1 === undefined) {
               config.showBus1 = parsed.showBus;
@@ -3504,18 +3520,49 @@
         return getLocalDateString(collectionDate);
       }
 
+      function getWeatherRainProbability(data) {
+        if (!data || !data.daily || !data.daily.precipitation_probability_max ||
+            data.daily.precipitation_probability_max[0] === undefined ||
+            data.daily.precipitation_probability_max[0] === null) {
+          return null;
+        }
+        return Math.round(data.daily.precipitation_probability_max[0]);
+      }
+
+      function isRainWeatherCode(code) {
+        if (code === undefined || code === null || isNaN(Number(code))) return false;
+        code = Number(code);
+        return (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95 && code <= 99);
+      }
+
+      function isRainyWeather(data) {
+        if (!data || !data.current) return false;
+        if (isRainWeatherCode(data.current.weather_code)) return true;
+        var rainProb = getWeatherRainProbability(data);
+        return rainProb !== null && rainProb >= 50;
+      }
+
+      function isWindyWeather(data) {
+        if (!data || !data.current) return false;
+        var wind = data.current.wind_speed_10m;
+        var gust = data.current.wind_gusts_10m;
+        return (wind !== undefined && wind !== null && Number(wind) >= 25) ||
+               (gust !== undefined && gust !== null && Number(gust) >= 40);
+      }
+
+      function shouldFetchWeather() {
+        return config.showWeather ||
+               (config.showBomRadar && config.bomRadarShowWhenRainy) ||
+               (config.showRadar && config.radarShowWhenWindy);
+      }
+
       function addWeatherNeedsAttention(items) {
         if (!config.showWeather || !lastWeatherData || !lastWeatherData.current) return;
         var cur = lastWeatherData.current;
         var temp = cur.temperature_2m !== undefined && cur.temperature_2m !== null ? Math.round(cur.temperature_2m) : null;
         var code = cur.weather_code;
         var dew = cur.dew_point_2m !== undefined && cur.dew_point_2m !== null ? Math.round(cur.dew_point_2m) : null;
-        var rainProb = null;
-        if (lastWeatherData.daily && lastWeatherData.daily.precipitation_probability_max &&
-            lastWeatherData.daily.precipitation_probability_max[0] !== undefined &&
-            lastWeatherData.daily.precipitation_probability_max[0] !== null) {
-          rainProb = Math.round(lastWeatherData.daily.precipitation_probability_max[0]);
-        }
+        var rainProb = getWeatherRainProbability(lastWeatherData);
 
         if (code >= 95 && code <= 99) {
           addNeedsAttentionItem(items, 90, 'urgent', 'Weather', 'Storm conditions now', 'Check the radar and warnings');
@@ -3773,9 +3820,15 @@
         }
         elements.flightsCard.style.display = showFlights ? '' : 'none';
         var showRadar = config.showRadar && isInSchedule(config.radarScheduleHide, config.radarScheduleStart, config.radarScheduleEnd);
+        if (showRadar && config.radarShowWhenWindy && !isWindyWeather(lastWeatherData)) {
+          showRadar = false;
+        }
         elements.radarCard.style.display = showRadar ? '' : 'none';
         if (showRadar) renderRadar();
         var showBomRadar = config.showBomRadar && isInSchedule(config.bomRadarScheduleHide, config.bomRadarScheduleStart, config.bomRadarScheduleEnd);
+        if (showBomRadar && config.bomRadarShowWhenRainy && !isRainyWeather(lastWeatherData)) {
+          showBomRadar = false;
+        }
         elements.bomRadarCard.style.display = showBomRadar ? '' : 'none';
         if (showBomRadar) renderBomRadar();
         var busTimeVisible = isInSchedule(config.busScheduleHide, config.busScheduleStart, config.busScheduleEnd);
@@ -4086,11 +4139,11 @@
       }
 
       function fetchWeather() {
-        if (!config.showWeather) return;
+        if (!shouldFetchWeather()) return;
 
         var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + config.latitude +
                   '&longitude=' + config.longitude +
-                  '&current=temperature_2m,relative_humidity_2m,dew_point_2m,weather_code,uv_index,cloud_cover' +
+                  '&current=temperature_2m,relative_humidity_2m,dew_point_2m,weather_code,uv_index,cloud_cover,wind_speed_10m,wind_gusts_10m' +
                   '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
                   '&timezone=auto&forecast_days=2&timeformat=unixtime';
 
@@ -4163,16 +4216,13 @@
         // Get today's min/max and rain probability
         var tempMin = '--';
         var tempMax = '--';
-        var rainProb = null;
+        var rainProb = getWeatherRainProbability(data);
         if (data.daily) {
           if (data.daily.temperature_2m_min && data.daily.temperature_2m_min[0] !== undefined) {
             tempMin = Math.round(data.daily.temperature_2m_min[0]);
           }
           if (data.daily.temperature_2m_max && data.daily.temperature_2m_max[0] !== undefined) {
             tempMax = Math.round(data.daily.temperature_2m_max[0]);
-          }
-          if (data.daily.precipitation_probability_max && data.daily.precipitation_probability_max[0] !== undefined) {
-            rainProb = Math.round(data.daily.precipitation_probability_max[0]);
           }
         }
 
@@ -4238,6 +4288,9 @@
           '</div>';
 
         elements.weatherContent.innerHTML = html;
+        if (config.radarShowWhenWindy || config.bomRadarShowWhenRainy) {
+          updateCardVisibility();
+        }
         scheduleMasonry();
       }
 
@@ -5486,8 +5539,10 @@
         elements.showRadar.checked = config.showRadar;
         setMasterClass('showRadarMasterLabel', config.showRadar, config.showRadar);
         elements.radarZoom.value = config.radarZoom;
+        elements.radarShowWhenWindy.checked = config.radarShowWhenWindy;
         elements.showBomRadar.checked = config.showBomRadar;
         setMasterClass('showBomRadarMasterLabel', config.showBomRadar, config.showBomRadar);
+        elements.bomRadarShowWhenRainy.checked = config.bomRadarShowWhenRainy;
         elements.showBus1.checked = config.showBus1;
         elements.showBus2.checked = config.showBus2;
         updateBusMaster();
@@ -5647,7 +5702,9 @@
         config.showFlights = elements.showFlights.checked;
         config.showRadar = elements.showRadar.checked;
         config.radarZoom = parseInt(elements.radarZoom.value, 10) || 8;
+        config.radarShowWhenWindy = elements.radarShowWhenWindy.checked;
         config.showBomRadar = elements.showBomRadar.checked;
+        config.bomRadarShowWhenRainy = elements.bomRadarShowWhenRainy.checked;
         config.showBus1 = elements.showBus1.checked;
         config.showBus2 = elements.showBus2.checked;
         config.busScheduleHide = elements.busScheduleHide.checked;
@@ -7417,7 +7474,7 @@
           fetchBinCollection();
           fetchBusArrivals();
           fetchFuelPrices();
-          if (config.showBomRadar) renderBomRadar();
+          if (config.showBomRadar && (!config.bomRadarShowWhenRainy || isRainyWeather(lastWeatherData))) renderBomRadar();
           fetchSports();
           fetchStandings();
           fetchFinance();
