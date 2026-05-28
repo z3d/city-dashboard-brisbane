@@ -52,6 +52,7 @@ Keep `.dev.vars`, `.env`, `.Codex/settings.local.json`, `.codex/settings.local.j
 - DOM elements are cached in `elements` from `initElements()`.
 - New cards must be added to `DEFAULT_CARD_ORDER`.
 - Card display modes use `xxxDisplayMode` with `card`, `ticker`, `banner`, or `both`.
+- Needs Attention is a global smart strip controlled by `showNeedsAttention` and `needsAttentionMaxItems`. It renders in `#needsAttention`, uses enabled feature toggles as eligibility, and builds alerts from cached `last*Data`/config without extra API fetches.
 - Worker caches use module-level `_xxxCache` and `_xxxTime` variables.
 - Open-Meteo timestamps should use `timeformat=unixtime` and parse with `new Date(timestamp * 1000)`.
 

@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.58.0">
+  <meta name="app-version" content="1.58.1">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -146,6 +146,92 @@
       width: 100%;
       padding-top: 3px;
       padding-bottom: 3px;
+    }
+
+    .needs-attention {
+      margin: 0 0 10px 0;
+      padding: 10px 12px;
+      background: rgba(248, 113, 113, 0.10);
+      border: 1px solid rgba(248, 113, 113, 0.24);
+      border-radius: 10px;
+      -webkit-border-radius: 10px;
+    }
+
+    .needs-attention-head {
+      display: -webkit-box;
+      display: -webkit-flex;
+      display: flex;
+      -webkit-box-align: center;
+      -webkit-align-items: center;
+      align-items: center;
+      margin-bottom: 8px;
+      color: #fecaca;
+      font-size: 0.78em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .needs-attention-count {
+      margin-left: 8px;
+      color: #9ca3af;
+      font-size: 0.9em;
+      font-weight: 600;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .needs-attention-list {
+      display: -webkit-box;
+      display: -webkit-flex;
+      display: flex;
+      -webkit-flex-wrap: wrap;
+      flex-wrap: wrap;
+      margin: -3px;
+    }
+
+    .needs-attention-item {
+      -webkit-box-flex: 1;
+      -webkit-flex: 1 1 210px;
+      flex: 1 1 210px;
+      min-width: 0;
+      margin: 3px;
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.06);
+      border-left: 3px solid #f59e0b;
+      border-radius: 7px;
+      -webkit-border-radius: 7px;
+    }
+
+    .needs-attention-item.urgent {
+      border-left-color: #f87171;
+    }
+
+    .needs-attention-item.good {
+      border-left-color: #4ade80;
+    }
+
+    .needs-attention-label {
+      color: #9ca3af;
+      font-size: 0.72em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 2px;
+    }
+
+    .needs-attention-value {
+      color: #fff;
+      font-size: 0.95em;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .needs-attention-detail {
+      color: #cbd5e1;
+      font-size: 0.78em;
+      margin-top: 2px;
+      line-height: 1.25;
     }
 
     .cards-grid.reorder-active {
@@ -1447,6 +1533,28 @@
       background: rgba(255,255,255,0.9);
       border-color: rgba(0,0,0,0.08);
     }
+    body.light-theme .needs-attention {
+      background: rgba(248, 113, 113, 0.10);
+      border-color: rgba(220, 38, 38, 0.22);
+    }
+    body.light-theme .needs-attention-head {
+      color: #991b1b;
+    }
+    body.light-theme .needs-attention-count {
+      color: #64748b;
+    }
+    body.light-theme .needs-attention-item {
+      background: rgba(255,255,255,0.78);
+    }
+    body.light-theme .needs-attention-label {
+      color: #64748b;
+    }
+    body.light-theme .needs-attention-value {
+      color: #1a1a2e;
+    }
+    body.light-theme .needs-attention-detail {
+      color: #475569;
+    }
     body.light-theme .card-header {
       border-bottom-color: rgba(0,0,0,0.08);
     }
@@ -1664,6 +1772,8 @@
     <div class="scrolling-ticker" id="scrollingTicker" style="display:none;">
       <div class="scrolling-ticker-content" id="scrollingTickerContent"></div>
     </div>
+
+    <div id="needsAttention" class="needs-attention" style="display:none;"></div>
 
     <div id="bannerCards" class="banner-cards" style="display:none;"></div>
 
@@ -2584,6 +2694,21 @@
             <input type="number" id="tickerInterval" value="5" min="2" max="30" step="1">
           </div>
         </div>
+        <div class="settings-section">
+          <div class="settings-section-title">Needs Attention</div>
+          <div class="settings-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="showNeedsAttention"> Show important alerts
+            </label>
+          </div>
+          <div class="settings-group">
+            <label for="needsAttentionMaxItems">Max alerts</label>
+            <input type="number" id="needsAttentionMaxItems" value="3" min="1" max="8" step="1" style="width:70px;">
+          </div>
+          <div class="settings-info" style="margin-top:8px;font-size:0.8em;">
+            Uses enabled dashboard features and only appears when something is time-sensitive or abnormal.
+          </div>
+        </div>
       </div><!-- end tabGeneralContent -->
 
       <!-- System Tab -->
@@ -2788,6 +2913,8 @@
         polymarketCount: 5,
         showTicker: false,
         tickerInterval: 5,
+        showNeedsAttention: false,
+        needsAttentionMaxItems: 3,
         weatherDisplayMode: 'both',
         airQualityDisplayMode: 'both',
         uvIndexDisplayMode: 'both',
@@ -2810,6 +2937,7 @@
       var flightTimer = null;
       var dataTimer = null;
       var tickerTimer = null;
+      var needsAttentionTimer = null;
       var tickerSlides = [];
       var tickerCurrentIndex = 0;
       var lastFinanceData = null;
@@ -2830,6 +2958,7 @@
         elements.headerWeather = document.getElementById('headerWeather');
         elements.welcomeMessage = document.getElementById('welcomeMessage');
         elements.dashboard = document.getElementById('dashboard');
+        elements.needsAttention = document.getElementById('needsAttention');
         elements.bannerCards = document.getElementById('bannerCards');
         elements.settingsOverlay = document.getElementById('settingsOverlay');
         elements.weatherCard = document.getElementById('weatherCard');
@@ -2943,6 +3072,8 @@
         elements.showHeader = document.getElementById('showHeader');
         elements.use24hClock = document.getElementById('use24hClock');
         elements.lightTheme = document.getElementById('lightTheme');
+        elements.showNeedsAttention = document.getElementById('showNeedsAttention');
+        elements.needsAttentionMaxItems = document.getElementById('needsAttentionMaxItems');
         elements.dashboardTitle = document.getElementById('dashboardTitle');
         elements.dashboardTitleInput = document.getElementById('dashboardTitleInput');
         elements.settingsSaved = document.getElementById('settingsSaved');
@@ -3162,6 +3293,10 @@
             config.polymarketCount = parsed.polymarketCount !== undefined ? parsed.polymarketCount : 5;
             config.showTicker = parsed.showTicker !== undefined ? parsed.showTicker : false;
             config.tickerInterval = parsed.tickerInterval !== undefined ? parsed.tickerInterval : 5;
+            config.showNeedsAttention = parsed.showNeedsAttention !== undefined ? parsed.showNeedsAttention : false;
+            config.needsAttentionMaxItems = parsed.needsAttentionMaxItems !== undefined ? parseInt(parsed.needsAttentionMaxItems, 10) : 3;
+            if (isNaN(config.needsAttentionMaxItems) || config.needsAttentionMaxItems < 1) config.needsAttentionMaxItems = 3;
+            if (config.needsAttentionMaxItems > 8) config.needsAttentionMaxItems = 8;
             // Display mode per card (migrate from old tickerXxx booleans)
             var _dmCards = [
               ['weather', 'tickerWeather', 'both'],
@@ -3316,6 +3451,311 @@
 
       function isCardDisplayMode(mode) {
         return mode !== 'ticker';
+      }
+
+      function scheduleNeedsAttentionRender() {
+        if (needsAttentionTimer) clearTimeout(needsAttentionTimer);
+        needsAttentionTimer = setTimeout(function() {
+          needsAttentionTimer = null;
+          renderNeedsAttention();
+        }, 120);
+      }
+
+      function addNeedsAttentionItem(items, priority, tone, label, value, detail) {
+        items.push({
+          priority: priority,
+          tone: tone || 'warn',
+          label: label || '',
+          value: value || '',
+          detail: detail || ''
+        });
+      }
+
+      function formatShortMinutes(mins) {
+        if (mins <= 0) return 'now';
+        if (mins < 60) return mins + ' min';
+        var h = Math.floor(mins / 60);
+        var m = mins % 60;
+        return h + 'h' + (m > 0 ? ' ' + m + 'm' : '');
+      }
+
+      function getLocalDateString(date) {
+        return date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2) + '-' + ('0' + date.getDate()).slice(-2);
+      }
+
+      function getBinAttentionInfo() {
+        if (!config.showBin || !config.binDay) return null;
+        var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        var targetDayIndex = -1;
+        for (var i = 0; i < days.length; i++) {
+          if (days[i].toLowerCase().indexOf(config.binDay.toLowerCase()) === 0) {
+            targetDayIndex = i;
+            break;
+          }
+        }
+        if (targetDayIndex < 0) return null;
+
+        var today = new Date();
+        var dayIndex = today.getDay();
+        var daysUntil = targetDayIndex - dayIndex;
+        if (daysUntil < 0) daysUntil += 7;
+        var daysSince = (dayIndex - targetDayIndex + 7) % 7;
+        var collectionDate = new Date(today.getTime() + daysUntil * 86400000);
+        var collectionNoon = new Date(getLocalDateString(collectionDate) + 'T12:00:00');
+        var anchorNoon = new Date(config.binRecyclingAnchor + 'T12:00:00');
+        var daysDiff = Math.round((collectionNoon - anchorNoon) / 86400000);
+        var weekDiff = Math.floor(daysDiff / 7);
+        var isRecyclingWeek = (Math.abs(weekDiff) % 2 === 0);
+        return {
+          day: days[targetDayIndex],
+          daysUntil: daysUntil,
+          daysSince: daysSince,
+          hour: today.getHours(),
+          waste: isRecyclingWeek ? 'Recycling + general' : 'Garden + general'
+        };
+      }
+
+      function addWeatherNeedsAttention(items) {
+        if (!config.showWeather || !lastWeatherData || !lastWeatherData.current) return;
+        var cur = lastWeatherData.current;
+        var temp = cur.temperature_2m !== undefined && cur.temperature_2m !== null ? Math.round(cur.temperature_2m) : null;
+        var code = cur.weather_code;
+        var dew = cur.dew_point_2m !== undefined && cur.dew_point_2m !== null ? Math.round(cur.dew_point_2m) : null;
+        var rainProb = null;
+        if (lastWeatherData.daily && lastWeatherData.daily.precipitation_probability_max &&
+            lastWeatherData.daily.precipitation_probability_max[0] !== undefined &&
+            lastWeatherData.daily.precipitation_probability_max[0] !== null) {
+          rainProb = Math.round(lastWeatherData.daily.precipitation_probability_max[0]);
+        }
+
+        if (code >= 95 && code <= 99) {
+          addNeedsAttentionItem(items, 90, 'urgent', 'Weather', 'Storm conditions now', 'Check the radar and warnings');
+        } else if (rainProb !== null && rainProb >= 80) {
+          addNeedsAttentionItem(items, 55, 'warn', 'Weather', rainProb + '% rain chance', 'Rain likely today');
+        }
+        if (temp !== null && temp >= 35) {
+          addNeedsAttentionItem(items, 70, 'urgent', 'Weather', temp + '\u00B0C now', 'Heat is high');
+        } else if (dew !== null && dew >= 24) {
+          addNeedsAttentionItem(items, 45, 'warn', 'Weather', dew + '\u00B0C dew point', 'Very humid outside');
+        }
+      }
+
+      function addAirQualityNeedsAttention(items) {
+        if (!config.showAirQuality || !lastAirQualityData || !lastAirQualityData.current) return;
+        var aqiRaw = lastAirQualityData.current.us_aqi;
+        if (aqiRaw === undefined || aqiRaw === null) return;
+        var aqi = Math.round(aqiRaw);
+        if (aqi > 150) {
+          addNeedsAttentionItem(items, 85, 'urgent', 'Air Quality', 'AQI ' + aqi, getAqiCategory(aqi).label);
+        } else if (aqi > 100) {
+          addNeedsAttentionItem(items, 60, 'warn', 'Air Quality', 'AQI ' + aqi, getAqiCategory(aqi).label);
+        }
+      }
+
+      function addUvNeedsAttention(items) {
+        if (!config.showUvIndex || !lastUvIndexData || !isUvIndexDaylight(lastUvIndexData)) return;
+        var current = getUvIndexCurrentValue(lastUvIndexData);
+        var todayMax = getUvIndexDailyMax(lastUvIndexData, 0);
+        var uv = current !== null ? current : todayMax;
+        if (uv === null) return;
+        var cat = getUvIndexCategory(uv);
+        if (uv >= 8) {
+          addNeedsAttentionItem(items, 65, 'warn', 'UV Index', formatUvIndexValue(uv) + ' ' + cat.label, 'Sun protection needed now');
+        } else if (uv >= 6) {
+          addNeedsAttentionItem(items, 42, 'warn', 'UV Index', formatUvIndexValue(uv) + ' ' + cat.label, 'High UV during daylight');
+        }
+      }
+
+      function addElectricityNeedsAttention(items) {
+        if (!config.showElectricity || lastElecPrice === null || isNaN(lastElecPrice)) return;
+        if (lastElecPrice > 1000) {
+          addNeedsAttentionItem(items, 82, 'urgent', 'Electricity', '$' + lastElecPrice.toFixed(0) + '/MWh', 'Price spike');
+        } else if (lastElecPrice > 300) {
+          addNeedsAttentionItem(items, 58, 'warn', 'Electricity', '$' + lastElecPrice.toFixed(0) + '/MWh', 'Unusually high price');
+        } else if (lastElecPrice < 0) {
+          addNeedsAttentionItem(items, 35, 'good', 'Electricity', '$' + lastElecPrice.toFixed(0) + '/MWh', 'Negative price');
+        }
+      }
+
+      function addBinNeedsAttention(items) {
+        var info = getBinAttentionInfo();
+        if (!info) return;
+        if (info.daysSince === 0 && info.hour >= 18) {
+          addNeedsAttentionItem(items, 62, 'warn', 'Bins', 'Bring bins in', info.waste);
+        } else if (info.daysUntil === 0) {
+          addNeedsAttentionItem(items, 56, 'warn', 'Bins', 'Collection today', info.waste);
+        } else if (info.daysUntil === 1 && info.hour >= 15) {
+          addNeedsAttentionItem(items, 52, 'warn', 'Bins', 'Bins tonight', info.waste);
+        }
+      }
+
+      function addBusNeedsAttention(items) {
+        if (!(config.showBus1 || config.showBus2) || !lastBusData || !lastBusData.stops) return;
+        if (!isInSchedule(config.busScheduleHide, config.busScheduleStart, config.busScheduleEnd)) return;
+        var now = new Date();
+        var nextMins = null;
+        var nextRoute = '';
+        for (var i = 0; i < config.busStops.length; i++) {
+          var stopConfig = config.busStops[i];
+          var section = stopConfig.section || '1';
+          if (section === '2' && !config.showBus2) continue;
+          if (section !== '2' && !config.showBus1) continue;
+          var stopId = normalizeStopId(stopConfig.stopId);
+          var stopData = lastBusData.stops[stopId];
+          if (!stopData || !stopData.departures) continue;
+          var routeFilter = stopConfig.routes ? stopConfig.routes.split(',') : null;
+          for (var j = 0; j < stopData.departures.length; j++) {
+            var dep = stopData.departures[j];
+            if (routeFilter) {
+              var matched = false;
+              for (var k = 0; k < routeFilter.length; k++) {
+                if (dep.route === routeFilter[k].trim()) { matched = true; break; }
+              }
+              if (!matched) continue;
+            }
+            var depTime = new Date(dep.time);
+            var mins = Math.round((depTime - now) / 60000);
+            if (mins >= 0 && (nextMins === null || mins < nextMins)) {
+              nextMins = mins;
+              nextRoute = dep.route || '';
+            }
+          }
+        }
+        if (nextMins !== null && nextMins <= 5) {
+          addNeedsAttentionItem(items, 60, 'warn', 'Bus', (nextRoute ? nextRoute + ' ' : '') + (nextMins <= 0 ? 'due' : 'in ' + nextMins + ' min'), 'Next configured service');
+        }
+      }
+
+      function addFlightsNeedsAttention(items) {
+        if (!config.showFlights || !lastFlightsData || !lastFlightsData.states || lastFlightsData.states.length === 0) return;
+        var minFeet = null;
+        var callsign = '';
+        for (var i = 0; i < lastFlightsData.states.length; i++) {
+          var st = lastFlightsData.states[i];
+          var alt = st[7];
+          if (alt === null || alt === undefined) continue;
+          var feet = Math.round(alt * 3.28084);
+          if (minFeet === null || feet < minFeet) {
+            minFeet = feet;
+            callsign = (st[1] || '').trim();
+          }
+        }
+        if (minFeet !== null && minFeet < 3000) {
+          addNeedsAttentionItem(items, 50, 'warn', 'Flights', (callsign || 'Aircraft') + ' low', minFeet.toLocaleString() + ' ft overhead');
+        } else if (lastFlightsData.states.length >= 10) {
+          addNeedsAttentionItem(items, 32, 'warn', 'Flights', lastFlightsData.states.length + ' aircraft', 'Busy overhead');
+        }
+      }
+
+      function getSportsEventDateTime(ev) {
+        if (!ev) return null;
+        if (ev.strTimestamp) {
+          var tsDate = new Date(ev.strTimestamp);
+          if (!isNaN(tsDate.getTime())) return tsDate;
+        }
+        if (!ev.dateEvent) return null;
+        var time = ev.strTime || '00:00:00';
+        if (time.length === 5) time += ':00';
+        var dt = new Date(ev.dateEvent + 'T' + time);
+        if (isNaN(dt.getTime())) return null;
+        return dt;
+      }
+
+      function addSportsNeedsAttention(items) {
+        var sportTypes = [
+          {key: 'soccer', show: 'showSoccer', label: 'Soccer'},
+          {key: 'rugby', show: 'showRugby', label: 'Rugby'},
+          {key: 'cricket', show: 'showCricket', label: 'Cricket'},
+          {key: 'tennis', show: 'showTennis', label: 'Tennis'},
+          {key: 'nfl', show: 'showNFL', label: 'NFL'}
+        ];
+        var now = new Date();
+        for (var si = 0; si < sportTypes.length; si++) {
+          var sport = sportTypes[si];
+          if (!config[sport.show]) continue;
+          var sections = lastSportsData[sport.key];
+          if (!sections || sections.length === 0) continue;
+          for (var sj = 0; sj < sections.length; sj++) {
+            var events = sections[sj].events || [];
+            for (var ei = 0; ei < events.length; ei++) {
+              var ev = events[ei];
+              var status = (ev.strStatus || '').toLowerCase();
+              var finished = status.indexOf('finished') !== -1 || status.indexOf('final') !== -1;
+              var scorePresent = ev.intHomeScore !== null && ev.intHomeScore !== undefined && ev.intHomeScore !== '';
+              var title = (ev.strHomeTeam || '?') + ' v ' + (ev.strAwayTeam || '?');
+              if (title.length > 40) title = title.substring(0, 37) + '...';
+              if (scorePresent && !finished) {
+                addNeedsAttentionItem(items, 64, 'warn', sport.label, title, 'Live now');
+                return;
+              }
+              var dt = getSportsEventDateTime(ev);
+              if (!dt || finished) continue;
+              var mins = Math.round((dt - now) / 60000);
+              if (mins >= 0 && mins <= 60) {
+                addNeedsAttentionItem(items, 50, 'warn', sport.label, title, 'Starts in ' + formatShortMinutes(mins));
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      function buildNeedsAttentionItems() {
+        var items = [];
+        addWeatherNeedsAttention(items);
+        addAirQualityNeedsAttention(items);
+        addUvNeedsAttention(items);
+        addElectricityNeedsAttention(items);
+        addBinNeedsAttention(items);
+        addBusNeedsAttention(items);
+        addFlightsNeedsAttention(items);
+        addSportsNeedsAttention(items);
+        items.sort(function(a, b) {
+          return b.priority - a.priority;
+        });
+        return items;
+      }
+
+      function renderNeedsAttention() {
+        var container = elements.needsAttention || document.getElementById('needsAttention');
+        if (!container) return;
+        if (!config.showNeedsAttention) {
+          container.style.display = 'none';
+          container.innerHTML = '';
+          return;
+        }
+
+        var items = buildNeedsAttentionItems();
+        if (items.length === 0) {
+          container.style.display = 'none';
+          container.innerHTML = '';
+          return;
+        }
+
+        var maxItems = parseInt(config.needsAttentionMaxItems, 10) || 3;
+        if (maxItems < 1) maxItems = 1;
+        if (maxItems > 8) maxItems = 8;
+        var visibleCount = Math.min(maxItems, items.length);
+        var html = '<div class="needs-attention-head">Needs Attention<span class="needs-attention-count">' + items.length + '</span></div>';
+        html += '<div class="needs-attention-list">';
+        for (var i = 0; i < visibleCount; i++) {
+          var item = items[i];
+          html += '<div class="needs-attention-item ' + escapeHtml(item.tone) + '">' +
+            '<div class="needs-attention-label">' + escapeHtml(item.label) + '</div>' +
+            '<div class="needs-attention-value">' + escapeHtml(item.value) + '</div>' +
+            (item.detail ? '<div class="needs-attention-detail">' + escapeHtml(item.detail) + '</div>' : '') +
+            '</div>';
+        }
+        if (items.length > visibleCount) {
+          html += '<div class="needs-attention-item">' +
+            '<div class="needs-attention-label">More</div>' +
+            '<div class="needs-attention-value">+ ' + (items.length - visibleCount) + ' more</div>' +
+            '<div class="needs-attention-detail">Raise max alerts in Settings</div>' +
+            '</div>';
+        }
+        html += '</div>';
+        container.innerHTML = html;
+        container.style.display = '';
       }
 
       function setCardBannerClass(card, isBanner) {
@@ -3485,6 +3925,7 @@
           scrollTickerEl.style.display = config.scrollingTicker ? '' : 'none';
           if (config.scrollingTicker) buildScrollingTicker();
         }
+        renderNeedsAttention();
         updateBannerContainerVisibility();
         scheduleMasonry();
       }
@@ -3585,6 +4026,7 @@
       function scheduleMasonry() {
         if (masonryTimer) clearTimeout(masonryTimer);
         masonryTimer = setTimeout(layoutMasonry, 50);
+        scheduleNeedsAttentionRender();
       }
 
       // Long-press drag-and-drop for card reordering — no mode switch needed,
@@ -5240,6 +5682,8 @@
         elements.polymarketCount.value = config.polymarketCount || 5;
         elements.showTicker.checked = config.showTicker;
         elements.tickerInterval.value = config.tickerInterval || 5;
+        elements.showNeedsAttention.checked = config.showNeedsAttention;
+        elements.needsAttentionMaxItems.value = config.needsAttentionMaxItems || 3;
         elements.weatherDisplayMode.value = config.weatherDisplayMode;
         elements.airQualityDisplayMode.value = config.airQualityDisplayMode;
         elements.uvIndexDisplayMode.value = config.uvIndexDisplayMode;
@@ -5402,6 +5846,10 @@
         config.polymarketCount = parseInt(elements.polymarketCount.value) || 5;
         config.showTicker = elements.showTicker.checked;
         config.tickerInterval = parseInt(elements.tickerInterval.value, 10) || 5;
+        config.showNeedsAttention = elements.showNeedsAttention.checked;
+        config.needsAttentionMaxItems = parseInt(elements.needsAttentionMaxItems.value, 10) || 3;
+        if (config.needsAttentionMaxItems < 1) config.needsAttentionMaxItems = 1;
+        if (config.needsAttentionMaxItems > 8) config.needsAttentionMaxItems = 8;
         config.weatherDisplayMode = elements.weatherDisplayMode.value;
         config.airQualityDisplayMode = elements.airQualityDisplayMode.value;
         config.uvIndexDisplayMode = elements.uvIndexDisplayMode.value;
