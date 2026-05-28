@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.58.1">
+  <meta name="app-version" content="1.58.2">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -3589,43 +3589,6 @@
         }
       }
 
-      function addBusNeedsAttention(items) {
-        if (!(config.showBus1 || config.showBus2) || !lastBusData || !lastBusData.stops) return;
-        if (!isInSchedule(config.busScheduleHide, config.busScheduleStart, config.busScheduleEnd)) return;
-        var now = new Date();
-        var nextMins = null;
-        var nextRoute = '';
-        for (var i = 0; i < config.busStops.length; i++) {
-          var stopConfig = config.busStops[i];
-          var section = stopConfig.section || '1';
-          if (section === '2' && !config.showBus2) continue;
-          if (section !== '2' && !config.showBus1) continue;
-          var stopId = normalizeStopId(stopConfig.stopId);
-          var stopData = lastBusData.stops[stopId];
-          if (!stopData || !stopData.departures) continue;
-          var routeFilter = stopConfig.routes ? stopConfig.routes.split(',') : null;
-          for (var j = 0; j < stopData.departures.length; j++) {
-            var dep = stopData.departures[j];
-            if (routeFilter) {
-              var matched = false;
-              for (var k = 0; k < routeFilter.length; k++) {
-                if (dep.route === routeFilter[k].trim()) { matched = true; break; }
-              }
-              if (!matched) continue;
-            }
-            var depTime = new Date(dep.time);
-            var mins = Math.round((depTime - now) / 60000);
-            if (mins >= 0 && (nextMins === null || mins < nextMins)) {
-              nextMins = mins;
-              nextRoute = dep.route || '';
-            }
-          }
-        }
-        if (nextMins !== null && nextMins <= 5) {
-          addNeedsAttentionItem(items, 60, 'warn', 'Bus', (nextRoute ? nextRoute + ' ' : '') + (nextMins <= 0 ? 'due' : 'in ' + nextMins + ' min'), 'Next configured service');
-        }
-      }
-
       function addFlightsNeedsAttention(items) {
         if (!config.showFlights || !lastFlightsData || !lastFlightsData.states || lastFlightsData.states.length === 0) return;
         var minFeet = null;
@@ -3707,7 +3670,6 @@
         addUvNeedsAttention(items);
         addElectricityNeedsAttention(items);
         addBinNeedsAttention(items);
-        addBusNeedsAttention(items);
         addFlightsNeedsAttention(items);
         addSportsNeedsAttention(items);
         items.sort(function(a, b) {
