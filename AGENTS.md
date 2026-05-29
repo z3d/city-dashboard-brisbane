@@ -57,6 +57,7 @@ Keep `.dev.vars`, `.env`, `.Codex/settings.local.json`, `.codex/settings.local.j
 - Radar/Satellite conditional display depends on weather data: `bomRadarShowWhenRainy` and `radarShowWhenRainy` use weather codes or 50%+ rain chance. `fetchWeather()` must still run for these conditions even when the Weather card is off.
 - Worker caches use module-level `_xxxCache` and `_xxxTime` variables.
 - Open-Meteo timestamps should use `timeformat=unixtime` and parse with `new Date(timestamp * 1000)`.
+- Electricity prices use the Worker `/api/electricity` route. NEMWEB removed the old `GRAPH_5QLD1.csv` feed; parse the latest `DispatchIS_Reports/PUBLIC_DISPATCHIS_*.zip` and QLD1 `DISPATCH,PRICE` RRP instead.
 
 ## Adapting Another City
 

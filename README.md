@@ -86,6 +86,8 @@ node --check src/worker.js
 | `GET /api/polymarket?limit=5` | Polymarket events |
 | `GET/PUT /api/dashboard-status` | Optional KV-backed bin dismissal/taken-out status sync |
 
+Electricity prices are read from the latest NEMWEB DispatchIS ZIP report. The old `GRAPH_5QLD1.csv` feed is no longer available.
+
 ## Adapting For Another City
 
 The easiest path is to fork this repo and give the fork to an LLM coding agent. Ask it to swap the defaults and city-specific data sources: coordinates, transit provider, waste collection source, weather radar, electricity market, airport/flight area, dashboard title, and README.

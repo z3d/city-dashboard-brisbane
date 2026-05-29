@@ -55,34 +55,177 @@ function sanitizeDashboardStatus(data) {
   return status;
 }
 
-const ELECTRICITY_GRAPH_URL = 'https://www.nemweb.com.au/mms.GRAPHS/GRAPHS/GRAPH_5QLD1.csv';
+const ELECTRICITY_DISPATCH_DIR_URL = 'https://www.nemweb.com.au/REPORTS/CURRENT/DispatchIS_Reports/';
 const ELECTRICITY_DATA_TTL = 60 * 1000;
 
-function parseElectricityGraphCsv(csvText) {
+function splitCsvLine(line) {
+  var parts = [];
+  var current = '';
+  var inQuotes = false;
+
+  for (var i = 0; i < line.length; i++) {
+    var ch = line.charAt(i);
+    if (ch === '"') {
+      if (inQuotes && line.charAt(i + 1) === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+
+  parts.push(current);
+  return parts;
+}
+
+function findLatestElectricityDispatchUrl(indexHtml) {
+  var pattern = /href="([^"]*PUBLIC_DISPATCHIS_\d{12}_[^"]+\.zip)"/gi;
+  var latest = '';
+  var match;
+
+  while ((match = pattern.exec(indexHtml || '')) !== null) {
+    if (match[1] > latest) latest = match[1];
+  }
+
+  if (!latest) {
+    throw new Error('No NEMWEB DispatchIS files found');
+  }
+
+  return new URL(latest, ELECTRICITY_DISPATCH_DIR_URL).toString();
+}
+
+function findZipEocdOffset(view) {
+  var minOffset = Math.max(0, view.byteLength - 66000);
+  for (var i = view.byteLength - 22; i >= minOffset; i--) {
+    if (view.getUint32(i, true) === 0x06054b50) return i;
+  }
+  return -1;
+}
+
+function findFirstZipFileEntry(bytes, view) {
+  var eocdOffset = findZipEocdOffset(view);
+  if (eocdOffset !== -1) {
+    var totalEntries = view.getUint16(eocdOffset + 10, true);
+    var centralOffset = view.getUint32(eocdOffset + 16, true);
+    var offset = centralOffset;
+
+    for (var i = 0; i < totalEntries; i++) {
+      if (offset + 46 > bytes.length || view.getUint32(offset, true) !== 0x02014b50) break;
+
+      var method = view.getUint16(offset + 10, true);
+      var compressedSize = view.getUint32(offset + 20, true);
+      var fileNameLength = view.getUint16(offset + 28, true);
+      var extraLength = view.getUint16(offset + 30, true);
+      var commentLength = view.getUint16(offset + 32, true);
+      var localHeaderOffset = view.getUint32(offset + 42, true);
+      var nameStart = offset + 46;
+      var nameEnd = nameStart + fileNameLength;
+      var name = new TextDecoder().decode(bytes.slice(nameStart, nameEnd));
+
+      if (name.charAt(name.length - 1) !== '/') {
+        return {
+          method: method,
+          compressedSize: compressedSize,
+          localHeaderOffset: localHeaderOffset
+        };
+      }
+
+      offset = nameEnd + extraLength + commentLength;
+    }
+  }
+
+  if (bytes.length >= 30 && view.getUint32(0, true) === 0x04034b50) {
+    return {
+      method: view.getUint16(8, true),
+      compressedSize: view.getUint32(18, true),
+      localHeaderOffset: 0
+    };
+  }
+
+  throw new Error('No ZIP file entry found');
+}
+
+async function unzipFirstFileText(arrayBuffer) {
+  var bytes = new Uint8Array(arrayBuffer);
+  var view = new DataView(arrayBuffer);
+  var entry = findFirstZipFileEntry(bytes, view);
+  var localOffset = entry.localHeaderOffset;
+
+  if (localOffset + 30 > bytes.length || view.getUint32(localOffset, true) !== 0x04034b50) {
+    throw new Error('Invalid ZIP local header');
+  }
+
+  var fileNameLength = view.getUint16(localOffset + 26, true);
+  var extraLength = view.getUint16(localOffset + 28, true);
+  var dataStart = localOffset + 30 + fileNameLength + extraLength;
+  var dataEnd = dataStart + entry.compressedSize;
+
+  if (dataEnd > bytes.length) {
+    throw new Error('Truncated ZIP file entry');
+  }
+
+  var compressed = bytes.slice(dataStart, dataEnd);
+  if (entry.method === 0) {
+    return new TextDecoder().decode(compressed);
+  }
+  if (entry.method !== 8) {
+    throw new Error('Unsupported ZIP compression method: ' + entry.method);
+  }
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('ZIP decompression is not available');
+  }
+
+  var stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return await new Response(stream).text();
+}
+
+function parseElectricityDispatchCsv(csvText) {
   var lines = (csvText || '').replace(/\r/g, '').split('\n');
   var latest = null;
 
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
-    if (!line || line.indexOf('REGION,') === 0) continue;
+    if (!line) continue;
 
-    var parts = line.split(',');
-    if (parts.length < 4) continue;
-    if (parts[0] !== 'QLD1') continue;
+    var parts = splitCsvLine(line);
 
-    var price = parseFloat(parts[3]);
-    if (isNaN(price)) continue;
-
-    latest = {
-      region: parts[0],
-      settlementDate: (parts[1] || '').replace(/^"|"$/g, ''),
-      totalDemand: parseFloat(parts[2]),
-      price: price
-    };
+    if (parts.length >= 10 && parts[0] === 'D' && parts[1] === 'DISPATCH' && parts[2] === 'PRICE' && parts[6] === 'QLD1') {
+      var dispatchPrice = parseFloat(parts[9]);
+      if (!isNaN(dispatchPrice)) {
+        latest = {
+          region: parts[6],
+          settlementDate: parts[4],
+          totalDemand: null,
+          price: dispatchPrice
+        };
+      }
+    } else if (parts.length >= 10 && parts[0] === 'D' && parts[1] === 'DISPATCH' && parts[2] === 'REGIONSUM' && parts[6] === 'QLD1') {
+      if (latest && latest.settlementDate === parts[4]) {
+        var dispatchDemand = parseFloat(parts[9]);
+        latest.totalDemand = isNaN(dispatchDemand) ? null : dispatchDemand;
+      }
+    } else if (parts.length >= 14 && parts[0] === 'D' && parts[1] === 'DREGION' && parts[6] === 'QLD1') {
+      var legacyPrice = parseFloat(parts[8]);
+      var legacyDemand = parseFloat(parts[13]);
+      if (!isNaN(legacyPrice)) {
+        latest = {
+          region: parts[6],
+          settlementDate: parts[4],
+          totalDemand: isNaN(legacyDemand) ? null : legacyDemand,
+          price: legacyPrice
+        };
+      }
+    }
   }
 
   if (!latest) {
-    throw new Error('QLD price not found in NEMWEB CSV');
+    throw new Error('QLD dispatch price not found in NEMWEB CSV');
   }
 
   return latest;
@@ -361,7 +504,7 @@ export default {
       });
     }
 
-    // Queensland electricity spot price - AEMO NEMWEB graph CSV
+    // Queensland electricity spot price - AEMO NEMWEB DispatchIS report
     if (path === '/api/electricity') {
       var elecNow = Date.now();
       if (_electricityCache && (elecNow - _electricityTime) < ELECTRICITY_DATA_TTL) {
@@ -371,20 +514,32 @@ export default {
       }
 
       try {
-        var elecResp = await fetch(ELECTRICITY_GRAPH_URL, {
+        var elecIndexResp = await fetch(ELECTRICITY_DISPATCH_DIR_URL, {
           headers: {
-            'User-Agent': 'brisbane-dashboard/1.0',
-            'Accept': 'text/csv, text/plain, */*'
+            'User-Agent': 'city-dashboard/1.0',
+            'Accept': 'text/html, */*'
+          }
+        });
+        if (!elecIndexResp.ok) {
+          throw new Error('NEMWEB directory error: ' + elecIndexResp.status);
+        }
+
+        var elecDispatchUrl = findLatestElectricityDispatchUrl(await elecIndexResp.text());
+        var elecResp = await fetch(elecDispatchUrl, {
+          headers: {
+            'User-Agent': 'city-dashboard/1.0',
+            'Accept': 'application/zip, application/x-zip-compressed, */*'
           }
         });
         if (!elecResp.ok) {
-          throw new Error('NEMWEB error: ' + elecResp.status);
+          throw new Error('NEMWEB dispatch error: ' + elecResp.status);
         }
 
-        var elecText = await elecResp.text();
-        var elecData = parseElectricityGraphCsv(elecText);
+        var elecText = await unzipFirstFileText(await elecResp.arrayBuffer());
+        var elecData = parseElectricityDispatchCsv(elecText);
         elecData.fetchedAt = elecNow;
-        elecData.source = 'NEMWEB GRAPH_5QLD1.csv';
+        elecData.source = 'NEMWEB DispatchIS';
+        elecData.sourceUrl = elecDispatchUrl;
 
         var elecJson = JSON.stringify(elecData);
         _electricityCache = elecJson;
