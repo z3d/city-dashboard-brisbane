@@ -9,6 +9,7 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Weather, BoM warnings, air quality, UV index, sunrise, and sunset
 - Nearby Queensland bushfire incidents and local ABC/Brisbane Times headlines
 - Optional pollen forecasts through the Google Pollen API
+- Optional locally configured birthday reminders (ships with an empty list)
 - Queensland electricity spot prices via AEMO NEMWEB
 - Brisbane City Council bin collection lookup and recycling/garden alternation
 - TransLink bus arrivals through the Worker proxy

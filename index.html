@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.59.0">
+  <meta name="app-version" content="1.59.1">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -1863,6 +1863,17 @@
         </div>
       </div>
 
+      <!-- Birthdays Card -->
+      <div class="card" id="birthdaysCard" data-card-id="birthdays">
+        <div class="card-inner">
+          <div class="card-header">
+            <div class="card-title"><span class="card-icon">&#127874;</span> Birthdays</div>
+            <div class="card-updated" id="birthdaysUpdated">--</div>
+          </div>
+          <div class="card-content" id="birthdaysContent"><div class="card-loading">Configure birthdays in Settings</div></div>
+        </div>
+      </div>
+
       <!-- Air Quality Card -->
       <div class="card" id="airQualityCard" data-card-id="airQuality">
         <div class="card-inner">
@@ -2126,6 +2137,26 @@
               <select id="newsDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
               <label class="master-label"><input type="checkbox" id="showNews"></label>
             </div>
+          </div>
+        </div>
+
+        <!-- Birthdays -->
+        <div class="card-setting-row">
+          <div class="card-setting-main">
+            <div class="card-setting-expander">
+              <span class="card-setting-icon">&#127874;</span>
+              <span class="card-setting-name">Birthdays</span>
+            </div>
+            <div class="card-setting-checks">
+              <select id="birthdaysDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <label class="master-label"><input type="checkbox" id="showBirthdays"></label>
+            </div>
+          </div>
+          <div class="card-setting-body" style="display:block;">
+            <label class="checkbox-label"><input type="checkbox" id="birthdaysConditionalHide"> Only show the card on a birthday</label>
+            <div id="birthdaysList" style="margin-top:8px;"></div>
+            <button type="button" id="addBirthdayBtn" style="margin-top:8px;padding:6px 16px;border-radius:8px;border:1px solid #444;background:#23234a;color:#e0e0e0;cursor:pointer;">+ Add Birthday</button>
+            <div class="settings-info">Starts empty. Birthday details are stored only in this browser and in settings exports you create.</div>
           </div>
         </div>
 
@@ -2990,6 +3021,9 @@
         showBushfires: false,
         bushfiresOnlyWhenNearby: true,
         showNews: false,
+        showBirthdays: false,
+        birthdaysConditionalHide: false,
+        birthdays: [],
         showAirQuality: false,
         airQualityShowWhenPoor: false,
         showUvIndex: false,
@@ -3033,7 +3067,7 @@
         fuelScheduleHide: false,
         fuelScheduleStart: 5,
         fuelScheduleEnd: 23,
-        cardOrder: ['bus1', 'bus2', 'weather', 'weatherWarnings', 'bushfires', 'news', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'],
+        cardOrder: ['bus1', 'bus2', 'weather', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'],
         showSoccer: true,
         soccerEPL: true,
         soccerChampionsLeague: false,
@@ -3085,6 +3119,7 @@
         weatherWarningsDisplayMode: 'card',
         bushfiresDisplayMode: 'card',
         newsDisplayMode: 'ticker',
+        birthdaysDisplayMode: 'card',
         airQualityDisplayMode: 'both',
         uvIndexDisplayMode: 'both',
         pollenDisplayMode: 'card',
@@ -3104,7 +3139,7 @@
         lightTheme: false
       };
 
-      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'weatherWarnings', 'bushfires', 'news', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'];
+      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'];
 
       var flightTimer = null;
       var dataTimer = null;
@@ -3161,6 +3196,13 @@
         elements.newsUpdated = document.getElementById('newsUpdated');
         elements.showNews = document.getElementById('showNews');
         elements.newsDisplayMode = document.getElementById('newsDisplayMode');
+        elements.birthdaysCard = document.getElementById('birthdaysCard');
+        elements.birthdaysContent = document.getElementById('birthdaysContent');
+        elements.birthdaysUpdated = document.getElementById('birthdaysUpdated');
+        elements.showBirthdays = document.getElementById('showBirthdays');
+        elements.birthdaysConditionalHide = document.getElementById('birthdaysConditionalHide');
+        elements.birthdaysDisplayMode = document.getElementById('birthdaysDisplayMode');
+        elements.birthdaysList = document.getElementById('birthdaysList');
         elements.airQualityCard = document.getElementById('airQualityCard');
         elements.airQualityContent = document.getElementById('airQualityContent');
         elements.airQualityUpdated = document.getElementById('airQualityUpdated');
@@ -3408,6 +3450,9 @@
             config.showBushfires = parsed.showBushfires !== undefined ? parsed.showBushfires : false;
             config.bushfiresOnlyWhenNearby = parsed.bushfiresOnlyWhenNearby !== undefined ? parsed.bushfiresOnlyWhenNearby : true;
             config.showNews = parsed.showNews !== undefined ? parsed.showNews : false;
+            config.showBirthdays = parsed.showBirthdays !== undefined ? parsed.showBirthdays : false;
+            config.birthdaysConditionalHide = parsed.birthdaysConditionalHide !== undefined ? parsed.birthdaysConditionalHide : false;
+            config.birthdays = sanitizeBirthdays(parsed.birthdays);
             config.showAirQuality = parsed.showAirQuality !== undefined ? parsed.showAirQuality : false;
             config.airQualityShowWhenPoor = parsed.airQualityShowWhenPoor !== undefined ? parsed.airQualityShowWhenPoor : false;
             config.showUvIndex = parsed.showUvIndex !== undefined ? parsed.showUvIndex : false;
@@ -3517,6 +3562,7 @@
               ['weatherWarnings', null, 'card'],
               ['bushfires', null, 'card'],
               ['news', null, 'ticker'],
+              ['birthdays', null, 'card'],
               ['airQuality', null, 'both'],
               ['uvIndex', null, 'both'],
               ['pollen', null, 'card'],
@@ -3720,6 +3766,7 @@
         if (cardId === 'weatherWarnings') return config.weatherWarningsDisplayMode;
         if (cardId === 'bushfires') return config.bushfiresDisplayMode;
         if (cardId === 'news') return config.newsDisplayMode;
+        if (cardId === 'birthdays') return config.birthdaysDisplayMode;
         if (cardId === 'airQuality') return config.airQualityDisplayMode;
         if (cardId === 'uvIndex') return config.uvIndexDisplayMode;
         if (cardId === 'pollen') return config.pollenDisplayMode;
@@ -4022,6 +4069,9 @@
         if (showBushfires && config.bushfiresOnlyWhenNearby && getNearbyBushfires().length === 0) showBushfires = false;
         elements.bushfiresCard.style.display = showBushfires ? '' : 'none';
         elements.newsCard.style.display = (config.showNews && isCardDisplayMode(config.newsDisplayMode)) ? '' : 'none';
+        var showBirthdays = config.showBirthdays && isCardDisplayMode(config.birthdaysDisplayMode);
+        if (showBirthdays && config.birthdaysConditionalHide && !hasBirthdayToday()) showBirthdays = false;
+        elements.birthdaysCard.style.display = showBirthdays ? '' : 'none';
         var showAirQuality = config.showAirQuality && isCardDisplayMode(config.airQualityDisplayMode);
         // Override: show the card whenever AQI > 100, even if card is normally hidden/ticker-only
         if (config.airQualityShowWhenPoor && lastAirQualityData && lastAirQualityData.current &&
@@ -5942,6 +5992,9 @@
         elements.showBushfires.checked = config.showBushfires;
         elements.bushfiresOnlyWhenNearby.checked = config.bushfiresOnlyWhenNearby;
         elements.showNews.checked = config.showNews;
+        elements.showBirthdays.checked = config.showBirthdays;
+        elements.birthdaysConditionalHide.checked = config.birthdaysConditionalHide;
+        renderBirthdaySettingsRows();
         elements.showAirQuality.checked = config.showAirQuality;
         setMasterClass('showAirQualityMasterLabel', config.showAirQuality, config.showAirQuality);
         elements.airQualityShowWhenPoor.checked = config.airQualityShowWhenPoor;
@@ -6053,6 +6106,7 @@
         elements.weatherWarningsDisplayMode.value = config.weatherWarningsDisplayMode;
         elements.bushfiresDisplayMode.value = config.bushfiresDisplayMode;
         elements.newsDisplayMode.value = config.newsDisplayMode;
+        elements.birthdaysDisplayMode.value = config.birthdaysDisplayMode;
         elements.airQualityDisplayMode.value = config.airQualityDisplayMode;
         elements.uvIndexDisplayMode.value = config.uvIndexDisplayMode;
         elements.pollenDisplayMode.value = config.pollenDisplayMode;
@@ -6131,6 +6185,9 @@
         config.showBushfires = elements.showBushfires.checked;
         config.bushfiresOnlyWhenNearby = elements.bushfiresOnlyWhenNearby.checked;
         config.showNews = elements.showNews.checked;
+        config.showBirthdays = elements.showBirthdays.checked;
+        config.birthdaysConditionalHide = elements.birthdaysConditionalHide.checked;
+        config.birthdays = readBirthdaySettingsRows();
         config.showAirQuality = elements.showAirQuality.checked;
         config.airQualityShowWhenPoor = elements.airQualityShowWhenPoor.checked;
         config.showUvIndex = elements.showUvIndex.checked;
@@ -6241,6 +6298,7 @@
         config.weatherWarningsDisplayMode = elements.weatherWarningsDisplayMode.value;
         config.bushfiresDisplayMode = elements.bushfiresDisplayMode.value;
         config.newsDisplayMode = elements.newsDisplayMode.value;
+        config.birthdaysDisplayMode = elements.birthdaysDisplayMode.value;
         config.airQualityDisplayMode = elements.airQualityDisplayMode.value;
         config.uvIndexDisplayMode = elements.uvIndexDisplayMode.value;
         config.pollenDisplayMode = elements.pollenDisplayMode.value;
@@ -6314,7 +6372,7 @@
             // Merge all imported keys into config
             for (var key in imported) {
               if (imported.hasOwnProperty(key)) {
-                config[key] = imported[key];
+                config[key] = key === 'birthdays' ? sanitizeBirthdays(imported[key]) : imported[key];
               }
             }
 
@@ -6506,6 +6564,7 @@
           addFinanceCustomSettingsRow(null);
           updateFinanceMaster();
         };
+        document.getElementById('addBirthdayBtn').onclick = function() { addBirthdaySettingsRow(null); };
         document.getElementById('polymarketSettingsExpander').onclick = makeSettingsToggle('polymarketSettings');
 
         elements.showSoccer.onchange = function() {
@@ -6799,6 +6858,180 @@
         elements.newsContent.innerHTML = html;
         elements.newsUpdated.textContent = formatUpdatedTime(new Date());
         scheduleMasonry();
+      }
+
+      // --- Birthdays (local settings only; no bundled personal data) ---
+
+      function sanitizeBirthdays(list) {
+        var output = [];
+        if (Object.prototype.toString.call(list) !== '[object Array]') return output;
+        for (var i = 0; i < list.length && output.length < 100; i++) {
+          var source = list[i] && typeof list[i] === 'object' ? list[i] : {};
+          var item = {
+            name: String(source.name || '').trim().slice(0, 80),
+            month: parseInt(source.month, 10),
+            day: parseInt(source.day, 10)
+          };
+          if (!validBirthday(item)) continue;
+          var year = parseInt(source.year, 10);
+          if (!isNaN(year) && year >= 1900 && year <= new Date().getFullYear()) item.year = year;
+          output.push(item);
+        }
+        return output;
+      }
+
+      function validBirthday(item) {
+        if (!item || !item.name) return false;
+        var month = parseInt(item.month, 10);
+        var day = parseInt(item.day, 10);
+        if (month < 1 || month > 12 || day < 1) return false;
+        return day <= new Date(2000, month, 0).getDate();
+      }
+
+      function isBirthdayToday(item) {
+        if (!validBirthday(item)) return false;
+        var now = new Date();
+        return now.getMonth() + 1 === parseInt(item.month, 10) && now.getDate() === parseInt(item.day, 10);
+      }
+
+      function hasBirthdayToday() {
+        var birthdays = config.birthdays || [];
+        for (var i = 0; i < birthdays.length; i++) {
+          if (isBirthdayToday(birthdays[i])) return true;
+        }
+        return false;
+      }
+
+      function birthdayDaysUntil(item) {
+        if (!validBirthday(item)) return null;
+        var now = new Date();
+        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        var next = new Date(now.getFullYear(), parseInt(item.month, 10) - 1, parseInt(item.day, 10));
+        if (next < today) next = new Date(now.getFullYear() + 1, parseInt(item.month, 10) - 1, parseInt(item.day, 10));
+        return Math.round((next.getTime() - today.getTime()) / 86400000);
+      }
+
+      function getBirthdayDisplayItems() {
+        var birthdays = config.birthdays || [];
+        var items = [];
+        for (var i = 0; i < birthdays.length; i++) {
+          if (!validBirthday(birthdays[i])) continue;
+          var days = birthdayDaysUntil(birthdays[i]);
+          var year = parseInt(birthdays[i].year, 10);
+          var age = '';
+          if (!isNaN(year) && year >= 1900) {
+            var ageNow = new Date();
+            var birthdayPassed = parseInt(birthdays[i].month, 10) < ageNow.getMonth() + 1 ||
+              (parseInt(birthdays[i].month, 10) === ageNow.getMonth() + 1 && parseInt(birthdays[i].day, 10) < ageNow.getDate());
+            var nextYear = ageNow.getFullYear() + (days > 0 && birthdayPassed ? 1 : 0);
+            age = days === 0 ? ' (' + (nextYear - year) + ')' : ' (turning ' + (nextYear - year) + ')';
+          }
+          items.push({
+            name: String(birthdays[i].name),
+            month: parseInt(birthdays[i].month, 10),
+            day: parseInt(birthdays[i].day, 10),
+            daysUntil: days,
+            age: age
+          });
+        }
+        items.sort(function(a, b) { return a.daysUntil - b.daysUntil; });
+        return items;
+      }
+
+      function renderBirthdays() {
+        if (!elements.birthdaysContent) return;
+        var items = getBirthdayDisplayItems();
+        if (!items.length) {
+          elements.birthdaysContent.innerHTML = '<div style="color:#888;text-align:center;padding:12px 0;">No birthdays configured. Add them in Settings.</div>';
+          elements.birthdaysUpdated.textContent = '--';
+          return;
+        }
+        var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        var html = '';
+        var shown = config.birthdaysConditionalHide ? items.length : Math.min(items.length, 5);
+        for (var i = 0; i < shown; i++) {
+          var item = items[i];
+          if (config.birthdaysConditionalHide && item.daysUntil !== 0) continue;
+          var today = item.daysUntil === 0;
+          html += '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between;">';
+          html += '<div><span style="font-weight:600;color:' + (today ? '#ffd700' : '#e0e0e0') + ';">' + escapeHtml(item.name + item.age) + '</span>';
+          if (today) html += '<div style="font-size:0.82em;color:#aaa;">Happy Birthday today!</div>';
+          html += '</div><div style="color:#888;font-size:0.82em;text-align:right;">' + monthNames[item.month - 1] + ' ' + item.day;
+          if (!today) html += '<br>(' + item.daysUntil + 'd)';
+          html += '</div></div>';
+        }
+        if (!html) html = '<div style="color:#888;text-align:center;padding:12px 0;">No birthdays today</div>';
+        elements.birthdaysContent.innerHTML = html;
+        elements.birthdaysUpdated.textContent = formatUpdatedTime(new Date());
+        scheduleMasonry();
+      }
+
+      function fetchBirthdays() {
+        renderBirthdays();
+      }
+
+      function renderBirthdaySettingsRows() {
+        if (!elements.birthdaysList) return;
+        elements.birthdaysList.innerHTML = '';
+        var birthdays = config.birthdays || [];
+        for (var i = 0; i < birthdays.length; i++) addBirthdaySettingsRow(birthdays[i]);
+      }
+
+      function addBirthdaySettingsRow(item) {
+        if (!elements.birthdaysList) return;
+        var birthday = item || {};
+        var row = document.createElement('div');
+        row.className = 'birthday-setting-row';
+        row.style.cssText = 'display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;margin-bottom:6px;-webkit-flex-wrap:wrap;flex-wrap:wrap;';
+        var fields = [
+          { cls: 'birthday-name-input', type: 'text', placeholder: 'Name', value: birthday.name || '', width: '-webkit-flex:1;flex:1;min-width:100px;', label: 'Birthday name' },
+          { cls: 'birthday-day-input', type: 'number', placeholder: 'DD', value: birthday.day || '', width: 'width:48px;', label: 'Birthday day' },
+          { cls: 'birthday-month-input', type: 'number', placeholder: 'MM', value: birthday.month || '', width: 'width:48px;', label: 'Birthday month' },
+          { cls: 'birthday-year-input', type: 'number', placeholder: 'Year', value: birthday.year || '', width: 'width:66px;', label: 'Birth year (optional)' }
+        ];
+        for (var i = 0; i < fields.length; i++) {
+          var input = document.createElement('input');
+          input.type = fields[i].type;
+          input.className = fields[i].cls;
+          input.placeholder = fields[i].placeholder;
+          input.value = fields[i].value;
+          input.setAttribute('aria-label', fields[i].label);
+          input.style.cssText = fields[i].width + 'padding:6px;margin-right:6px;border-radius:6px;border:1px solid #444;background:#1a1a3e;color:#e0e0e0;';
+          if (fields[i].cls === 'birthday-day-input') { input.min = '1'; input.max = '31'; }
+          if (fields[i].cls === 'birthday-month-input') { input.min = '1'; input.max = '12'; }
+          if (fields[i].cls === 'birthday-year-input') { input.min = '1900'; input.max = String(new Date().getFullYear()); }
+          row.appendChild(input);
+        }
+        var removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.textContent = '\u00D7';
+        removeButton.setAttribute('aria-label', 'Remove birthday');
+        removeButton.style.cssText = 'padding:4px 10px;border-radius:6px;border:1px solid #600;background:#400;color:#f88;cursor:pointer;font-size:1.1em;';
+        removeButton.onclick = function() { if (row.parentNode) row.parentNode.removeChild(row); };
+        row.appendChild(removeButton);
+        elements.birthdaysList.appendChild(row);
+      }
+
+      function readBirthdaySettingsRows() {
+        if (!elements.birthdaysList) return [];
+        var rows = elements.birthdaysList.children;
+        var birthdays = [];
+        for (var i = 0; i < rows.length && birthdays.length < 100; i++) {
+          var nameInput = rows[i].querySelector('.birthday-name-input');
+          var dayInput = rows[i].querySelector('.birthday-day-input');
+          var monthInput = rows[i].querySelector('.birthday-month-input');
+          var yearInput = rows[i].querySelector('.birthday-year-input');
+          var item = {
+            name: nameInput ? nameInput.value.trim() : '',
+            day: dayInput ? parseInt(dayInput.value, 10) : 0,
+            month: monthInput ? parseInt(monthInput.value, 10) : 0
+          };
+          if (!validBirthday(item)) continue;
+          var year = yearInput ? parseInt(yearInput.value, 10) : NaN;
+          if (!isNaN(year) && year >= 1900 && year <= new Date().getFullYear()) item.year = year;
+          birthdays.push(item);
+        }
+        return birthdays;
       }
 
       // --- Pollen ---
@@ -7793,6 +8026,20 @@
           });
         }
 
+        if (config.showBirthdays && isTickerDisplayMode(config.birthdaysDisplayMode)) {
+          var birthdayItems = getBirthdayDisplayItems();
+          if (birthdayItems.length) {
+            var nextBirthday = birthdayItems[0];
+            slides.push({
+              icon: '\uD83C\uDF82',
+              label: nextBirthday.daysUntil === 0 ? 'Birthday today' : 'Next birthday',
+              value: nextBirthday.name,
+              changeClass: '',
+              changeText: nextBirthday.daysUntil === 0 ? 'Today' : 'in ' + nextBirthday.daysUntil + ' days'
+            });
+          }
+        }
+
         // Air Quality
         if (config.showAirQuality && isTickerDisplayMode(config.airQualityDisplayMode) && lastAirQualityData && lastAirQualityData.current && lastAirQualityData.current.us_aqi !== undefined && lastAirQualityData.current.us_aqi !== null) {
           var aqVal = Math.round(lastAirQualityData.current.us_aqi);
@@ -8389,6 +8636,7 @@
         fetchWeatherWarnings();
         fetchBushfires();
         fetchNews();
+        fetchBirthdays();
         fetchAirQuality();
         fetchUvIndex();
         fetchPollen();
@@ -8418,6 +8666,7 @@
           fetchWeatherWarnings();
           fetchBushfires();
           fetchNews();
+          fetchBirthdays();
           fetchAirQuality();
           fetchUvIndex();
           fetchPollen();

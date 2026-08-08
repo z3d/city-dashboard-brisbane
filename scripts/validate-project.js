@@ -26,6 +26,7 @@ function run(label, command, args) {
 var html = fs.readFileSync(htmlPath, 'utf8');
 var versionMatch = html.match(/<meta name="app-version" content="([^"]+)">/);
 if (!versionMatch || !/^\d+\.\d+\.\d+$/.test(versionMatch[1])) fail('app-version must be semver');
+if (!/\bbirthdays:\s*\[\s*\]/.test(html)) fail('birthday defaults must remain an empty array');
 
 var idPattern = /\sid="([^"]+)"/g;
 var ids = {};
