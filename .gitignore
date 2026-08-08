@@ -1,9 +1,11 @@
 node_modules/
 .dev.vars
+worker/.dev.vars
 .env
 .env.*
 .DS_Store
 .Codex/settings.local.json
 .codex/settings.local.json
 .claude/
+.agents/settings.local.*
 .wrangler/

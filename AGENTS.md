@@ -8,6 +8,7 @@ Single-file city dashboard focused on Brisbane, deployed optionally as a Cloudfl
 - `npm run deploy` - deploy with Wrangler
 - `node scripts/check-ios12-compat.js` - scan `index.html` for iOS 12-incompatible JavaScript
 - `node --check src/worker.js` - syntax-check the Worker
+- `npm run validate` - run the complete local validation suite
 - Or open `index.html` directly in a browser for features that do not require the Worker
 
 ## Architecture
@@ -52,10 +53,13 @@ Keep `.dev.vars`, `.env`, `.Codex/settings.local.json`, `.codex/settings.local.j
 - DOM elements are cached in `elements` from `initElements()`.
 - New cards must be added to `DEFAULT_CARD_ORDER`.
 - Card display modes use `xxxDisplayMode` with `card`, `ticker`, `banner`, or `both`.
+- Escape all third-party API text at the HTML sink with `escapeHtml()`; use `safeDomId()` for API-derived element IDs.
+- Frontend XHRs inherit a 30-second timeout and same-URL GET deduplication. Worker upstream requests inherit a 20-second deadline. Preserve both wrappers.
 - Needs Attention is a global smart strip controlled by `showNeedsAttention` and `needsAttentionMaxItems`. It renders in `#needsAttention`, uses enabled feature toggles as eligibility, and builds alerts from cached `last*Data`/config without extra API fetches. It currently excludes bin and sports alerts, and only treats electricity as attention-worthy when prices are high.
 - Bin card conditional dismissal can sync through `GET/PUT /api/dashboard-status` when the worker has a `STATUS_KV` or `SETTINGS_KV` binding. It falls back to the existing localStorage keys: `binTakenOutDate` hides the pre-collection card until the bring-in window, while `binDismissedDate` hides the bring-in "Done" state.
 - Radar/Satellite conditional display depends on weather data: `bomRadarShowWhenRainy` and `radarShowWhenRainy` use weather codes or 50%+ rain chance. `fetchWeather()` must still run for these conditions even when the Weather card is off.
-- Worker caches use module-level `_xxxCache` and `_xxxTime` variables.
+- Module-level Worker caches are load reducers, not cross-isolate rate limiters. Quota-limited upstreams must use a shared KV cache.
+- `DASHBOARD_TOKEN` is mandatory for every API route except `/api/health`, and authentication must keep using `timingSafeEqual()`.
 - Open-Meteo timestamps should use `timeformat=unixtime` and parse with `new Date(timestamp * 1000)`.
 - Electricity prices use the Worker `/api/electricity` route. NEMWEB removed the old `GRAPH_5QLD1.csv` feed; parse the latest `DispatchIS_Reports/PUBLIC_DISPATCHIS_*.zip` and QLD1 `DISPATCH,PRICE` RRP instead.
 

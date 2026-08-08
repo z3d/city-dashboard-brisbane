@@ -6,6 +6,19 @@
 // Bus-only feed is much smaller than the full SEQ feed, staying within CPU limits
 const TRANSLINK_API = 'https://gtfsrt.api.translink.com.au/api/realtime/SEQ/TripUpdates/Bus';
 
+// Apply one deadline to every upstream request. Static assets use env.ASSETS.fetch
+// and are intentionally unaffected. Callers that provide their own AbortSignal
+// keep full control of their request lifetime.
+const UPSTREAM_FETCH_TIMEOUT_MS = 20000;
+function fetch(input, init) {
+  if (init && init.signal) return globalThis.fetch(input, init);
+  const controller = new AbortController();
+  const options = init ? Object.assign({}, init) : {};
+  options.signal = controller.signal;
+  const timer = setTimeout(function() { controller.abort(); }, UPSTREAM_FETCH_TIMEOUT_MS);
+  return globalThis.fetch(input, options).finally(function() { clearTimeout(timer); });
+}
+
 // Module-level cache: persists across requests within the same isolate
 // Avoids re-fetching and re-reading the protobuf on every request
 let rawFeedBuf = null;
@@ -19,6 +32,9 @@ let _depsCache = {};           // { cacheKey -> json string }
 let _depsTime = {};
 let _sportsCache = {};         // { cacheKey -> json string }
 let _sportsTime = {};
+let _cricketCache = null;      // CricketData.org currentMatches L1 cache
+let _cricketTime = 0;
+const CRICKET_KV_KEY = 'cricket_current_matches';
 let _standingsCache = {};      // { cacheKey -> json string }
 let _standingsTime = {};
 let _fuelSiteDetails = null;
@@ -35,9 +51,46 @@ let _polymarketCache = null;
 let _polymarketTime = 0;
 let _routesCache = {};         // { callsign -> json string }
 let _routesTime = {};
+let _warningsCache = {};       // { geohash -> json string }
+let _warningsTime = {};
+let _pollenCache = {};         // { rounded lat/lon -> json string }
+let _pollenTime = {};
+let _pollenRetryAfter = {};
+let _bushfiresCache = null;    // { incidents: [...], ts } — parsed statewide feed
+let _newsCache = null;         // JSON string
+let _newsTime = 0;
 let _lastFeatureRequestTime = 0;
 
 const DASHBOARD_STATUS_KV_KEY = 'dashboard_status';
+const WARNINGS_DATA_TTL = 5 * 60 * 1000;
+const POLLEN_DATA_TTL = 12 * 60 * 60 * 1000;
+const POLLEN_RETRY_TTL = 30 * 60 * 1000;
+const POLLEN_STALE_MAX_MS = 3 * 24 * 60 * 60 * 1000;
+const POLLEN_KV_EXPIRATION_TTL_S = 7 * 24 * 60 * 60;
+const POLLEN_KV_KEY_PREFIX = 'pollen_forecast:';
+
+// Minimal XML entity/CDATA decoder for the QFD Atom and news RSS parsers.
+function decodeXmlEntities(value) {
+  return String(value || '')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&#(\d+);/g, function(match, number) { return String.fromCodePoint(parseInt(number, 10)); })
+    .replace(/&#x([0-9a-fA-F]+);/g, function(match, number) { return String.fromCodePoint(parseInt(number, 16)); })
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLon = (lon2 - lon1) * toRad;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const BUSHFIRE_LEVELS = { 'emergency warning': 3, 'watch and act': 2, 'advice': 1 };
 
 function isDashboardStatusDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -53,6 +106,17 @@ function sanitizeDashboardStatus(data) {
   if (isDashboardStatusDate(bin.dismissedDate)) status.bin.dismissedDate = bin.dismissedDate;
   if (isDashboardStatusDate(bin.takenOutDate)) status.bin.takenOutDate = bin.takenOutDate;
   return status;
+}
+
+// Stable content fingerprint excluding the server-owned updatedAt timestamp.
+// Redundant status reconciliation must not consume the daily KV write budget.
+function dashboardStatusFingerprint(status) {
+  return JSON.stringify({
+    bin: {
+      dismissedDate: (status.bin && status.bin.dismissedDate) || '',
+      takenOutDate: (status.bin && status.bin.takenOutDate) || ''
+    }
+  });
 }
 
 const ELECTRICITY_DISPATCH_DIR_URL = 'https://www.nemweb.com.au/REPORTS/CURRENT/DispatchIS_Reports/';
@@ -274,6 +338,8 @@ function skipField(buf, pos, wireType) {
     pos.i += len;
   } else if (wireType === 5) {
     pos.i += 4;
+  } else {
+    throw new Error('Unsupported protobuf wire type: ' + wireType);
   }
 }
 
@@ -464,19 +530,56 @@ async function getFuelSiteDetails(token) {
   return map;
 }
 
+function encodeGeohash(lat, lon, precision) {
+  const BASE32 = '0123456789bcdefghjkmnpqrstuvwxyz';
+  let idx = 0, bit = 0, evenBit = true, geohash = '';
+  let latMin = -90, latMax = 90, lonMin = -180, lonMax = 180;
+  while (geohash.length < precision) {
+    if (evenBit) {
+      const lonMid = (lonMin + lonMax) / 2;
+      if (lon >= lonMid) { idx = idx * 2 + 1; lonMin = lonMid; }
+      else { idx = idx * 2; lonMax = lonMid; }
+    } else {
+      const latMid = (latMin + latMax) / 2;
+      if (lat >= latMid) { idx = idx * 2 + 1; latMin = latMid; }
+      else { idx = idx * 2; latMax = latMid; }
+    }
+    evenBit = !evenBit;
+    if (++bit === 5) { geohash += BASE32.charAt(idx); bit = 0; idx = 0; }
+  }
+  return geohash;
+}
+
+// Constant-time string comparison avoids leaking a matching token prefix through
+// timing differences in the authentication check.
+function timingSafeEqual(a, b) {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  let diff = ab.length === bb.length ? 0 : 1;
+  const len = Math.max(ab.length, bb.length, 1);
+  for (let i = 0; i < len; i++) {
+    diff |= (ab[i % ab.length] || 0) ^ (bb[i % bb.length] || 0);
+  }
+  return diff === 0;
+}
+
 export default {
   async fetch(request, env) {
     var url = new URL(request.url);
     var path = url.pathname;
 
     if (!path.startsWith('/api/')) {
-      return env.ASSETS.fetch(request);
+      // Wrangler serves matching static assets before invoking the Worker. A
+      // missing asset can still reach this handler without an ASSETS binding.
+      return env.ASSETS ? env.ASSETS.fetch(request) : new Response('Not found', { status: 404 });
     }
 
     var corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, X-Dashboard-Token',
+      'Access-Control-Expose-Headers': 'X-Cache',
     };
 
     if (request.method === 'OPTIONS') {
@@ -497,7 +600,7 @@ export default {
       });
     }
     var incoming = request.headers.get('X-Dashboard-Token') || '';
-    if (incoming !== env.DASHBOARD_TOKEN) {
+    if (!timingSafeEqual(incoming, env.DASHBOARD_TOKEN)) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
@@ -595,36 +698,51 @@ export default {
       }
 
       try {
-        // ADSB.lol uses center + radius (nm), compute from bounding box
+        // Both providers use readsb v2 JSON; fall back when Cloudflare's shared
+        // egress address is throttled by the primary provider.
         var centerLat = (minLat + maxLat) / 2;
         var centerLon = (minLon + maxLon) / 2;
-        var distNm = Math.max(
+        var distNm = Math.ceil(Math.max(
           Math.abs(maxLat - minLat) * 60 / 2,
           Math.abs(maxLon - minLon) * 60 / 2
-        );
-        var adsbUrl = 'https://api.adsb.lol/v2/lat/' + centerLat + '/lon/' + centerLon + '/dist/' + Math.ceil(distNm);
-        var flightResp = await fetch(adsbUrl);
-        if (!flightResp.ok) {
-          var providerBody = '';
+        ));
+        var providers = [
+          { source: 'adsb.lol', url: 'https://api.adsb.lol/v2/lat/' + centerLat + '/lon/' + centerLon + '/dist/' + distNm },
+          { source: 'airplanes.live', url: 'https://api.airplanes.live/v2/point/' + centerLat + '/' + centerLon + '/' + distNm }
+        ];
+        var adsbData = null;
+        var lastProviderError = null;
+        for (var pi = 0; pi < providers.length; pi++) {
+          var provider = providers[pi];
           try {
-            providerBody = await flightResp.text();
-          } catch (bodyErr) {}
-          providerBody = (providerBody || '').replace(/\s+/g, ' ');
-          if (providerBody.length > 160) providerBody = providerBody.substring(0, 160) + '...';
-
-          var providerError = {
-            error: 'ADSB.lol returned HTTP ' + flightResp.status + (flightResp.statusText ? ' ' + flightResp.statusText : ''),
-            source: 'adsb.lol',
-            providerStatus: flightResp.status
-          };
-          if (providerBody) providerError.detail = providerBody;
-
-          return new Response(JSON.stringify(providerError), {
-            status: flightResp.status === 429 ? 429 : 502,
+            var flightResp = await fetch(provider.url);
+            if (flightResp.ok) {
+              adsbData = await flightResp.json();
+              break;
+            }
+            lastProviderError = {
+              error: provider.source + ' returned HTTP ' + flightResp.status,
+              source: provider.source,
+              providerStatus: flightResp.status
+            };
+          } catch (providerErr) {
+            lastProviderError = {
+              error: provider.source + ' request failed',
+              source: provider.source
+            };
+          }
+        }
+        if (adsbData === null) {
+          if (_flightsCache[flightCacheKey]) {
+            return new Response(_flightsCache[flightCacheKey], {
+              headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
+            });
+          }
+          return new Response(JSON.stringify(lastProviderError || { error: 'No flight provider available' }), {
+            status: lastProviderError && lastProviderError.providerStatus === 429 ? 429 : 502,
             headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
           });
         }
-        var adsbData = await flightResp.json();
         // Filter out ground aircraft, ground vehicles, and useless entries
         var airborne = (adsbData.ac || []).filter(function(ac) {
           // Exclude aircraft on the ground
@@ -864,6 +982,8 @@ export default {
         });
 
       } catch (err) {
+        // Do not keep reparsing corrupt bytes for the full feed cache TTL.
+        rawFeedBuf = null;
         return new Response(JSON.stringify({ error: err.message }), {
           status: 500,
           headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
@@ -877,6 +997,12 @@ export default {
       const leagueIds = leagueParam.split(',').map(s => s.trim()).filter(Boolean);
       if (!leagueIds.length) {
         return new Response(JSON.stringify({}), {
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      if (leagueIds.length > 10 || leagueIds.some(id => !/^[a-z0-9._-]{1,40}$/i.test(id))) {
+        return new Response(JSON.stringify({ error: 'Invalid leagues parameter' }), {
+          status: 400,
           headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
         });
       }
@@ -930,22 +1056,24 @@ export default {
       async function fetchEspnRange(espnPath, dateRange) {
         try {
           const espnUrl = 'https://site.api.espn.com/apis/site/v2/sports/' +
-            espnPath + '/scoreboard?limit=10&dates=' + dateRange;
+            espnPath + '/scoreboard?limit=100&dates=' + dateRange;
           const resp = await fetch(espnUrl, { headers: espnHeaders });
-          if (!resp.ok) return [];
+          if (!resp.ok) return null;
           const text = await resp.text();
           let data = {};
           try { data = JSON.parse(text); } catch (e) {}
           return data.events || [];
         } catch (e) {
-          return [];
+          return null;
         }
       }
 
       function normalizeEspnEvent(ev) {
         const comp = ev.competitions && ev.competitions[0];
         if (!comp) return null;
-        const isCompleted = !!(comp.status && comp.status.type && comp.status.type.completed);
+        const statusType = (comp.status && comp.status.type) || {};
+        const isCompleted = !!statusType.completed;
+        const isLive = !isCompleted && statusType.state === 'in';
         const competitors = comp.competitors || [];
         let homeComp = null, awayComp = null;
         for (let j = 0; j < competitors.length; j++) {
@@ -956,12 +1084,15 @@ export default {
         return {
           strHomeTeam: homeComp.team ? (homeComp.team.shortDisplayName || homeComp.team.displayName) : '',
           strAwayTeam: awayComp.team ? (awayComp.team.shortDisplayName || awayComp.team.displayName) : '',
-          intHomeScore: isCompleted ? homeComp.score : null,
-          intAwayScore: isCompleted ? awayComp.score : null,
+          intHomeScore: (isCompleted || isLive) ? homeComp.score : null,
+          intAwayScore: (isCompleted || isLive) ? awayComp.score : null,
           dateEvent: ev.date ? ev.date.substring(0, 10) : '',
           strTime: ev.date ? ev.date.substring(11, 16) : '',
-          strStatus: isCompleted ? 'Match Finished' : 'Scheduled',
-          _completed: isCompleted
+          strTimestamp: ev.date || '',
+          strStatus: isCompleted ? 'Match Finished' : (isLive ? 'In Progress' : 'Scheduled'),
+          strProgress: isLive ? ((comp.status && comp.status.displayClock) || statusType.shortDetail || 'LIVE') : '',
+          _completed: isCompleted,
+          _live: isLive
         };
       }
 
@@ -969,6 +1100,7 @@ export default {
       async function fetchSportsDbSeason(leagueId) {
         const year = now.getFullYear();
         const seasons = ['' + year, (year - 1) + '-' + year, '' + (year - 1)];
+        let anyOk = false;
         for (const s of seasons) {
           try {
             const resp = await fetch(
@@ -976,11 +1108,12 @@ export default {
             );
             if (!resp.ok) continue;
             const data = await resp.json();
+            anyOk = true;
             const evs = data.events || [];
             if (evs.length > 0) return evs;
           } catch (e) {}
         }
-        return [];
+        return anyOk ? [] : null;
       }
 
       function normalizeCricketMatch(m) {
@@ -1021,6 +1154,8 @@ export default {
         }
 
         const mtMap = { t20: 'T20', odi: 'ODI', test: 'Test' };
+        let cricTs = m.dateTimeGMT || '';
+        if (cricTs && cricTs.indexOf('Z') < 0 && cricTs.indexOf('+') < 0) cricTs += 'Z';
         return {
           strHomeTeam: homeTeam,
           strAwayTeam: awayTeam,
@@ -1028,6 +1163,7 @@ export default {
           intAwayScore: awayScore,
           dateEvent: (m.date || '').substring(0, 10),
           strTime: '',
+          strTimestamp: cricTs,
           strStatus: isCompleted ? 'Match Finished' : 'Scheduled',
           strResult: isCompleted ? status : '',
           strMatchType: mtMap[m.matchType] || (m.matchType || '').toUpperCase(),
@@ -1049,6 +1185,11 @@ export default {
         // TheSportsDB uses 'FT', 'Match Finished', or populated scores to indicate completion
         const hasScore = ev.intHomeScore !== null && ev.intHomeScore !== undefined && ev.intHomeScore !== '';
         const isCompleted = ev.strStatus === 'Match Finished' || ev.strStatus === 'FT' || hasScore;
+        let timestamp = ev.strTimestamp || '';
+        if (!timestamp && ev.dateEvent && ev.strTime) {
+          const time = ev.strTime.length === 5 ? ev.strTime + ':00' : ev.strTime;
+          timestamp = ev.dateEvent + 'T' + time + '+00:00';
+        }
         return {
           strHomeTeam: ev.strHomeTeam || '',
           strAwayTeam: ev.strAwayTeam || '',
@@ -1056,12 +1197,40 @@ export default {
           intAwayScore: hasScore ? ev.intAwayScore : null,
           dateEvent: ev.dateEvent || '',
           strTime: ev.strTime ? ev.strTime.substring(0, 5) : '',
+          strTimestamp: timestamp,
           strStatus: isCompleted ? 'Match Finished' : 'Scheduled',
           _completed: isCompleted
         };
       }
 
+      // Keep a rolling 24-hour fixture window, with sensible minimum and maximum
+      // counts for quiet and tournament-heavy leagues.
+      function eventMillis(event) {
+        const value = event && event.strTimestamp ? Date.parse(event.strTimestamp) : NaN;
+        return isNaN(value) ? 0 : value;
+      }
+      function sortEvents(events) {
+        return events.slice().sort(function(a, b) { return eventMillis(a) - eventMillis(b); });
+      }
+      function pickUpcoming(events, min, max) {
+        const sorted = sortEvents(events);
+        const cutoff = now.getTime() + 24 * 60 * 60 * 1000;
+        let count = 0;
+        for (let i = 0; i < sorted.length; i++) if (eventMillis(sorted[i]) <= cutoff) count++;
+        count = Math.max(min, Math.min(count, max));
+        return sorted.slice(0, count);
+      }
+      function pickRecent(events, min, max) {
+        const sorted = sortEvents(events);
+        const cutoff = now.getTime() - 24 * 60 * 60 * 1000;
+        let count = 0;
+        for (let i = 0; i < sorted.length; i++) if (eventMillis(sorted[i]) >= cutoff) count++;
+        count = Math.max(min, Math.min(count, max));
+        return sorted.slice(-count);
+      }
+
       const sportsResult = {};
+      let sportsFailed = 0;
       const sportsFetches = leagueIds.map(async function(lid) {
         try {
           // --- ESPN path ---
@@ -1071,22 +1240,37 @@ export default {
               fetchEspnRange(espnPath, pastRange),
               fetchEspnRange(espnPath, futureRange)
             ]);
-            const past = [], next = [];
-            for (const ev of pastRaw) {
-              const norm = normalizeEspnEvent(ev);
-              if (norm && norm._completed) past.push(norm);
+            if (pastRaw === null && futureRaw === null) {
+              sportsResult[lid] = { next: [], past: [] };
+              sportsFailed++;
+              return;
             }
-            for (const ev of futureRaw) {
-              const norm = normalizeEspnEvent(ev);
-              if (!norm) continue;
-              if (norm._completed) past.push(norm);
+            const past = [], next = [], live = [];
+            const seen = {};
+            function routeEspn(norm) {
+              if (!norm) return;
+              const key = norm.strHomeTeam + '|' + norm.strAwayTeam + '|' + norm.dateEvent;
+              if (seen[key]) return;
+              seen[key] = true;
+              if (norm._live) live.push(norm);
+              else if (norm._completed) past.push(norm);
               else next.push(norm);
             }
-            sportsResult[lid] = { past: past.slice(-3), next: next.slice(0, 3) };
+            for (const ev of (pastRaw || [])) {
+              const norm = normalizeEspnEvent(ev);
+              if (norm && (norm._completed || norm._live)) routeEspn(norm);
+            }
+            for (const ev of (futureRaw || [])) routeEspn(normalizeEspnEvent(ev));
+            sportsResult[lid] = { past: pickRecent(past, 3, 8), next: pickUpcoming(next, 3, 12), live: live };
 
           // --- TheSportsDB path ---
           } else if (SPORTSDB_IDS.has(lid)) {
             const evs = await fetchSportsDbSeason(lid);
+            if (evs === null) {
+              sportsResult[lid] = { next: [], past: [] };
+              sportsFailed++;
+              return;
+            }
             const past = [], next = [];
             for (const ev of evs) {
               const norm = normalizeSportsDbEvent(ev);
@@ -1094,16 +1278,48 @@ export default {
               if (norm._completed && norm.dateEvent < todayStr) past.push(norm);
               else if (!norm._completed && norm.dateEvent >= todayStr) next.push(norm);
             }
-            sportsResult[lid] = { past: past.slice(-3), next: next.slice(0, 3) };
+            sportsResult[lid] = { past: pickRecent(past, 3, 8), next: pickUpcoming(next, 3, 12) };
 
           // --- CricketData.org path ---
           } else if (lid === '4752') {
             if (!env.CRICAPI_KEY) { sportsResult[lid] = { next: [], past: [] }; return; }
-            const cricResp = await fetch(
-              'https://cricketdata.org/api/v1/currentMatches?apikey=' + env.CRICAPI_KEY + '&offset=0'
-            );
-            if (!cricResp.ok) { sportsResult[lid] = { next: [], past: [] }; return; }
-            const cricData = await cricResp.json();
+            const cricketKv = env.STATUS_KV || env.SETTINGS_KV;
+            if (!cricketKv) {
+              sportsResult[lid] = { next: [], past: [] };
+              sportsFailed++;
+              return;
+            }
+            const CRICKET_TTL = 30 * 60 * 1000;
+            let cricData;
+            if (_cricketCache && (sportsNow - _cricketTime) < CRICKET_TTL) {
+              cricData = _cricketCache;
+            } else {
+              let kvCricket = null;
+              try { kvCricket = await cricketKv.get(CRICKET_KV_KEY, 'json'); } catch (e) {}
+              if (kvCricket && kvCricket.data && (sportsNow - (kvCricket.ts || 0)) < CRICKET_TTL) {
+                cricData = kvCricket.data;
+                _cricketCache = cricData;
+                _cricketTime = kvCricket.ts;
+              } else {
+                const cricResp = await fetch(
+                  'https://cricketdata.org/api/v1/currentMatches?apikey=' + env.CRICAPI_KEY + '&offset=0'
+                );
+                if (!cricResp.ok) {
+                  if (_cricketCache) cricData = _cricketCache;
+                  else if (kvCricket && kvCricket.data) cricData = kvCricket.data;
+                  else { cricData = { data: [] }; sportsFailed++; }
+                  _cricketCache = cricData;
+                  _cricketTime = sportsNow;
+                } else {
+                  cricData = await cricResp.json();
+                  _cricketCache = cricData;
+                  _cricketTime = sportsNow;
+                  try {
+                    await cricketKv.put(CRICKET_KV_KEY, JSON.stringify({ data: cricData, ts: sportsNow }));
+                  } catch (e) {}
+                }
+              }
+            }
             const cricMatches = (cricData.data || []).filter(function(m) {
               return ['test', 'odi', 't20'].includes(m.matchType) && isInternationalCricket(m.name || '');
             });
@@ -1114,16 +1330,22 @@ export default {
               if (norm._completed) cricPast.push(norm);
               else cricNext.push(norm);
             }
-            sportsResult[lid] = { past: cricPast.slice(-3), next: cricNext.slice(0, 3) };
+            sportsResult[lid] = { past: pickRecent(cricPast, 3, 8), next: pickUpcoming(cricNext, 3, 12) };
 
           } else {
             sportsResult[lid] = { next: [], past: [] };
           }
         } catch (e) {
           sportsResult[lid] = { next: [], past: [] };
+          sportsFailed++;
         }
       });
       await Promise.all(sportsFetches);
+      if (sportsFailed === leagueIds.length && _sportsCache[sportsCacheKey]) {
+        return new Response(_sportsCache[sportsCacheKey], {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
+        });
+      }
       var sportsResultJson = JSON.stringify(sportsResult);
       _sportsCache[sportsCacheKey] = sportsResultJson;
       _sportsTime[sportsCacheKey] = sportsNow;
@@ -1264,6 +1486,12 @@ export default {
           headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
         });
       }
+      if (leagueIds.length > 10 || leagueIds.some(id => !/^[a-z0-9._-]{1,40}$/i.test(id))) {
+        return new Response(JSON.stringify({ error: 'Invalid leagues parameter' }), {
+          status: 400,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
 
       const sortedLeagues = leagueIds.slice().sort().join(',');
       const standingsCacheKey = 'standings:' + sortedLeagues;
@@ -1283,13 +1511,14 @@ export default {
       };
 
       const result = {};
+      let standingsFailed = 0;
       const fetches = leagueIds.map(async function(espnPath) {
         try {
           const resp = await fetch(
             'https://site.api.espn.com/apis/v2/sports/soccer/' + espnPath + '/standings',
             { headers: standingsHeaders }
           );
-          if (!resp.ok) { result[espnPath] = []; return; }
+          if (!resp.ok) { result[espnPath] = []; standingsFailed++; return; }
           const data = await resp.json();
 
           const entries = (data.children && data.children[0] &&
@@ -1317,10 +1546,16 @@ export default {
           result[espnPath] = table;
         } catch (e) {
           result[espnPath] = [];
+          standingsFailed++;
         }
       });
       await Promise.all(fetches);
 
+      if (standingsFailed === leagueIds.length && _standingsCache[standingsCacheKey]) {
+        return new Response(_standingsCache[standingsCacheKey], {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
+        });
+      }
       const standingsJson = JSON.stringify(result);
       _standingsCache[standingsCacheKey] = standingsJson;
       _standingsTime[standingsCacheKey] = standingsNow;
@@ -1386,6 +1621,12 @@ export default {
       });
       await Promise.all(finFetches);
 
+      const finAllFailed = symbols.every(sym => finResult[sym] === null);
+      if (finAllFailed && _financeCache && _financeCache.key === sortedKey) {
+        return new Response(_financeCache.json, {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
+        });
+      }
       const finJson = JSON.stringify(finResult);
       _financeCache = { key: sortedKey, json: finJson };
       _financeTime = finNow;
@@ -1471,6 +1712,340 @@ export default {
       }
     }
 
+    // BoM severe-weather warnings, addressed by the location geohash used by
+    // the official BoM application API.
+    if (path === '/api/warnings') {
+      var warningLat = parseFloat(url.searchParams.get('lat'));
+      var warningLon = parseFloat(url.searchParams.get('lon'));
+      if (isNaN(warningLat)) warningLat = -27.4705;
+      if (isNaN(warningLon)) warningLon = 153.026;
+      if (warningLat < -90 || warningLat > 90 || warningLon < -180 || warningLon > 180) {
+        return new Response(JSON.stringify({ error: 'Invalid lat/lon' }), {
+          status: 400,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      var warningGeohash = encodeGeohash(warningLat, warningLon, 6);
+      var warningNow = Date.now();
+      if (_warningsCache[warningGeohash] && (warningNow - _warningsTime[warningGeohash]) < WARNINGS_DATA_TTL) {
+        return new Response(_warningsCache[warningGeohash], {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'HIT' }, corsHeaders)
+        });
+      }
+      try {
+        var warningResp = await fetch('https://api.weather.bom.gov.au/v1/locations/' + warningGeohash + '/warnings', {
+          headers: { 'User-Agent': 'CityDashboard/1.0', 'Accept': 'application/json' }
+        });
+        if (!warningResp.ok) throw new Error('BoM warnings API returned ' + warningResp.status);
+        var warningRaw = await warningResp.json();
+        var warnings = (warningRaw.data || []).map(function(warning) {
+          return {
+            id: warning.id,
+            type: warning.type,
+            title: warning.title,
+            shortTitle: warning.short_title,
+            state: warning.state,
+            group: warning.warning_group_type,
+            phase: warning.phase,
+            issuedAt: warning.issue_time,
+            expiresAt: warning.expiry_time
+          };
+        });
+        var warningJson = JSON.stringify({ warnings: warnings, geohash: warningGeohash, fetchedAt: warningNow });
+        _warningsCache[warningGeohash] = warningJson;
+        _warningsTime[warningGeohash] = warningNow;
+        return new Response(warningJson, {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'MISS' }, corsHeaders)
+        });
+      } catch (warningErr) {
+        if (_warningsCache[warningGeohash]) {
+          return new Response(_warningsCache[warningGeohash], {
+            headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
+          });
+        }
+        return new Response(JSON.stringify({ error: 'BoM warnings error: ' + warningErr.message }), {
+          status: 502,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+    }
+
+    // Queensland Fire Department statewide incident feed. The parsed feed is
+    // cached independently of the caller's location; distance is calculated
+    // per request so no home location is retained server-side.
+    if (path === '/api/bushfires') {
+      let bfLat = parseFloat(url.searchParams.get('lat'));
+      let bfLon = parseFloat(url.searchParams.get('lon'));
+      if (isNaN(bfLat)) bfLat = -27.4698;
+      if (isNaN(bfLon)) bfLon = 153.0251;
+      if (bfLat < -90 || bfLat > 90 || bfLon < -180 || bfLon > 180) {
+        return new Response(JSON.stringify({ error: 'Invalid lat/lon' }), {
+          status: 400,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      const BUSHFIRES_TTL = 5 * 60 * 1000;
+      const bfNow = Date.now();
+      let incidents = null;
+      let cacheState = 'HIT';
+      if (_bushfiresCache && (bfNow - _bushfiresCache.ts) < BUSHFIRES_TTL) {
+        incidents = _bushfiresCache.incidents;
+      } else {
+        try {
+          const response = await fetch('https://publiccontent-gis-psba-qld-gov-au.s3.amazonaws.com/content/Feeds/BushfireCurrentIncidents/bushfireAlert.xml');
+          if (!response.ok) throw new Error('feed returned ' + response.status);
+          const xml = await response.text();
+          const parsed = [];
+          const entryPattern = /<entry>([\s\S]*?)<\/entry>/g;
+          let entryMatch;
+          while ((entryMatch = entryPattern.exec(xml)) !== null && parsed.length < 200) {
+            const chunk = entryMatch[1];
+            const pick = function(pattern) {
+              const match = chunk.match(pattern);
+              return match ? decodeXmlEntities(match[1]).trim() : '';
+            };
+            const point = pick(/<georss:point>([\s\S]*?)<\/georss:point>/).split(/\s+/);
+            const incidentLat = parseFloat(point[0]);
+            const incidentLon = parseFloat(point[1]);
+            if (isNaN(incidentLat) || isNaN(incidentLon)) continue;
+            const level = pick(/<category term="([^"]*)"/);
+            parsed.push({
+              id: pick(/<id>([\s\S]*?)<\/id>/).slice(0, 60),
+              level: level.slice(0, 40),
+              severity: BUSHFIRE_LEVELS[level.toLowerCase()] || 0,
+              title: pick(/<title>([\s\S]*?)<\/title>/).slice(0, 200),
+              content: pick(/<content>([\s\S]*?)<\/content>/).slice(0, 400),
+              lat: incidentLat,
+              lon: incidentLon,
+              updated: pick(/<updated>([\s\S]*?)<\/updated>/).slice(0, 40)
+            });
+          }
+          _bushfiresCache = { incidents: parsed, ts: bfNow };
+          incidents = parsed;
+          cacheState = 'MISS';
+        } catch (error) {
+          if (_bushfiresCache) {
+            incidents = _bushfiresCache.incidents;
+            cacheState = 'STALE';
+          } else {
+            return new Response(JSON.stringify({ error: 'Bushfire feed unavailable' }), {
+              status: 502,
+              headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+            });
+          }
+        }
+      }
+      const output = incidents.map(function(incident) {
+        return Object.assign({}, incident, {
+          distanceKm: Math.round(haversineKm(bfLat, bfLon, incident.lat, incident.lon) * 10) / 10
+        });
+      });
+      output.sort(function(a, b) { return (b.severity - a.severity) || (a.distanceKm - b.distanceKm); });
+      return new Response(JSON.stringify({ incidents: output, fetchedAt: bfNow }), {
+        headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': cacheState }, corsHeaders)
+      });
+    }
+
+    // Local headlines from two public RSS feeds, merged newest-first. A total
+    // upstream failure serves the most recent parsed result when available.
+    if (path === '/api/news') {
+      const NEWS_TTL = 15 * 60 * 1000;
+      const newsNow = Date.now();
+      if (_newsCache && (newsNow - _newsTime) < NEWS_TTL) {
+        return new Response(_newsCache, {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'HIT' }, corsHeaders)
+        });
+      }
+      const sources = [
+        { name: 'ABC News', url: 'https://www.abc.net.au/news/feed/45910/rss.xml' },
+        { name: 'Brisbane Times', url: 'https://www.brisbanetimes.com.au/rss/national/queensland.xml' }
+      ];
+      const fluffPattern = /^(why|how|meet|inside|watch:|what)\b|\?\s*$|future of|need to know|here'?s |you should|first look/i;
+      const sourceResults = await Promise.all(sources.map(async function(source) {
+        try {
+          const response = await fetch(source.url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BrisbaneDashboard/1.0)' } });
+          if (!response.ok) return null;
+          const xml = await response.text();
+          const items = [];
+          const itemPattern = /<item>([\s\S]*?)<\/item>/g;
+          let itemMatch;
+          while ((itemMatch = itemPattern.exec(xml)) !== null && items.length < 10) {
+            const chunk = itemMatch[1];
+            const titleMatch = chunk.match(/<title>([\s\S]*?)<\/title>/);
+            if (!titleMatch) continue;
+            const title = decodeXmlEntities(titleMatch[1]).trim().slice(0, 160);
+            if (!title || fluffPattern.test(title)) continue;
+            const publishedMatch = chunk.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+            const timestamp = publishedMatch ? Date.parse(publishedMatch[1]) : NaN;
+            items.push({
+              title: title,
+              source: source.name,
+              publishedAt: Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null,
+              _timestamp: Number.isFinite(timestamp) ? timestamp : 0
+            });
+          }
+          return items;
+        } catch (error) {
+          return null;
+        }
+      }));
+      const successful = sourceResults.filter(function(items) { return items !== null; });
+      if (!successful.length) {
+        if (_newsCache) {
+          return new Response(_newsCache, {
+            headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
+          });
+        }
+        return new Response(JSON.stringify({ error: 'All news feeds failed' }), {
+          status: 502,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      const merged = [];
+      for (const items of successful) merged.push(...items);
+      merged.sort(function(a, b) { return b._timestamp - a._timestamp; });
+      const top = merged.slice(0, 10).map(function(item) {
+        return { title: item.title, source: item.source, publishedAt: item.publishedAt };
+      });
+      const newsJson = JSON.stringify({ items: top, fetchedAt: newsNow });
+      _newsCache = newsJson;
+      _newsTime = newsNow;
+      return new Response(newsJson, {
+        headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'MISS' }, corsHeaders)
+      });
+    }
+
+    // Google Pollen forecast. Shared KV is mandatory because per-isolate caches
+    // cannot safely protect a paid API quota across Worker cold starts.
+    if (path === '/api/pollen') {
+      if (!env.GOOGLE_POLLEN_API_KEY) {
+        return new Response(JSON.stringify({ error: 'GOOGLE_POLLEN_API_KEY not configured' }), {
+          status: 500,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      var pollenKv = env.STATUS_KV || env.SETTINGS_KV;
+      if (!pollenKv) {
+        return new Response(JSON.stringify({ error: 'STATUS_KV or SETTINGS_KV is required for pollen quota protection' }), {
+          status: 500,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      var pollenLat = parseFloat(url.searchParams.get('lat'));
+      var pollenLon = parseFloat(url.searchParams.get('lon'));
+      if (isNaN(pollenLat)) pollenLat = -27.4705;
+      if (isNaN(pollenLon)) pollenLon = 153.026;
+      if (pollenLat < -90 || pollenLat > 90 || pollenLon < -180 || pollenLon > 180) {
+        return new Response(JSON.stringify({ error: 'Invalid lat/lon' }), {
+          status: 400,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      var pollenKey = pollenLat.toFixed(2) + ',' + pollenLon.toFixed(2);
+      var pollenKvKey = POLLEN_KV_KEY_PREFIX + pollenKey;
+      var pollenNow = Date.now();
+      if (_pollenCache[pollenKey] && (pollenNow - _pollenTime[pollenKey]) < POLLEN_DATA_TTL) {
+        return new Response(_pollenCache[pollenKey], {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'HIT' }, corsHeaders)
+        });
+      }
+      if (_pollenCache[pollenKey] && _pollenRetryAfter[pollenKey] > pollenNow &&
+          (pollenNow - _pollenTime[pollenKey]) < POLLEN_STALE_MAX_MS) {
+        return new Response(_pollenCache[pollenKey], {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
+        });
+      }
+      var pollenKvCache = null;
+      try { pollenKvCache = await pollenKv.get(pollenKvKey, 'json'); } catch (e) {}
+      if (pollenKvCache && typeof pollenKvCache.json === 'string') {
+        var pollenKvAge = pollenNow - (pollenKvCache.ts || 0);
+        _pollenCache[pollenKey] = pollenKvCache.json;
+        _pollenTime[pollenKey] = pollenKvCache.ts || 0;
+        _pollenRetryAfter[pollenKey] = pollenKvCache.retryAfter || 0;
+        if (pollenKvAge < POLLEN_DATA_TTL) {
+          return new Response(pollenKvCache.json, {
+            headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'HIT' }, corsHeaders)
+          });
+        }
+        if ((pollenKvCache.retryAfter || 0) > pollenNow && pollenKvAge < POLLEN_STALE_MAX_MS) {
+          return new Response(pollenKvCache.json, {
+            headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
+          });
+        }
+      }
+      if (pollenKvCache && (pollenKvCache.retryAfter || 0) > pollenNow) {
+        return new Response(JSON.stringify({ error: 'Pollen API temporarily unavailable' }), {
+          status: 503,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      try {
+        var pollenUrl = 'https://pollen.googleapis.com/v1/forecast:lookup' +
+          '?key=' + encodeURIComponent(env.GOOGLE_POLLEN_API_KEY) +
+          '&location.latitude=' + pollenLat + '&location.longitude=' + pollenLon + '&days=3';
+        var pollenResp = await fetch(pollenUrl);
+        if (!pollenResp.ok) throw new Error('Google Pollen API returned ' + pollenResp.status);
+        var pollenRaw = await pollenResp.json();
+        var pollenDays = (pollenRaw.dailyInfo || []).map(function(dayInfo) {
+          var pollenDate = dayInfo.date || {};
+          var dateText = pollenDate.year + '-' + String(pollenDate.month).padStart(2, '0') + '-' + String(pollenDate.day).padStart(2, '0');
+          var pollenTypes = {};
+          (dayInfo.pollenTypeInfo || []).forEach(function(typeInfo) {
+            pollenTypes[typeInfo.code] = {
+              value: typeInfo.indexInfo ? typeInfo.indexInfo.value : null,
+              category: typeInfo.indexInfo ? typeInfo.indexInfo.category : null,
+              inSeason: typeInfo.inSeason === true
+            };
+          });
+          var plants = (dayInfo.plantInfo || []).filter(function(plant) {
+            return plant.indexInfo && plant.indexInfo.value > 0;
+          }).map(function(plant) {
+            return { name: plant.displayName || plant.code, value: plant.indexInfo.value, category: plant.indexInfo.category };
+          });
+          return { date: dateText, types: pollenTypes, plants: plants };
+        });
+        var pollenJson = JSON.stringify({ days: pollenDays, regionCode: pollenRaw.regionCode || '', fetchedAt: pollenNow });
+        _pollenCache[pollenKey] = pollenJson;
+        _pollenTime[pollenKey] = pollenNow;
+        _pollenRetryAfter[pollenKey] = 0;
+        try {
+          await pollenKv.put(pollenKvKey, JSON.stringify({ json: pollenJson, ts: pollenNow, retryAfter: 0 }), {
+            expirationTtl: POLLEN_KV_EXPIRATION_TTL_S
+          });
+        } catch (e) {}
+        return new Response(pollenJson, {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'MISS' }, corsHeaders)
+        });
+      } catch (pollenErr) {
+        var retryAfter = pollenNow + POLLEN_RETRY_TTL;
+        var stalePollen = null;
+        var staleTimestamp = 0;
+        if (_pollenCache[pollenKey] && (pollenNow - _pollenTime[pollenKey]) < POLLEN_STALE_MAX_MS) {
+          stalePollen = _pollenCache[pollenKey];
+          staleTimestamp = _pollenTime[pollenKey];
+        } else if (pollenKvCache && typeof pollenKvCache.json === 'string' &&
+                   (pollenNow - (pollenKvCache.ts || 0)) < POLLEN_STALE_MAX_MS) {
+          stalePollen = pollenKvCache.json;
+          staleTimestamp = pollenKvCache.ts || 0;
+        }
+        _pollenRetryAfter[pollenKey] = retryAfter;
+        try {
+          await pollenKv.put(pollenKvKey, JSON.stringify({ json: stalePollen, ts: staleTimestamp, retryAfter: retryAfter }), {
+            expirationTtl: POLLEN_KV_EXPIRATION_TTL_S
+          });
+        } catch (e) {}
+        if (stalePollen) {
+          return new Response(stalePollen, {
+            headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
+          });
+        }
+        return new Response(JSON.stringify({ error: 'Pollen API error: ' + pollenErr.message }), {
+          status: 502,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+    }
+
     // Dashboard status — optional KV-backed mutable state shared across devices
     if (path === '/api/dashboard-status') {
       const statusKv = env.STATUS_KV || env.SETTINGS_KV;
@@ -1486,7 +2061,10 @@ export default {
         try {
           stored = await statusKv.get(DASHBOARD_STATUS_KV_KEY, 'json');
         } catch (e) {
-          stored = null;
+          return new Response(JSON.stringify({ error: 'Storage read failed, retry later' }), {
+            status: 503,
+            headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+          });
         }
         return new Response(JSON.stringify(sanitizeDashboardStatus(stored)), {
           headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, corsHeaders)
@@ -1508,7 +2086,10 @@ export default {
         try {
           stored = await statusKv.get(DASHBOARD_STATUS_KV_KEY, 'json');
         } catch (e) {
-          stored = null;
+          return new Response(JSON.stringify({ error: 'Storage read failed, retry later' }), {
+            status: 503,
+            headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+          });
         }
 
         const existing = sanitizeDashboardStatus(stored);
@@ -1518,8 +2099,18 @@ export default {
           updatedAt: new Date().toISOString()
         });
 
-        await statusKv.put(DASHBOARD_STATUS_KV_KEY, JSON.stringify(next));
-        return new Response(JSON.stringify(next), {
+        const changed = dashboardStatusFingerprint(next) !== dashboardStatusFingerprint(existing);
+        if (changed) {
+          try {
+            await statusKv.put(DASHBOARD_STATUS_KV_KEY, JSON.stringify(next));
+          } catch (e) {
+            return new Response(JSON.stringify({ error: 'Storage write failed, retry later' }), {
+              status: 503,
+              headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+            });
+          }
+        }
+        return new Response(JSON.stringify(changed ? next : existing), {
           headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, corsHeaders)
         });
       }

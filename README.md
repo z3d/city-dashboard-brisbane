@@ -6,14 +6,16 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 
 ## Features
 
-- Weather, air quality, UV index, sunrise, and sunset via Open-Meteo
+- Weather, BoM warnings, air quality, UV index, sunrise, and sunset
+- Nearby Queensland bushfire incidents and local ABC/Brisbane Times headlines
+- Optional pollen forecasts through the Google Pollen API
 - Queensland electricity spot prices via AEMO NEMWEB
 - Brisbane City Council bin collection lookup and recycling/garden alternation
 - TransLink bus arrivals through the Worker proxy
 - Overhead flight tracking via ADSB.lol, with route lookup fallbacks
 - Windy satellite map and BOM Brisbane weather radar
 - Sports fixtures and standings
-- Finance prices via Yahoo Finance
+- Finance prices via Yahoo Finance, including user-defined symbols
 - Queensland fuel prices, when a FPD Direct API token is configured
 - Optional Polymarket event card
 - Touch-friendly card ordering, collapsible cards, schedules, ticker mode, import/export settings, and dark/light themes
@@ -45,11 +47,13 @@ Set Worker secrets as needed:
 ```bash
 npx wrangler secret put DASHBOARD_TOKEN
 npx wrangler secret put FUEL_API_TOKEN
+npx wrangler secret put CRICAPI_KEY
+npx wrangler secret put GOOGLE_POLLEN_API_KEY
 ```
 
 `DASHBOARD_TOKEN` protects API routes other than `/api/health`. Use the same value in Settings -> System -> Dashboard Token.
 
-Optional bin dismissal sync uses a Worker KV binding named `STATUS_KV` or `SETTINGS_KV`; without one, the dashboard keeps using local browser storage.
+A Worker KV binding named `STATUS_KV` or `SETTINGS_KV` enables optional bin dismissal sync and is required for shared cricket and pollen caches. Without one, bin state stays in local browser storage and quota-limited feeds fail closed instead of hitting their upstream on every isolate cold start.
 
 ## Project Structure
 
@@ -64,8 +68,7 @@ wrangler.jsonc          # Cloudflare Worker config
 ## Checks
 
 ```bash
-node scripts/check-ios12-compat.js
-node --check src/worker.js
+npm run validate
 ```
 
 `index.html` intentionally targets iOS 12 Safari: no arrow functions, `let`, `const`, template literals, optional chaining, or frontend `fetch()`.
@@ -76,6 +79,10 @@ node --check src/worker.js
 | --- | --- |
 | `GET /api/health` | Health check |
 | `GET /api/electricity` | Queensland electricity spot price proxy |
+| `GET /api/warnings?lat=..&lon=..` | BoM weather warnings for a geohash area |
+| `GET /api/bushfires?lat=..&lon=..` | Queensland bushfire incidents with distance |
+| `GET /api/news` | Local headlines from public RSS feeds |
+| `GET /api/pollen?lat=..&lon=..` | Optional Google pollen forecast |
 | `GET /api/departures?stops=123456,234567` | TransLink bus departures |
 | `GET /api/flights?lamin=..&lomin=..&lamax=..&lomax=..` | ADSB.lol flight proxy |
 | `GET /api/routes?callsign=QFA1` | Flight route lookup |

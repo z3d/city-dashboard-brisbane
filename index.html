@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.58.6">
+  <meta name="app-version" content="1.59.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -63,7 +63,7 @@
       border-bottom: 1px solid rgba(255,255,255,0.1);
     }
 
-    .floating-settings-btn {
+    .floating-settings-btn, .floating-ticker-btn {
       display: none;
       position: fixed;
       top: 10px;
@@ -82,7 +82,8 @@
       padding: 0;
       transition: opacity 0.2s;
     }
-    .floating-settings-btn:hover { color: #fff; background: rgba(50,50,50,0.95); }
+    .floating-ticker-btn { right: 56px; }
+    .floating-settings-btn:hover, .floating-ticker-btn:hover { color: #fff; background: rgba(50,50,50,0.95); }
 
     .header-left {
       display: -webkit-box;
@@ -1515,12 +1516,12 @@
     body.light-theme .btn:active {
       background: rgba(0,0,0,0.15);
     }
-    body.light-theme .floating-settings-btn {
+    body.light-theme .floating-settings-btn, body.light-theme .floating-ticker-btn {
       background: rgba(255,255,255,0.9);
       border-color: rgba(0,0,0,0.12);
       color: #555;
     }
-    body.light-theme .floating-settings-btn:hover {
+    body.light-theme .floating-settings-btn:hover, body.light-theme .floating-ticker-btn:hover {
       color: #1a1a2e;
       background: #fff;
     }
@@ -1753,6 +1754,7 @@
   </style>
 </head>
 <body>
+  <button class="floating-ticker-btn" id="floatingTickerBtn" title="Ticker Mode" aria-label="Open ticker mode">&#9654;</button>
   <button class="floating-settings-btn" id="floatingSettingsBtn" title="Settings">&#9881;</button>
   <div class="container">
     <div class="header" id="mainHeader">
@@ -1828,6 +1830,39 @@
         </div>
       </div>
 
+      <!-- BoM Weather Warnings Card -->
+      <div class="card" id="weatherWarningsCard" data-card-id="weatherWarnings">
+        <div class="card-inner">
+          <div class="card-header">
+            <div class="card-title"><span class="card-icon">&#9888;&#65039;</span> Weather Warnings</div>
+            <div class="card-updated" id="weatherWarningsUpdated">--</div>
+          </div>
+          <div class="card-content" id="weatherWarningsContent"><div class="card-loading">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- Bushfires Card -->
+      <div class="card" id="bushfiresCard" data-card-id="bushfires">
+        <div class="card-inner">
+          <div class="card-header">
+            <div class="card-title"><span class="card-icon">&#128293;</span> Bushfires</div>
+            <div class="card-updated" id="bushfiresUpdated">--</div>
+          </div>
+          <div class="card-content" id="bushfiresContent"><div class="card-loading">Loading...</div></div>
+        </div>
+      </div>
+
+      <!-- News Card -->
+      <div class="card" id="newsCard" data-card-id="news">
+        <div class="card-inner">
+          <div class="card-header">
+            <div class="card-title"><span class="card-icon">&#128240;</span> Local News</div>
+            <div class="card-updated" id="newsUpdated">--</div>
+          </div>
+          <div class="card-content" id="newsContent"><div class="card-loading">Loading...</div></div>
+        </div>
+      </div>
+
       <!-- Air Quality Card -->
       <div class="card" id="airQualityCard" data-card-id="airQuality">
         <div class="card-inner">
@@ -1851,6 +1886,17 @@
           <div class="card-content" id="uvIndexContent">
             <div class="card-loading">Loading...</div>
           </div>
+        </div>
+      </div>
+
+      <!-- Pollen Card -->
+      <div class="card" id="pollenCard" data-card-id="pollen">
+        <div class="card-inner">
+          <div class="card-header">
+            <div class="card-title"><span class="card-icon">&#127793;</span> Pollen</div>
+            <div class="card-updated" id="pollenUpdated">--</div>
+          </div>
+          <div class="card-content" id="pollenContent"><div class="card-loading">Loading...</div></div>
         </div>
       </div>
 
@@ -2013,12 +2059,12 @@
   </div>
 
   <!-- Settings Overlay -->
-  <div class="settings-overlay" id="settingsOverlay">
-    <div class="settings-panel" tabindex="0">
+  <div class="settings-overlay" id="settingsOverlay" aria-hidden="true">
+    <div class="settings-panel" tabindex="0" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="settings-scroll-content" id="settingsScrollContent">
       <div class="settings-header">
-        <h2>Settings</h2>
-        <button class="settings-close" id="settingsClose">×</button>
+        <h2 id="settingsTitle">Settings</h2>
+        <button class="settings-close" id="settingsClose" aria-label="Close settings">×</button>
       </div>
 
       <div class="settings-tabs">
@@ -2029,6 +2075,76 @@
 
       <!-- Cards Tab -->
       <div id="settingsTabContentCards">
+        <div class="settings-group">
+          <label for="cardsSettingsFilter">Find a card</label>
+          <input type="search" id="cardsSettingsFilter" placeholder="Weather, finance, bus..." autocomplete="off">
+          <div id="cardsSettingsFilterStatus" class="settings-info" role="status" aria-live="polite"></div>
+        </div>
+
+        <!-- Weather Warnings -->
+        <div class="card-setting-row">
+          <div class="card-setting-main">
+            <div class="card-setting-expander">
+              <span class="card-setting-icon">&#9888;&#65039;</span>
+              <span class="card-setting-name">Weather Warnings</span>
+            </div>
+            <div class="card-setting-checks">
+              <select id="weatherWarningsDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <label class="master-label"><input type="checkbox" id="showWeatherWarnings"></label>
+            </div>
+          </div>
+          <div class="card-setting-body" style="display:block;">
+            <label class="checkbox-label"><input type="checkbox" id="weatherWarningsOnlyWhenActive"> Only show card when a warning is active</label>
+          </div>
+        </div>
+
+        <!-- Bushfires -->
+        <div class="card-setting-row">
+          <div class="card-setting-main">
+            <div class="card-setting-expander">
+              <span class="card-setting-icon">&#128293;</span>
+              <span class="card-setting-name">Bushfires</span>
+            </div>
+            <div class="card-setting-checks">
+              <select id="bushfiresDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <label class="master-label"><input type="checkbox" id="showBushfires"></label>
+            </div>
+          </div>
+          <div class="card-setting-body" style="display:block;">
+            <label class="checkbox-label"><input type="checkbox" id="bushfiresOnlyWhenNearby"> Only show card for a nearby incident</label>
+          </div>
+        </div>
+
+        <!-- News -->
+        <div class="card-setting-row">
+          <div class="card-setting-main">
+            <div class="card-setting-expander">
+              <span class="card-setting-icon">&#128240;</span>
+              <span class="card-setting-name">Local News</span>
+            </div>
+            <div class="card-setting-checks">
+              <select id="newsDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <label class="master-label"><input type="checkbox" id="showNews"></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pollen -->
+        <div class="card-setting-row">
+          <div class="card-setting-main">
+            <div class="card-setting-expander">
+              <span class="card-setting-icon">&#127793;</span>
+              <span class="card-setting-name">Pollen</span>
+            </div>
+            <div class="card-setting-checks">
+              <select id="pollenDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <label class="master-label"><input type="checkbox" id="showPollen"></label>
+            </div>
+          </div>
+          <div class="card-setting-body" style="display:block;">
+            <div class="settings-info">Requires <code>GOOGLE_POLLEN_API_KEY</code> and a Worker KV binding.</div>
+          </div>
+        </div>
 
         <!-- Air Quality -->
         <div class="card-setting-row">
@@ -2286,6 +2402,9 @@
               </div>
               <div class="settings-group"></div>
             </div>
+            <div style="font-size:0.85em;color:#aaa;margin:12px 0 8px 0;">Custom Yahoo Finance symbols, such as <code>AAPL</code>, <code>BHP.AX</code>, <code>^N225</code>, or <code>BTC-USD</code>.</div>
+            <div id="financeCustomList"></div>
+            <button type="button" id="addFinanceCustomBtn" class="btn">+ Add Ticker</button>
           </div>
         </div>
 
@@ -2799,12 +2918,40 @@
         var el = document.getElementById('offlineIndicator');
         if (el) { el.style.display = offline ? 'inline' : 'none'; }
       }
-      // Hook all XHRs: 'load' = network OK (even if HTTP error), 'error' = network failure
+      // Bound requests so a stalled upstream cannot accumulate across polling
+      // intervals, and suppress duplicate same-URL GETs while one is active.
+      var XHR_TIMEOUT_MS = 30000;
+      var _activeGetRequests = {};
+      var _origOpen = XMLHttpRequest.prototype.open;
       var _origSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function(method, url) {
+        this._dashboardRequestKey = String(method).toUpperCase() === 'GET' ? 'GET ' + String(url) : '';
+        return _origOpen.apply(this, arguments);
+      };
       XMLHttpRequest.prototype.send = function() {
-        this.addEventListener('load', function() { setOfflineStatus(false); }, false);
-        this.addEventListener('error', function() { setOfflineStatus(true); }, false);
-        return _origSend.apply(this, arguments);
+        var xhr = this;
+        var requestKey = xhr._dashboardRequestKey;
+        if (requestKey) {
+          var active = _activeGetRequests[requestKey];
+          if (active && active.readyState !== 4) return;
+          _activeGetRequests[requestKey] = xhr;
+          xhr.addEventListener('loadend', function() {
+            if (_activeGetRequests[requestKey] === xhr) delete _activeGetRequests[requestKey];
+          }, false);
+        }
+        try { if (!xhr.timeout) xhr.timeout = XHR_TIMEOUT_MS; } catch (e) {}
+        xhr.addEventListener('load', function() { setOfflineStatus(false); }, false);
+        xhr.addEventListener('error', function() { setOfflineStatus(true); }, false);
+        xhr.addEventListener('timeout', function() {
+          setOfflineStatus(true);
+          if (typeof xhr.onerror === 'function') xhr.onerror.call(xhr);
+        }, false);
+        try {
+          return _origSend.apply(xhr, arguments);
+        } catch (e) {
+          if (requestKey && _activeGetRequests[requestKey] === xhr) delete _activeGetRequests[requestKey];
+          throw e;
+        }
       };
 
       // Profile support: ?profile=Name gives independent config per home-screen instance
@@ -2838,10 +2985,16 @@
         dataInterval: 300,
         reloadTime: 2,
         showWeather: true,
+        showWeatherWarnings: false,
+        weatherWarningsOnlyWhenActive: false,
+        showBushfires: false,
+        bushfiresOnlyWhenNearby: true,
+        showNews: false,
         showAirQuality: false,
         airQualityShowWhenPoor: false,
         showUvIndex: false,
         uvIndexShowWhenHigh: false,
+        showPollen: false,
         showElectricity: false,
         showBin: true,
         showFlights: false,
@@ -2880,7 +3033,7 @@
         fuelScheduleHide: false,
         fuelScheduleStart: 5,
         fuelScheduleEnd: 23,
-        cardOrder: ['bus1', 'bus2', 'weather', 'airQuality', 'uvIndex', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'],
+        cardOrder: ['bus1', 'bus2', 'weather', 'weatherWarnings', 'bushfires', 'news', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'],
         showSoccer: true,
         soccerEPL: true,
         soccerChampionsLeague: false,
@@ -2921,6 +3074,7 @@
         financeFTSE100: false,
         financeHangSeng: false,
         financeJSEALSI: false,
+        financeCustom: [],
         showPolymarket: false,
         polymarketCount: 5,
         showTicker: false,
@@ -2928,8 +3082,12 @@
         showNeedsAttention: false,
         needsAttentionMaxItems: 3,
         weatherDisplayMode: 'both',
+        weatherWarningsDisplayMode: 'card',
+        bushfiresDisplayMode: 'card',
+        newsDisplayMode: 'ticker',
         airQualityDisplayMode: 'both',
         uvIndexDisplayMode: 'both',
+        pollenDisplayMode: 'card',
         electricityDisplayMode: 'both',
         busDisplayMode: 'both',
         fuelDisplayMode: 'both',
@@ -2946,6 +3104,8 @@
         lightTheme: false
       };
 
+      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'weatherWarnings', 'bushfires', 'news', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'];
+
       var flightTimer = null;
       var dataTimer = null;
       var tickerTimer = null;
@@ -2954,8 +3114,12 @@
       var tickerCurrentIndex = 0;
       var lastFinanceData = null;
       var lastWeatherData = null;
+      var lastWeatherWarningsData = null;
+      var lastBushfiresData = null;
+      var lastNewsData = null;
       var lastAirQualityData = null;
       var lastUvIndexData = null;
+      var lastPollenData = null;
       var lastElecPrice = null;
       var lastBusData = null;
       var lastFuelData = null;
@@ -2980,6 +3144,23 @@
         elements.weatherContent = document.getElementById('weatherContent');
         elements.weatherUpdated = document.getElementById('weatherUpdated');
         elements.weatherTitleTemp = document.getElementById('weatherTitleTemp');
+        elements.weatherWarningsCard = document.getElementById('weatherWarningsCard');
+        elements.weatherWarningsContent = document.getElementById('weatherWarningsContent');
+        elements.weatherWarningsUpdated = document.getElementById('weatherWarningsUpdated');
+        elements.showWeatherWarnings = document.getElementById('showWeatherWarnings');
+        elements.weatherWarningsOnlyWhenActive = document.getElementById('weatherWarningsOnlyWhenActive');
+        elements.weatherWarningsDisplayMode = document.getElementById('weatherWarningsDisplayMode');
+        elements.bushfiresCard = document.getElementById('bushfiresCard');
+        elements.bushfiresContent = document.getElementById('bushfiresContent');
+        elements.bushfiresUpdated = document.getElementById('bushfiresUpdated');
+        elements.showBushfires = document.getElementById('showBushfires');
+        elements.bushfiresOnlyWhenNearby = document.getElementById('bushfiresOnlyWhenNearby');
+        elements.bushfiresDisplayMode = document.getElementById('bushfiresDisplayMode');
+        elements.newsCard = document.getElementById('newsCard');
+        elements.newsContent = document.getElementById('newsContent');
+        elements.newsUpdated = document.getElementById('newsUpdated');
+        elements.showNews = document.getElementById('showNews');
+        elements.newsDisplayMode = document.getElementById('newsDisplayMode');
         elements.airQualityCard = document.getElementById('airQualityCard');
         elements.airQualityContent = document.getElementById('airQualityContent');
         elements.airQualityUpdated = document.getElementById('airQualityUpdated');
@@ -2988,6 +3169,11 @@
         elements.uvIndexContent = document.getElementById('uvIndexContent');
         elements.uvIndexUpdated = document.getElementById('uvIndexUpdated');
         elements.uvIndexTitleValue = document.getElementById('uvIndexTitleValue');
+        elements.pollenCard = document.getElementById('pollenCard');
+        elements.pollenContent = document.getElementById('pollenContent');
+        elements.pollenUpdated = document.getElementById('pollenUpdated');
+        elements.showPollen = document.getElementById('showPollen');
+        elements.pollenDisplayMode = document.getElementById('pollenDisplayMode');
         elements.electricityCard = document.getElementById('electricityCard');
         elements.elecContent = document.getElementById('elecContent');
         elements.elecUpdated = document.getElementById('elecUpdated');
@@ -3152,6 +3338,7 @@
         elements.financeFTSE100 = document.getElementById('financeFTSE100');
         elements.financeHangSeng = document.getElementById('financeHangSeng');
         elements.financeJSEALSI = document.getElementById('financeJSEALSI');
+        elements.financeCustomList = document.getElementById('financeCustomList');
         elements.showSoccer = document.getElementById('showSoccer');
         elements.showRugby = document.getElementById('showRugby');
         elements.showCricket = document.getElementById('showCricket');
@@ -3216,10 +3403,16 @@
             config.dataInterval = parsed.dataInterval || 300;
             config.reloadTime = parsed.reloadTime !== undefined ? parseInt(parsed.reloadTime) : 2;
             config.showWeather = parsed.showWeather !== undefined ? parsed.showWeather : true;
+            config.showWeatherWarnings = parsed.showWeatherWarnings !== undefined ? parsed.showWeatherWarnings : false;
+            config.weatherWarningsOnlyWhenActive = parsed.weatherWarningsOnlyWhenActive !== undefined ? parsed.weatherWarningsOnlyWhenActive : false;
+            config.showBushfires = parsed.showBushfires !== undefined ? parsed.showBushfires : false;
+            config.bushfiresOnlyWhenNearby = parsed.bushfiresOnlyWhenNearby !== undefined ? parsed.bushfiresOnlyWhenNearby : true;
+            config.showNews = parsed.showNews !== undefined ? parsed.showNews : false;
             config.showAirQuality = parsed.showAirQuality !== undefined ? parsed.showAirQuality : false;
             config.airQualityShowWhenPoor = parsed.airQualityShowWhenPoor !== undefined ? parsed.airQualityShowWhenPoor : false;
             config.showUvIndex = parsed.showUvIndex !== undefined ? parsed.showUvIndex : false;
             config.uvIndexShowWhenHigh = parsed.uvIndexShowWhenHigh !== undefined ? parsed.uvIndexShowWhenHigh : false;
+            config.showPollen = parsed.showPollen !== undefined ? parsed.showPollen : false;
             config.showElectricity = parsed.showElectricity !== undefined ? parsed.showElectricity : true;
             config.showBin = parsed.showBin !== undefined ? parsed.showBin : true;
             config.showFlights = parsed.showFlights !== undefined ? parsed.showFlights : true;
@@ -3309,6 +3502,7 @@
             config.financeFTSE100 = parsed.financeFTSE100 !== undefined ? parsed.financeFTSE100 : false;
             config.financeHangSeng = parsed.financeHangSeng !== undefined ? parsed.financeHangSeng : false;
             config.financeJSEALSI = parsed.financeJSEALSI !== undefined ? parsed.financeJSEALSI : false;
+            config.financeCustom = Object.prototype.toString.call(parsed.financeCustom) === '[object Array]' ? parsed.financeCustom : [];
             config.showPolymarket = parsed.showPolymarket !== undefined ? parsed.showPolymarket : false;
             config.polymarketCount = parsed.polymarketCount !== undefined ? parsed.polymarketCount : 5;
             config.showTicker = parsed.showTicker !== undefined ? parsed.showTicker : false;
@@ -3320,8 +3514,12 @@
             // Display mode per card (migrate from old tickerXxx booleans)
             var _dmCards = [
               ['weather', 'tickerWeather', 'both'],
+              ['weatherWarnings', null, 'card'],
+              ['bushfires', null, 'card'],
+              ['news', null, 'ticker'],
               ['airQuality', null, 'both'],
               ['uvIndex', null, 'both'],
+              ['pollen', null, 'card'],
               ['electricity', 'tickerElectricity', 'both'],
               ['bus', 'tickerBus', 'both'],
               ['fuel', 'tickerFuel', 'both'],
@@ -3425,14 +3623,84 @@
         setTimeout(forceReload, target - now);
       }
 
-      function checkForUpdates() {
-        var storedVersion = localStorage.getItem(storageKey('app_version'));
-        if (storedVersion && storedVersion !== APP_VERSION) {
-          localStorage.setItem(storageKey('app_version'), APP_VERSION);
-          forceReload();
-          return;
+      var updateReloadVersion = '';
+
+      function compareSemver(a, b) {
+        var aParts = String(a).split('.');
+        var bParts = String(b).split('.');
+        if (aParts.length !== 3 || bParts.length !== 3) return null;
+        for (var i = 0; i < 3; i++) {
+          if (!/^\d+$/.test(aParts[i]) || !/^\d+$/.test(bParts[i])) return null;
+          var aNum = Number(aParts[i]);
+          var bNum = Number(bParts[i]);
+          if (aNum > bNum) return 1;
+          if (aNum < bNum) return -1;
         }
-        localStorage.setItem(storageKey('app_version'), APP_VERSION);
+        return 0;
+      }
+
+      function showUpdateBanner(message, canReload) {
+        var banner = document.getElementById('updateBanner');
+        if (!banner) return;
+        var text = banner.querySelector('.update-text');
+        var button = document.getElementById('updateBtn');
+        if (text) text.textContent = message;
+        if (button) button.style.display = canReload ? '' : 'none';
+        banner.className = 'update-banner';
+      }
+
+      function rememberHighestVersion(version) {
+        var key = storageKey('app_version');
+        var stored = '';
+        try { stored = localStorage.getItem(key) || ''; } catch (e) {}
+        var comparison = stored ? compareSemver(version, stored) : 1;
+        if (comparison !== null && comparison > 0) {
+          try { localStorage.setItem(key, version); } catch (e) {}
+          return version;
+        }
+        return stored || version;
+      }
+
+      function deployedVersionFromHtml(html) {
+        var pattern = new RegExp('<meta\\s+name=[\\x22\\x27]app-version[\\x22\\x27][^>]*content=[\\x22\\x27]([^\\x22\\x27]+)[\\x22\\x27]', 'i');
+        var match = String(html).match(pattern);
+        return match ? match[1] : '';
+      }
+
+      function checkDeployedVersion() {
+        if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') return;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', window.location.origin + '/?_version_check=' + Date.now(), true);
+        try { xhr.setRequestHeader('Range', 'bytes=0-2047'); } catch (e) {}
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4 || (xhr.status !== 200 && xhr.status !== 206)) return;
+          var deployedVersion = deployedVersionFromHtml(xhr.responseText);
+          var deployedVsCurrent = compareSemver(deployedVersion, APP_VERSION);
+          if (deployedVsCurrent === null) return;
+          var highestVersion = APP_VERSION;
+          try { highestVersion = localStorage.getItem(storageKey('app_version')) || APP_VERSION; } catch (e) {}
+          var deployedVsHighest = compareSemver(deployedVersion, highestVersion);
+          if (deployedVsCurrent > 0 && deployedVsHighest !== null && deployedVsHighest >= 0) {
+            rememberHighestVersion(deployedVersion);
+            showUpdateBanner('Updating from v' + APP_VERSION + ' to v' + deployedVersion + '\u2026', true);
+            if (updateReloadVersion !== deployedVersion) {
+              updateReloadVersion = deployedVersion;
+              setTimeout(forceReload, 2000);
+            }
+          } else if (deployedVsCurrent < 0 || (deployedVsHighest !== null && deployedVsHighest < 0)) {
+            showUpdateBanner('Deployment rollback detected: server v' + deployedVersion + ', highest seen v' + highestVersion + '.', false);
+          }
+        };
+        xhr.send();
+      }
+
+      function checkForUpdates() {
+        var highestVersion = rememberHighestVersion(APP_VERSION);
+        if (compareSemver(APP_VERSION, highestVersion) < 0) {
+          showUpdateBanner('Older dashboard loaded: v' + APP_VERSION + ', highest seen v' + highestVersion + '.', false);
+        }
+        setTimeout(checkDeployedVersion, 30000);
+        setInterval(checkDeployedVersion, 15 * 60 * 1000);
       }
 
       // Check if current hour is within a schedule range
@@ -3449,8 +3717,12 @@
       function getCardDisplayMode(cardId) {
         if (cardId === 'bus1' || cardId === 'bus2') return config.busDisplayMode;
         if (cardId === 'weather') return config.weatherDisplayMode;
+        if (cardId === 'weatherWarnings') return config.weatherWarningsDisplayMode;
+        if (cardId === 'bushfires') return config.bushfiresDisplayMode;
+        if (cardId === 'news') return config.newsDisplayMode;
         if (cardId === 'airQuality') return config.airQualityDisplayMode;
         if (cardId === 'uvIndex') return config.uvIndexDisplayMode;
+        if (cardId === 'pollen') return config.pollenDisplayMode;
         if (cardId === 'electricity') return config.electricityDisplayMode;
         if (cardId === 'bin') return config.binDisplayMode;
         if (cardId === 'flights') return config.flightsDisplayMode;
@@ -3740,8 +4012,16 @@
       function updateCardVisibility() {
         elements.mainHeader.style.display = config.showHeader ? '' : 'none';
         document.getElementById('floatingSettingsBtn').style.display = config.showHeader ? 'none' : 'block';
+        document.getElementById('floatingTickerBtn').style.display = (!config.showHeader && config.showTicker) ? 'block' : 'none';
         var showWeather = config.showWeather && isCardDisplayMode(config.weatherDisplayMode) && isInSchedule(config.weatherScheduleHide, config.weatherScheduleStart, config.weatherScheduleEnd);
         elements.weatherCard.style.display = showWeather ? '' : 'none';
+        var showWarnings = config.showWeatherWarnings && isCardDisplayMode(config.weatherWarningsDisplayMode);
+        if (showWarnings && config.weatherWarningsOnlyWhenActive && getActiveWeatherWarnings().length === 0) showWarnings = false;
+        elements.weatherWarningsCard.style.display = showWarnings ? '' : 'none';
+        var showBushfires = config.showBushfires && isCardDisplayMode(config.bushfiresDisplayMode);
+        if (showBushfires && config.bushfiresOnlyWhenNearby && getNearbyBushfires().length === 0) showBushfires = false;
+        elements.bushfiresCard.style.display = showBushfires ? '' : 'none';
+        elements.newsCard.style.display = (config.showNews && isCardDisplayMode(config.newsDisplayMode)) ? '' : 'none';
         var showAirQuality = config.showAirQuality && isCardDisplayMode(config.airQualityDisplayMode);
         // Override: show the card whenever AQI > 100, even if card is normally hidden/ticker-only
         if (config.airQualityShowWhenPoor && lastAirQualityData && lastAirQualityData.current &&
@@ -3759,6 +4039,7 @@
           }
         }
         elements.uvIndexCard.style.display = showUvIndex ? '' : 'none';
+        elements.pollenCard.style.display = (config.showPollen && isCardDisplayMode(config.pollenDisplayMode)) ? '' : 'none';
         var showElec = config.showElectricity && isCardDisplayMode(config.electricityDisplayMode) && isInSchedule(config.elecScheduleHide, config.elecScheduleStart, config.elecScheduleEnd);
         elements.electricityCard.style.display = showElec ? '' : 'none';
         var showBin = config.showBin && isCardDisplayMode(config.binDisplayMode);
@@ -4724,7 +5005,7 @@
           return;
         }
 
-        var html = '<div class="bin-next">' + collectionDay;
+        var html = '<div class="bin-next">' + escapeHtml(collectionDay);
         if (daysUntil) {
           html += ' <span class="bin-days">— ' + daysUntil + '</span>';
         }
@@ -4735,7 +5016,7 @@
           html += '<div class="bin-type bin-garden"><span class="bin-emoji">&#x1F7E2;</span> Garden Waste</div>';
         }
         html += '<div class="bin-type"><span class="bin-emoji">&#x1F534;</span> General Waste</div>';
-        html += '<div class="bin-type" style="color: #666; margin-top: 6px; font-size: 0.85em;">Zone ' + zone + '</div>';
+        html += '<div class="bin-type" style="color: #666; margin-top: 6px; font-size: 0.85em;">Zone ' + escapeHtml(zone) + '</div>';
         if (config.binConditionalHide && targetDayIndex !== -1 && daysUntilNum >= 0 && daysUntilNum <= config.binShowDaysBefore) {
           html += '<button onclick="dismissBinTakenOut()" style="margin-top:10px;padding:6px 16px;background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);border-radius:8px;font-size:0.85em;cursor:pointer;">Taken out</button>';
         }
@@ -5291,7 +5572,7 @@
           var cs = callsigns[i];
           var route = _routeCache[cs];
           if (!route || route.length < 2) continue;
-          var el = document.getElementById('flight-route-' + cs);
+          var el = document.getElementById('flight-route-' + safeDomId(cs));
           if (el) {
             var origin = getAirportName(route[0]);
             var dest = getAirportName(route[route.length - 1]);
@@ -5370,9 +5651,9 @@
           var sideHtml = sideLabel ? '<span class="flight-details flight-side ' + sideClass + '">' + sideLabel + '</span>' : '';
 
           html += '<div class="flight-item">' +
-            '<span class="flight-callsign">' + displayName + (flightNum ? ' <span style="color:#94a3b8;font-weight:normal;">' + flightNum + '</span>' : '') + '</span>' +
-            (acInfo ? '<span class="flight-details" style="color:#a5b4fc;">' + acInfo + '</span> ' : '') +
-            '<span class="flight-details flight-route" id="flight-route-' + callsign + '">' + routeStr + '</span>' +
+            '<span class="flight-callsign">' + escapeHtml(displayName) + (flightNum ? ' <span style="color:#94a3b8;font-weight:normal;">' + escapeHtml(flightNum) + '</span>' : '') + '</span>' +
+            (acInfo ? '<span class="flight-details" style="color:#a5b4fc;">' + escapeHtml(acInfo) + '</span> ' : '') +
+            '<span class="flight-details flight-route" id="flight-route-' + safeDomId(callsign) + '">' + escapeHtml(routeStr) + '</span>' +
             sideHtml +
             '<span class="flight-details ' + altClass + '">' + altStr + '</span>' +
             '<span class="flight-details"> · ' + speedStr + ' · ' + headingStr + '</span>' +
@@ -5506,7 +5787,7 @@
           if (!stopData) continue;
 
           var stopHtml = '<div class="bus-stop">';
-          stopHtml += '<div class="bus-stop-name">' + (stopConfig.name || 'Stop ' + stopConfig.stopId) + '</div>';
+          stopHtml += '<div class="bus-stop-name">' + escapeHtml(stopConfig.name || 'Stop ' + stopConfig.stopId) + '</div>';
 
           var departures = stopData.departures || [];
           var routeFilter = stopConfig.routes ? stopConfig.routes.split(',') : null;
@@ -5550,9 +5831,9 @@
             }
 
             stopHtml += '<div class="bus-arrival">';
-            stopHtml += '<span class="bus-route">' + dep.route + '</span>';
+            stopHtml += '<span class="bus-route">' + escapeHtml(dep.route) + '</span>';
             stopHtml += '<span class="' + timeClass + '">' + timeText + '</span>';
-            stopHtml += '<span class="bus-destination">' + (dep.destination || '') + '</span>';
+            stopHtml += '<span class="bus-destination">' + escapeHtml(dep.destination || '') + '</span>';
             stopHtml += '</div>';
           }
 
@@ -5589,15 +5870,18 @@
           var row = document.createElement('div');
           row.className = 'bus-stop-row';
           row.innerHTML = '<div style="display:-webkit-box;display:-webkit-flex;display:flex;margin-bottom:6px;">' +
-            '<input type="text" class="stop-id" value="' + (stop.stopId || '') + '" placeholder="Stop ID" style="width:35%;margin-right:4px;margin-bottom:0;">' +
+            '<input type="text" class="stop-id" placeholder="Stop ID" style="width:35%;margin-right:4px;margin-bottom:0;">' +
             '<select class="stop-section" style="width:30%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.95em;-webkit-appearance:none;margin-bottom:0;">' +
             '<option value="1"' + (section === '1' ? ' selected' : '') + '>Section 1</option>' +
             '<option value="2"' + (section === '2' ? ' selected' : '') + '>Section 2</option>' +
             '</select>' +
             '</div>' +
-            '<input type="text" class="stop-name" value="' + (stop.name || '') + '" placeholder="Display name">' +
-            '<input type="text" class="stop-routes" value="' + (stop.routes || '') + '" placeholder="Routes filter (e.g., 120 or 150,156)">' +
+            '<input type="text" class="stop-name" placeholder="Display name">' +
+            '<input type="text" class="stop-routes" placeholder="Routes filter (e.g., 120 or 150,156)">' +
             '<button type="button" class="remove-stop">Remove</button>';
+          row.querySelector('.stop-id').value = stop.stopId || '';
+          row.querySelector('.stop-name').value = stop.name || '';
+          row.querySelector('.stop-routes').value = stop.routes || '';
           container.appendChild(row);
         }
 
@@ -5653,12 +5937,18 @@
         elements.reloadTimeInput.value = config.reloadTime;
         elements.showWeather.checked = config.showWeather;
         setMasterClass('showWeatherMasterLabel', config.showWeather, config.showWeather);
+        elements.showWeatherWarnings.checked = config.showWeatherWarnings;
+        elements.weatherWarningsOnlyWhenActive.checked = config.weatherWarningsOnlyWhenActive;
+        elements.showBushfires.checked = config.showBushfires;
+        elements.bushfiresOnlyWhenNearby.checked = config.bushfiresOnlyWhenNearby;
+        elements.showNews.checked = config.showNews;
         elements.showAirQuality.checked = config.showAirQuality;
         setMasterClass('showAirQualityMasterLabel', config.showAirQuality, config.showAirQuality);
         elements.airQualityShowWhenPoor.checked = config.airQualityShowWhenPoor;
         elements.showUvIndex.checked = config.showUvIndex;
         setMasterClass('showUvIndexMasterLabel', config.showUvIndex, config.showUvIndex);
         elements.uvIndexShowWhenHigh.checked = config.uvIndexShowWhenHigh;
+        elements.showPollen.checked = config.showPollen;
         elements.showElectricity.checked = config.showElectricity;
         setMasterClass('showElectricityMasterLabel', config.showElectricity, config.showElectricity);
         elements.showBin.checked = config.showBin;
@@ -5751,6 +6041,7 @@
         elements.financeFTSE100.checked = config.financeFTSE100;
         elements.financeHangSeng.checked = config.financeHangSeng;
         elements.financeJSEALSI.checked = config.financeJSEALSI;
+        renderFinanceCustomSettingsRows();
         updateFinanceMaster();
         elements.showPolymarket.checked = config.showPolymarket;
         elements.polymarketCount.value = config.polymarketCount || 5;
@@ -5759,8 +6050,12 @@
         elements.showNeedsAttention.checked = config.showNeedsAttention;
         elements.needsAttentionMaxItems.value = config.needsAttentionMaxItems || 3;
         elements.weatherDisplayMode.value = config.weatherDisplayMode;
+        elements.weatherWarningsDisplayMode.value = config.weatherWarningsDisplayMode;
+        elements.bushfiresDisplayMode.value = config.bushfiresDisplayMode;
+        elements.newsDisplayMode.value = config.newsDisplayMode;
         elements.airQualityDisplayMode.value = config.airQualityDisplayMode;
         elements.uvIndexDisplayMode.value = config.uvIndexDisplayMode;
+        elements.pollenDisplayMode.value = config.pollenDisplayMode;
         elements.electricityDisplayMode.value = config.electricityDisplayMode;
         elements.busDisplayMode.value = config.busDisplayMode;
         elements.fuelDisplayMode.value = config.fuelDisplayMode;
@@ -5775,6 +6070,7 @@
         elements.scrollingTickerCheckbox.checked = config.scrollingTicker;
         elements.settingsSaved.className = 'settings-saved';
         elements.settingsOverlay.className = 'settings-overlay active';
+        elements.settingsOverlay.setAttribute('aria-hidden', 'false');
         var sc = document.getElementById('settingsScrollContent');
         if (sc) sc.scrollTop = 0;
         var panel = document.querySelector('.settings-panel');
@@ -5783,13 +6079,21 @@
 
       function closeSettings() {
         elements.settingsOverlay.className = 'settings-overlay';
+        elements.settingsOverlay.setAttribute('aria-hidden', 'true');
       }
 
       document.addEventListener('keydown', function(e) {
         var overlay = elements.settingsOverlay;
         if (!overlay || overlay.className.indexOf('active') === -1) return;
+        if (e.keyCode === 27) {
+          e.preventDefault();
+          closeSettings();
+          return;
+        }
         var sc = document.getElementById('settingsScrollContent');
         if (!sc) return;
+        var tag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'select' || tag === 'textarea' || tag === 'button') return;
         var step = 60;
         if (e.keyCode === 40) { sc.scrollTop = sc.scrollTop + step; e.preventDefault(); }
         if (e.keyCode === 38) { sc.scrollTop = sc.scrollTop - step; e.preventDefault(); }
@@ -5822,10 +6126,16 @@
         config.reloadTime = parseInt(elements.reloadTimeInput.value, 10);
         if (isNaN(config.reloadTime) || config.reloadTime < -1 || config.reloadTime > 23) config.reloadTime = -1;
         config.showWeather = elements.showWeather.checked;
+        config.showWeatherWarnings = elements.showWeatherWarnings.checked;
+        config.weatherWarningsOnlyWhenActive = elements.weatherWarningsOnlyWhenActive.checked;
+        config.showBushfires = elements.showBushfires.checked;
+        config.bushfiresOnlyWhenNearby = elements.bushfiresOnlyWhenNearby.checked;
+        config.showNews = elements.showNews.checked;
         config.showAirQuality = elements.showAirQuality.checked;
         config.airQualityShowWhenPoor = elements.airQualityShowWhenPoor.checked;
         config.showUvIndex = elements.showUvIndex.checked;
         config.uvIndexShowWhenHigh = elements.uvIndexShowWhenHigh.checked;
+        config.showPollen = elements.showPollen.checked;
         config.showElectricity = elements.showElectricity.checked;
         config.showBin = elements.showBin.checked;
         config.showFlights = elements.showFlights.checked;
@@ -5918,6 +6228,7 @@
         config.financeFTSE100 = elements.financeFTSE100.checked;
         config.financeHangSeng = elements.financeHangSeng.checked;
         config.financeJSEALSI = elements.financeJSEALSI.checked;
+        config.financeCustom = readFinanceCustomSettingsRows();
         config.showPolymarket = elements.showPolymarket.checked;
         config.polymarketCount = parseInt(elements.polymarketCount.value) || 5;
         config.showTicker = elements.showTicker.checked;
@@ -5927,8 +6238,12 @@
         if (config.needsAttentionMaxItems < 1) config.needsAttentionMaxItems = 1;
         if (config.needsAttentionMaxItems > 8) config.needsAttentionMaxItems = 8;
         config.weatherDisplayMode = elements.weatherDisplayMode.value;
+        config.weatherWarningsDisplayMode = elements.weatherWarningsDisplayMode.value;
+        config.bushfiresDisplayMode = elements.bushfiresDisplayMode.value;
+        config.newsDisplayMode = elements.newsDisplayMode.value;
         config.airQualityDisplayMode = elements.airQualityDisplayMode.value;
         config.uvIndexDisplayMode = elements.uvIndexDisplayMode.value;
+        config.pollenDisplayMode = elements.pollenDisplayMode.value;
         config.electricityDisplayMode = elements.electricityDisplayMode.value;
         config.busDisplayMode = elements.busDisplayMode.value;
         config.fuelDisplayMode = elements.fuelDisplayMode.value;
@@ -6025,9 +6340,16 @@
       }
 
       function escapeHtml(str) {
-        var div = document.createElement('div');
-        div.appendChild(document.createTextNode(str));
-        return div.innerHTML;
+        return String(str === null || str === undefined ? '' : str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function safeDomId(str) {
+        return String(str === null || str === undefined ? '' : str).replace(/[^A-Za-z0-9_-]/g, '_');
       }
 
       function initTickerAndSpotlight() {
@@ -6076,6 +6398,21 @@
         }
       }
 
+      function filterSettingsCards() {
+        var input = document.getElementById('cardsSettingsFilter');
+        var status = document.getElementById('cardsSettingsFilterStatus');
+        var rows = document.querySelectorAll('#settingsTabContentCards .card-setting-row');
+        var query = input ? input.value.toLowerCase().replace(/^\s+|\s+$/g, '') : '';
+        var visible = 0;
+        for (var i = 0; i < rows.length; i++) {
+          var name = rows[i].querySelector('.card-setting-name');
+          var show = !query || (name && name.textContent.toLowerCase().indexOf(query) !== -1);
+          rows[i].style.display = show ? '' : 'none';
+          if (show) visible++;
+        }
+        if (status) status.textContent = query ? visible + ' of ' + rows.length + ' cards' : rows.length + ' cards';
+      }
+
       function initSettings() {
         var settingsBtn = document.getElementById('settingsBtn');
         var settingsClose = document.getElementById('settingsClose');
@@ -6088,14 +6425,18 @@
         var exportBtn = document.getElementById('exportSettings');
         var importBtn = document.getElementById('importSettings');
         var importFileInput = document.getElementById('importFileInput');
+        var cardsFilter = document.getElementById('cardsSettingsFilter');
 
         if (settingsVersion) {
           settingsVersion.textContent = 'v' + APP_VERSION;
         }
+        if (cardsFilter) cardsFilter.oninput = filterSettingsCards;
 
         var floatingSettingsBtn = document.getElementById('floatingSettingsBtn');
+        var floatingTickerBtn = document.getElementById('floatingTickerBtn');
         settingsBtn.onclick = openSettings;
         floatingSettingsBtn.onclick = openSettings;
+        floatingTickerBtn.onclick = showTicker;
         if (openSettingsBtn) {
           openSettingsBtn.onclick = openSettings;
         }
@@ -6161,6 +6502,10 @@
         document.getElementById('tennisSettingsExpander').onclick = makeSettingsToggle('tennisSettings');
         document.getElementById('nflSettingsExpander').onclick = makeSettingsToggle('nflSettings');
         document.getElementById('financeSettingsExpander').onclick = makeSettingsToggle('financeSettings');
+        document.getElementById('addFinanceCustomBtn').onclick = function() {
+          addFinanceCustomSettingsRow(null);
+          updateFinanceMaster();
+        };
         document.getElementById('polymarketSettingsExpander').onclick = makeSettingsToggle('polymarketSettings');
 
         elements.showSoccer.onchange = function() {
@@ -6214,6 +6559,8 @@
           for (var fi = 0; fi < FINANCE_KEYS.length; fi++) {
             elements[FINANCE_CONFIG_MAP[FINANCE_KEYS[fi]]].checked = checked;
           }
+          var customChecks = elements.financeCustomList.querySelectorAll('.finance-custom-enabled');
+          for (var fci = 0; fci < customChecks.length; fci++) customChecks[fci].checked = checked;
           updateFinanceMaster();
         };
         for (var financeClickIndex = 0; financeClickIndex < FINANCE_KEYS.length; financeClickIndex++) {
@@ -6269,6 +6616,255 @@
         }
       }
 
+      // --- BoM Weather Warnings ---
+
+      function getActiveWeatherWarnings() {
+        var warnings = lastWeatherWarningsData && lastWeatherWarningsData.warnings ? lastWeatherWarningsData.warnings : [];
+        var now = Date.now();
+        var active = [];
+        for (var i = 0; i < warnings.length; i++) {
+          var expiry = warnings[i].expiresAt ? new Date(warnings[i].expiresAt).getTime() : 0;
+          if (!expiry || expiry > now) active.push(warnings[i]);
+        }
+        return active;
+      }
+
+      function fetchWeatherWarnings() {
+        if (!config.showWeatherWarnings) return;
+        var proxyUrl = config.busProxyUrl || window.location.origin;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', proxyUrl + '/api/warnings?lat=' + config.latitude + '&lon=' + config.longitude, true);
+        setWorkerAuth(xhr);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status === 200) {
+            try { lastWeatherWarningsData = JSON.parse(xhr.responseText); } catch (e) { return; }
+            renderWeatherWarnings();
+            updateCardVisibility();
+          } else if (elements.weatherWarningsContent) {
+            elements.weatherWarningsContent.innerHTML = '<div class="card-error">Warnings unavailable</div>';
+          }
+        };
+        xhr.send();
+      }
+
+      function warningRelativeTime(iso) {
+        var timestamp = new Date(iso).getTime();
+        if (isNaN(timestamp)) return '';
+        var minutes = Math.floor((Date.now() - timestamp) / 60000);
+        if (minutes < 1) return 'just now';
+        if (minutes < 60) return minutes + 'm ago';
+        var hours = Math.floor(minutes / 60);
+        return hours < 24 ? hours + 'h ago' : Math.floor(hours / 24) + 'd ago';
+      }
+
+      function renderWeatherWarnings() {
+        if (!elements.weatherWarningsContent) return;
+        var warnings = getActiveWeatherWarnings();
+        var html = '';
+        for (var i = 0; i < warnings.length; i++) {
+          var warning = warnings[i];
+          var headline = warning.shortTitle || warning.title || 'Warning';
+          var color = warning.group === 'warning' ? '#f44336' : '#FF9800';
+          html += '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">';
+          html += '<div style="font-weight:600;color:' + color + ';">&#9888;&#65039; ' + escapeHtml(headline) + '</div>';
+          if (warning.title && warning.title !== headline) {
+            html += '<div style="font-size:0.82em;color:#bbb;margin-top:1px;">&#128205; ' + escapeHtml(warning.title) + '</div>';
+          }
+          if (warning.issuedAt) html += '<div style="font-size:0.8em;color:#999;">Issued ' + escapeHtml(warningRelativeTime(warning.issuedAt)) + '</div>';
+          html += '</div>';
+        }
+        if (!warnings.length) html = '<div class="sport-event-meta" style="padding:8px 0;text-align:center;">No active warnings</div>';
+        elements.weatherWarningsContent.innerHTML = html;
+        elements.weatherWarningsUpdated.textContent = formatUpdatedTime(new Date());
+        scheduleMasonry();
+      }
+
+      // --- Queensland bushfires ---
+
+      var BUSHFIRE_NEARBY_KM = 15;
+      var BUSHFIRE_SERIOUS_KM = 60;
+      var BUSHFIRE_INFO_MAX_AGE_MS = 3 * 60 * 60 * 1000;
+
+      function getNearbyBushfires() {
+        var incidents = lastBushfiresData && lastBushfiresData.incidents ? lastBushfiresData.incidents : [];
+        var output = [];
+        for (var i = 0; i < incidents.length; i++) {
+          var incident = incidents[i];
+          if (typeof incident.distanceKm !== 'number') continue;
+          if (incident.severity === 0 && incident.updated) {
+            var updated = Date.parse(incident.updated);
+            if (!isNaN(updated) && Date.now() - updated > BUSHFIRE_INFO_MAX_AGE_MS) continue;
+          }
+          if (incident.distanceKm <= BUSHFIRE_NEARBY_KM ||
+              (incident.severity >= 2 && incident.distanceKm <= BUSHFIRE_SERIOUS_KM)) {
+            output.push(incident);
+          }
+        }
+        return output;
+      }
+
+      function fetchBushfires() {
+        if (!config.showBushfires) return;
+        var proxyUrl = config.busProxyUrl || window.location.origin;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', proxyUrl + '/api/bushfires?lat=' + config.latitude + '&lon=' + config.longitude, true);
+        setWorkerAuth(xhr);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status === 200) {
+            try { lastBushfiresData = JSON.parse(xhr.responseText); } catch (e) { return; }
+            renderBushfires();
+            updateCardVisibility();
+            buildScrollingTicker();
+          } else if (elements.bushfiresContent) {
+            elements.bushfiresContent.innerHTML = '<div class="card-error">Bushfire feed unavailable</div>';
+          }
+        };
+        xhr.send();
+      }
+
+      function bushfireAreaTitle(incident) {
+        var title = incident && incident.title ? incident.title : '';
+        var level = incident && incident.level ? incident.level : '';
+        if (title && level && title.toLowerCase().indexOf(level.toLowerCase()) === 0) {
+          var remainder = title.slice(level.length).replace(/^[\s\-\u2013\u2014:]+/, '');
+          if (remainder) return remainder;
+        }
+        return title;
+      }
+
+      function bushfireLevelColor(severity) {
+        if (severity >= 3) return '#f44336';
+        if (severity >= 2) return '#FF9800';
+        if (severity >= 1) return '#FFC107';
+        return '#999';
+      }
+
+      function renderBushfires() {
+        if (!elements.bushfiresContent || !lastBushfiresData) return;
+        var nearby = getNearbyBushfires();
+        var html = '';
+        var shown = nearby.length < 6 ? nearby.length : 6;
+        for (var i = 0; i < shown; i++) {
+          var incident = nearby[i];
+          var color = bushfireLevelColor(incident.severity);
+          html += '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">';
+          html += '<div style="font-weight:600;color:' + color + ';">&#128293; ' + escapeHtml(incident.level || 'Incident') + '</div>';
+          html += '<div style="font-size:0.85em;color:#ccc;">' + escapeHtml(bushfireAreaTitle(incident)) + '</div>';
+          if (incident.content) html += '<div style="font-size:0.8em;color:#bbb;margin-top:1px;">' + escapeHtml(incident.content) + '</div>';
+          html += '<div style="font-size:0.8em;color:#999;">' + Math.round(incident.distanceKm) + ' km away' + (incident.updated ? ' &middot; updated ' + escapeHtml(warningRelativeTime(incident.updated)) : '') + '</div>';
+          html += '</div>';
+        }
+        if (!nearby.length) html = '<div class="sport-event-meta" style="padding:8px 0;text-align:center;">No bushfire incidents nearby</div>';
+        elements.bushfiresContent.innerHTML = html;
+        elements.bushfiresUpdated.textContent = formatUpdatedTime(new Date());
+        scheduleMasonry();
+      }
+
+      // --- Local news ---
+
+      function fetchNews() {
+        if (!config.showNews) return;
+        var proxyUrl = config.busProxyUrl || window.location.origin;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', proxyUrl + '/api/news', true);
+        setWorkerAuth(xhr);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status === 200) {
+            try { lastNewsData = JSON.parse(xhr.responseText); } catch (e) { return; }
+            renderNews();
+            buildScrollingTicker();
+          } else if (elements.newsContent) {
+            elements.newsContent.innerHTML = '<div class="card-error">News unavailable</div>';
+          }
+        };
+        xhr.send();
+      }
+
+      function renderNews() {
+        if (!elements.newsContent || !lastNewsData) return;
+        var items = lastNewsData.items || [];
+        var html = '';
+        var shown = items.length < 6 ? items.length : 6;
+        for (var i = 0; i < shown; i++) {
+          var item = items[i];
+          html += '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">';
+          html += '<div style="font-size:0.9em;color:#e0e0e0;">' + escapeHtml(item.title || '') + '</div>';
+          html += '<div style="font-size:0.75em;color:#999;">' + escapeHtml(item.source || '') + (item.publishedAt ? ' &middot; ' + escapeHtml(warningRelativeTime(item.publishedAt)) : '') + '</div>';
+          html += '</div>';
+        }
+        if (!items.length) html = '<div class="sport-event-meta" style="padding:8px 0;text-align:center;">No headlines</div>';
+        elements.newsContent.innerHTML = html;
+        elements.newsUpdated.textContent = formatUpdatedTime(new Date());
+        scheduleMasonry();
+      }
+
+      // --- Pollen ---
+
+      function pollenCategoryColor(category) {
+        if (category === 'None' || category === 'Very Low') return '#4CAF50';
+        if (category === 'Low') return '#8BC34A';
+        if (category === 'Moderate') return '#FFC107';
+        if (category === 'High') return '#FF9800';
+        if (category === 'Very High') return '#f44336';
+        return '#999';
+      }
+
+      function fetchPollen() {
+        if (!config.showPollen) return;
+        var proxyUrl = config.busProxyUrl || window.location.origin;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', proxyUrl + '/api/pollen?lat=' + config.latitude + '&lon=' + config.longitude, true);
+        setWorkerAuth(xhr);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status === 200) {
+            try { lastPollenData = JSON.parse(xhr.responseText); } catch (e) { return; }
+            renderPollen();
+          } else if (elements.pollenContent) {
+            var message = xhr.responseText && xhr.responseText.indexOf('GOOGLE_POLLEN_API_KEY') !== -1
+              ? 'Set the GOOGLE_POLLEN_API_KEY Worker secret to enable pollen data'
+              : 'Pollen unavailable';
+            elements.pollenContent.innerHTML = '<div class="card-error">' + escapeHtml(message) + '</div>';
+          }
+        };
+        xhr.send();
+      }
+
+      function renderPollen() {
+        var days = lastPollenData && lastPollenData.days ? lastPollenData.days : [];
+        if (!elements.pollenContent) return;
+        if (!days.length) {
+          elements.pollenContent.innerHTML = '<div class="card-error">No pollen data</div>';
+          return;
+        }
+        var types = days[0].types || {};
+        var keys = ['GRASS', 'TREE', 'WEED'];
+        var labels = { GRASS: 'Grass', TREE: 'Tree', WEED: 'Weed' };
+        var html = '<div style="display:-webkit-flex;display:flex;">';
+        for (var i = 0; i < keys.length; i++) {
+          var type = types[keys[i]];
+          var value = type && type.value !== null && type.value !== undefined ? type.value : null;
+          var category = type && type.category ? type.category : (value === 0 ? 'None' : '--');
+          var color = pollenCategoryColor(category);
+          html += '<div style="-webkit-flex:1;flex:1;text-align:center;padding:6px 0;">';
+          html += '<div style="font-size:0.8em;color:#999;">' + labels[keys[i]] + '</div>';
+          html += '<div style="font-size:1.5em;font-weight:700;color:' + color + ';">' + (value !== null ? value : '--') + '</div>';
+          html += '<div style="font-size:0.75em;color:' + color + ';">' + escapeHtml(category) + '</div></div>';
+        }
+        html += '</div>';
+        if (days[0].plants && days[0].plants.length) {
+          var plants = [];
+          for (var pi = 0; pi < days[0].plants.length && pi < 4; pi++) plants.push(escapeHtml(days[0].plants[pi].name));
+          html += '<div style="font-size:0.8em;color:#999;text-align:center;margin-top:4px;">' + plants.join(' &middot; ') + '</div>';
+        }
+        elements.pollenContent.innerHTML = html;
+        elements.pollenUpdated.textContent = formatUpdatedTime(new Date());
+        scheduleMasonry();
+      }
+
       // TheSportsDB league IDs
       var SPORTS_LEAGUE_IDS = {
         soccerEPL: '4328',
@@ -6293,6 +6889,31 @@
         return parts[2] + ' ' + months[parseInt(parts[1], 10) - 1];
       }
 
+      var SPORTS_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      function sportsEventDateTime(ev) {
+        if (ev.strTimestamp) {
+          var date = new Date(ev.strTimestamp);
+          if (!isNaN(date.getTime())) {
+            try {
+              var parts = new Intl.DateTimeFormat('en-AU', {
+                timeZone: 'Australia/Brisbane', day: 'numeric', month: 'short',
+                hour: '2-digit', minute: '2-digit', hour12: false
+              }).formatToParts(date);
+              var map = {};
+              for (var i = 0; i < parts.length; i++) map[parts[i].type] = parts[i].value;
+              if (map.day && map.month && map.hour && map.minute) {
+                return { dateStr: map.day + ' ' + map.month, timeStr: (map.hour === '24' ? '00' : map.hour) + ':' + map.minute };
+              }
+            } catch (e) {}
+            return {
+              dateStr: date.getDate() + ' ' + SPORTS_MONTHS[date.getMonth()],
+              timeStr: ('0' + date.getHours()).slice(-2) + ':' + ('0' + date.getMinutes()).slice(-2)
+            };
+          }
+        }
+        return { dateStr: formatSportsDate(ev.dateEvent), timeStr: ev.strTime ? ev.strTime.substring(0, 5) : '' };
+      }
+
       function renderSportsCard(contentEl, updatedEl, sections) {
         var html = '';
         var hasData = false;
@@ -6302,22 +6923,25 @@
           if (!events || events.length === 0) continue;
           hasData = true;
           html += '<div class="sport-section">';
-          html += '<div class="sport-section-title">' + sec.title + '</div>';
+          html += '<div class="sport-section-title">' + escapeHtml(sec.title) + '</div>';
           for (var ei = 0; ei < events.length; ei++) {
             var ev = events[ei];
-            var isPast = ev.strStatus === 'Match Finished' || ev.intHomeScore !== null;
+            var isLive = ev.strStatus === 'In Progress';
+            var isPast = !isLive && (ev.strStatus === 'Match Finished' || ev.intHomeScore !== null);
             var homeScore = ev.intHomeScore !== null && ev.intHomeScore !== undefined ? ev.intHomeScore : '';
             var awayScore = ev.intAwayScore !== null && ev.intAwayScore !== undefined ? ev.intAwayScore : '';
-            var scoreText = isPast ? (homeScore + ' - ' + awayScore) : 'vs';
+            var scoreText = (isPast || isLive) ? (homeScore + ' - ' + awayScore) : 'vs';
             html += '<div class="sport-event-row' + (isPast ? ' sport-event-past' : '') + '">';
             html += '<div class="sport-event-teams">';
-            html += '<span class="sport-team">' + (ev.strHomeTeam || '') + '</span>';
-            html += '<span class="sport-score' + (isPast ? '' : ' upcoming') + '">' + scoreText + '</span>';
-            html += '<span class="sport-team away">' + (ev.strAwayTeam || '') + '</span>';
+            html += '<span class="sport-team">' + escapeHtml(ev.strHomeTeam || '') + '</span>';
+            html += '<span class="sport-score' + (isPast || isLive ? '' : ' upcoming') + '">' + escapeHtml(scoreText) + '</span>';
+            html += '<span class="sport-team away">' + escapeHtml(ev.strAwayTeam || '') + '</span>';
             html += '</div>';
-            var metaLine = formatSportsDate(ev.dateEvent);
-            if (ev.strTime) metaLine += ' &middot; ' + ev.strTime.substring(0, 5);
-            if (ev.strResult) metaLine += ' &middot; ' + ev.strResult;
+            var eventTime = sportsEventDateTime(ev);
+            var metaLine = escapeHtml(eventTime.dateStr);
+            if (eventTime.timeStr) metaLine += ' &middot; ' + escapeHtml(eventTime.timeStr);
+            if (ev.strResult) metaLine += ' &middot; ' + escapeHtml(ev.strResult);
+            if (isLive) metaLine += ' &middot; <strong>LIVE ' + escapeHtml(ev.strProgress || '') + '</strong>';
             html += '<div class="sport-event-meta">' + metaLine + '</div>';
             html += '</div>';
           }
@@ -6537,7 +7161,7 @@
             } else if (xhr.status === 502) {
               try {
                 var errData = JSON.parse(xhr.responseText);
-                elements.fuelContent.innerHTML = '<div class="card-error">' + (errData.error || 'API error') + '</div>';
+                elements.fuelContent.innerHTML = '<div class="card-error">' + escapeHtml(errData.error || 'API error') + '</div>';
               } catch (ex) {
                 elements.fuelContent.innerHTML = '<div class="card-error">API error (' + xhr.status + ')</div>';
               }
@@ -6685,7 +7309,7 @@
           var displayName = (cfg && cfg.displayName) ? cfg.displayName : station.name;
 
           html += '<div class="fuel-station">';
-          html += '<div class="fuel-station-name">' + displayName + '</div>';
+          html += '<div class="fuel-station-name">' + escapeHtml(displayName) + '</div>';
 
           // Show grades in configured order, skip missing ones
           for (var gi = 0; gi < gradeOrder.length; gi++) {
@@ -6793,6 +7417,9 @@
             var info = leagueMap[leagueId];
             var leagueData = data[leagueId];
             var events = [];
+            if (leagueData.live) {
+              for (var li = 0; li < leagueData.live.length; li++) events.push(leagueData.live[li]);
+            }
             if (leagueData.past) {
               for (var pi = 0; pi < leagueData.past.length; pi++) events.push(leagueData.past[pi]);
             }
@@ -6869,6 +7496,96 @@
         jsealsi: 'financeJSEALSI'
       };
 
+      function normaliseCustomFinanceSymbol(raw) {
+        var symbol = (raw || '').replace(/\s+/g, '').toUpperCase();
+        var exchange = symbol.match(/^([A-Z]+):(.+)$/);
+        if (exchange) {
+          if (exchange[1] === 'ASX') symbol = exchange[2] + '.AX';
+          else if (exchange[1] === 'LSE' || exchange[1] === 'LON') symbol = exchange[2] + '.L';
+          else if (exchange[1] === 'JSE') symbol = exchange[2] + '.JO';
+          else symbol = exchange[2];
+        }
+        return symbol.substring(0, 20);
+      }
+
+      function getCustomFinanceList() {
+        var output = [];
+        var source = config.financeCustom || [];
+        for (var i = 0; i < source.length && output.length < 20; i++) {
+          if (source[i] && source[i].enabled === false) continue;
+          var symbol = normaliseCustomFinanceSymbol(source[i] && source[i].symbol);
+          if (!symbol) continue;
+          output.push({ symbol: symbol, name: source[i].name ? String(source[i].name).substring(0, 40) : symbol });
+        }
+        return output;
+      }
+
+      function financeCurrencyPrefix(currency) {
+        if (currency === 'USD') return '$';
+        if (currency === 'AUD') return 'A$';
+        if (currency === 'NZD') return 'NZ$';
+        if (currency === 'CAD') return 'C$';
+        if (currency === 'GBP') return '\u00A3';
+        if (currency === 'EUR') return '\u20AC';
+        if (currency === 'JPY') return '\u00A5';
+        if (currency === 'ZAR') return 'R';
+        return '';
+      }
+
+      function customFinanceView(item, quote) {
+        if (!quote || quote.price === null || quote.price === undefined) return null;
+        var previous = quote.previousClose;
+        var change = previous ? quote.price - previous : 0;
+        var pct = previous ? change / previous * 100 : 0;
+        var decimals = quote.price >= 1000 ? 0 : (quote.price >= 1 ? 2 : 4);
+        return {
+          price: financeCurrencyPrefix(quote.currency) + quote.price.toFixed(decimals),
+          change: change,
+          pct: pct,
+          cls: change > 0 ? 'finance-up' : (change < 0 ? 'finance-down' : 'finance-flat')
+        };
+      }
+
+      function renderFinanceCustomSettingsRows() {
+        elements.financeCustomList.innerHTML = '';
+        var items = config.financeCustom || [];
+        for (var i = 0; i < items.length; i++) addFinanceCustomSettingsRow(items[i]);
+      }
+
+      function addFinanceCustomSettingsRow(item) {
+        item = item || {};
+        var row = document.createElement('div');
+        row.style.cssText = 'display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;margin:6px 0;';
+        row.innerHTML = '<input type="checkbox" class="finance-custom-enabled" style="margin-right:8px;">' +
+          '<input type="text" class="finance-custom-symbol" placeholder="Symbol" style="width:35%;margin-right:8px;">' +
+          '<input type="text" class="finance-custom-name" placeholder="Name" style="-webkit-flex:1;flex:1;margin-right:8px;">' +
+          '<button type="button" class="btn finance-custom-remove">Remove</button>';
+        row.querySelector('.finance-custom-enabled').checked = item.enabled !== false;
+        row.querySelector('.finance-custom-symbol').value = item.symbol || '';
+        row.querySelector('.finance-custom-name').value = item.name || '';
+        row.querySelector('.finance-custom-enabled').onclick = updateFinanceMaster;
+        row.querySelector('.finance-custom-remove').onclick = function() {
+          elements.financeCustomList.removeChild(row);
+          updateFinanceMaster();
+        };
+        elements.financeCustomList.appendChild(row);
+      }
+
+      function readFinanceCustomSettingsRows() {
+        var rows = elements.financeCustomList.children;
+        var output = [];
+        for (var i = 0; i < rows.length && output.length < 20; i++) {
+          var symbol = normaliseCustomFinanceSymbol(rows[i].querySelector('.finance-custom-symbol').value);
+          if (!symbol) continue;
+          output.push({
+            symbol: symbol,
+            name: rows[i].querySelector('.finance-custom-name').value.trim().substring(0, 40),
+            enabled: rows[i].querySelector('.finance-custom-enabled').checked
+          });
+        }
+        return output;
+      }
+
       function fetchFinance() {
         if (!config.showFinance) return;
 
@@ -6881,6 +7598,10 @@
         // Gold AUD requires AUDUSD=X for conversion — always include it if not already present
         if (config.financeGoldAUD && symbols.indexOf('AUDUSD=X') === -1) {
           symbols.push('AUDUSD=X');
+        }
+        var customItems = getCustomFinanceList();
+        for (var ci = 0; ci < customItems.length; ci++) {
+          if (symbols.indexOf(customItems[ci].symbol) === -1) symbols.push(customItems[ci].symbol);
         }
         if (symbols.length === 0) {
           elements.financeContent.innerHTML = '<div class="card-error">No instruments selected</div>';
@@ -6997,6 +7718,19 @@
           '</div>';
         }
 
+        var customItems = getCustomFinanceList();
+        for (var ci = 0; ci < customItems.length; ci++) {
+          var customView = customFinanceView(customItems[ci], data[customItems[ci].symbol]);
+          hasAny = true;
+          if (!customView) {
+            html += '<div class="finance-item"><div class="finance-name">' + escapeHtml(customItems[ci].name) + '</div><div class="finance-value">--</div></div>';
+            continue;
+          }
+          html += '<div class="finance-item"><div class="finance-name">' + escapeHtml(customItems[ci].name) + '</div>' +
+            '<div class="finance-value">' + escapeHtml(customView.price) + '</div>' +
+            '<div class="finance-change ' + customView.cls + '">' + (customView.change > 0 ? '&#9650; +' : (customView.change < 0 ? '&#9660; ' : '')) + customView.pct.toFixed(2) + '%</div></div>';
+        }
+
         if (!hasAny) {
           html += '<div class="card-error">No data</div>';
         }
@@ -7018,6 +7752,42 @@
             icon: getWeatherEmoji(wCode),
             label: 'Weather',
             value: wTemp + '\u00B0C',
+            changeClass: '',
+            changeText: ''
+          });
+        }
+
+        if (config.showWeatherWarnings && isTickerDisplayMode(config.weatherWarningsDisplayMode)) {
+          var activeWarnings = getActiveWeatherWarnings();
+          if (activeWarnings.length) {
+            slides.push({
+              icon: '\u26A0\uFE0F',
+              label: 'Weather Warning',
+              value: activeWarnings[0].shortTitle || activeWarnings[0].title || 'Active',
+              changeClass: '',
+              changeText: activeWarnings.length > 1 ? activeWarnings.length + ' active' : ''
+            });
+          }
+        }
+
+        if (config.showBushfires && isTickerDisplayMode(config.bushfiresDisplayMode)) {
+          var nearbyBushfires = getNearbyBushfires();
+          if (nearbyBushfires.length) {
+            slides.push({
+              icon: '\uD83D\uDD25',
+              label: nearbyBushfires[0].level || 'Bushfire',
+              value: bushfireAreaTitle(nearbyBushfires[0]),
+              changeClass: '',
+              changeText: Math.round(nearbyBushfires[0].distanceKm) + ' km away'
+            });
+          }
+        }
+
+        if (config.showNews && isTickerDisplayMode(config.newsDisplayMode) && lastNewsData && lastNewsData.items && lastNewsData.items.length) {
+          slides.push({
+            icon: '\uD83D\uDCF0',
+            label: lastNewsData.items[0].source || 'News',
+            value: lastNewsData.items[0].title || '',
             changeClass: '',
             changeText: ''
           });
@@ -7048,6 +7818,21 @@
               changeClass: uvCat.cls,
               changeText: uvCat.label
             });
+          }
+        }
+
+        if (config.showPollen && isTickerDisplayMode(config.pollenDisplayMode) && lastPollenData && lastPollenData.days && lastPollenData.days.length) {
+          var pollenTypes = lastPollenData.days[0].types || {};
+          var highestPollen = null;
+          var pollenKeys = ['GRASS', 'TREE', 'WEED'];
+          for (var pki = 0; pki < pollenKeys.length; pki++) {
+            var pollenType = pollenTypes[pollenKeys[pki]];
+            if (pollenType && pollenType.value !== null && (!highestPollen || pollenType.value > highestPollen.value)) {
+              highestPollen = { name: pollenKeys[pki], value: pollenType.value, category: pollenType.category || '' };
+            }
+          }
+          if (highestPollen) {
+            slides.push({ icon: '\uD83C\uDF31', label: highestPollen.name + ' pollen', value: String(highestPollen.value), changeClass: '', changeText: highestPollen.category });
           }
         }
 
@@ -7253,6 +8038,18 @@
               changeText: fArrow + ' ' + fSignStr + fPct.toFixed(2) + '%'
             });
           }
+          var tickerCustom = getCustomFinanceList();
+          for (var tci = 0; tci < tickerCustom.length; tci++) {
+            var tickerView = customFinanceView(tickerCustom[tci], lastFinanceData[tickerCustom[tci].symbol]);
+            if (!tickerView) continue;
+            slides.push({
+              icon: '\uD83D\uDCC8',
+              label: tickerCustom[tci].name,
+              value: tickerView.price,
+              changeClass: tickerView.cls,
+              changeText: (tickerView.change > 0 ? '\u25B2 +' : (tickerView.change < 0 ? '\u25BC ' : '')) + tickerView.pct.toFixed(2) + '%'
+            });
+          }
         }
 
         // Polymarket
@@ -7330,11 +8127,11 @@
         for (var i = 0; i < tickerSlides.length; i++) {
           var s = tickerSlides[i];
           html += '<span class="scrolling-ticker-item">';
-          html += '<span class="ticker-item-icon">' + s.icon + '</span>';
-          html += '<span class="ticker-item-label">' + s.label + '</span>';
-          html += '<span class="ticker-item-value">' + s.value + '</span>';
+          html += '<span class="ticker-item-icon">' + escapeHtml(s.icon) + '</span>';
+          html += '<span class="ticker-item-label">' + escapeHtml(s.label) + '</span>';
+          html += '<span class="ticker-item-value">' + escapeHtml(s.value) + '</span>';
           if (s.changeText) {
-            html += '<span class="ticker-item-change' + (s.changeClass ? ' ' + s.changeClass : '') + '">' + s.changeText + '</span>';
+            html += '<span class="ticker-item-change' + (s.changeClass ? ' ' + s.changeClass : '') + '">' + escapeHtml(s.changeText) + '</span>';
           }
           html += '</span>';
           if (i < tickerSlides.length - 1) {
@@ -7386,9 +8183,9 @@
         var slide = tickerSlides[tickerCurrentIndex];
         document.getElementById('tickerIcon').textContent = slide.icon;
         document.getElementById('tickerLabel').textContent = slide.label;
-        document.getElementById('tickerValue').innerHTML = slide.value;
+        document.getElementById('tickerValue').textContent = slide.value;
         var changeEl = document.getElementById('tickerChange');
-        changeEl.innerHTML = slide.changeText;
+        changeEl.textContent = slide.changeText;
         changeEl.className = 'ticker-change ' + (slide.changeClass || '');
         renderTickerDots();
       }
@@ -7481,13 +8278,26 @@
           detailsHtml += '</div>';
 
           html += '<div class="spotlight-item">' +
-            '<div class="spotlight-item-name">' + info.name + (quote.currency ? ' (' + quote.currency + ')' : '') + '</div>' +
+            '<div class="spotlight-item-name">' + info.name + (quote.currency ? ' (' + escapeHtml(quote.currency) + ')' : '') + '</div>' +
             '<div class="spotlight-item-price">' + priceStr + '</div>' +
             '<div class="spotlight-item-change ' + changeClass + '">' +
               arrow + ' ' + changeSign + changeStr + ' (' + changeSign + changePct.toFixed(2) + '%)' +
             '</div>' +
             detailsHtml +
           '</div>';
+        }
+
+        var spotlightCustom = getCustomFinanceList();
+        for (var sci = 0; sci < spotlightCustom.length; sci++) {
+          var customQuote = lastFinanceData[spotlightCustom[sci].symbol];
+          var spotlightView = customFinanceView(spotlightCustom[sci], customQuote);
+          if (!spotlightView) continue;
+          html += '<div class="spotlight-item">' +
+            '<div class="spotlight-item-name">' + escapeHtml(spotlightCustom[sci].name) + (customQuote.currency ? ' (' + escapeHtml(customQuote.currency) + ')' : '') + '</div>' +
+            '<div class="spotlight-item-price">' + escapeHtml(spotlightView.price) + '</div>' +
+            '<div class="spotlight-item-change ' + spotlightView.cls + '">' +
+              (spotlightView.change > 0 ? '&#9650; +' : (spotlightView.change < 0 ? '&#9660; ' : '')) + spotlightView.change.toFixed(2) + ' (' + spotlightView.pct.toFixed(2) + '%)' +
+            '</div></div>';
         }
 
         if (!html) {
@@ -7556,11 +8366,11 @@
           }
 
           var outcomeLabel = ev.outcome
-            ? '<div class="polymarket-outcome">' + ev.outcome + '</div>'
+            ? '<div class="polymarket-outcome">' + escapeHtml(ev.outcome) + '</div>'
             : '';
 
           html += '<div class="polymarket-item">' +
-            '<div class="polymarket-title">' + ev.title + '</div>' +
+            '<div class="polymarket-title">' + escapeHtml(ev.title) + '</div>' +
             outcomeLabel +
             '<div class="polymarket-bar-wrap">' +
               '<div class="polymarket-bar" style="width:' + pct + '%"></div>' +
@@ -7576,8 +8386,12 @@
 
       function fetchAllData() {
         fetchWeather();
+        fetchWeatherWarnings();
+        fetchBushfires();
+        fetchNews();
         fetchAirQuality();
         fetchUvIndex();
+        fetchPollen();
         fetchElectricity();
         fetchBinCollection();
         fetchFlights();
@@ -7601,8 +8415,12 @@
         flightTimer = setInterval(fetchFlights, flightMs);
         dataTimer = setInterval(function() {
           fetchWeather();
+          fetchWeatherWarnings();
+          fetchBushfires();
+          fetchNews();
           fetchAirQuality();
           fetchUvIndex();
+          fetchPollen();
           fetchElectricity();
           fetchBinCollection();
           fetchBusArrivals();
@@ -7787,6 +8605,11 @@
           } else {
             allOn = false;
           }
+        }
+        var customChecks = elements.financeCustomList ? elements.financeCustomList.querySelectorAll('.finance-custom-enabled') : [];
+        for (var ci = 0; ci < customChecks.length; ci++) {
+          if (customChecks[ci].checked) anyOn = true;
+          else allOn = false;
         }
         elements.showFinance.checked = anyOn;
         elements.showFinance.indeterminate = anyOn && !allOn;
