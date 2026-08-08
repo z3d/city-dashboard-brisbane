@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.59.1">
+  <meta name="app-version" content="1.60.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -149,6 +149,76 @@
       padding-bottom: 3px;
     }
 
+    .transient-alerts {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 220;
+      display: -webkit-box;
+      display: -webkit-flex;
+      display: flex;
+      -webkit-box-orient: vertical;
+      -webkit-flex-direction: column;
+      flex-direction: column;
+      max-width: 320px;
+    }
+    .transient-alert {
+      position: relative;
+      cursor: pointer;
+      margin-bottom: 8px;
+      padding: 12px 32px 12px 14px;
+      border-radius: 12px;
+      -webkit-border-radius: 12px;
+      background: linear-gradient(135deg, #14568f, #0b3457);
+      color: #fff;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.18);
+      -webkit-animation: alertPop 0.35s ease-out;
+      animation: alertPop 0.35s ease-out;
+    }
+    .transient-alert-head { font-size: 13px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+    .transient-alert-main { font-size: 19px; font-weight: 800; margin-top: 2px; }
+    .transient-alert-sub { font-size: 12px; opacity: 0.8; margin-top: 3px; }
+    .transient-alert-close {
+      position: absolute;
+      top: 4px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.8);
+      font-size: 18px;
+      line-height: 22px;
+      cursor: pointer;
+    }
+    @-webkit-keyframes alertPop {
+      from { opacity: 0; -webkit-transform: translateY(-8px) scale(0.96); }
+      to { opacity: 1; -webkit-transform: translateY(0) scale(1); }
+    }
+    @keyframes alertPop {
+      from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .severe-warning-banner {
+      cursor: pointer;
+      margin: 0 0 10px 0;
+      padding: 10px 14px;
+      background: linear-gradient(135deg, #b91c1c, #7f1d1d);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 10px;
+      -webkit-border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      -webkit-animation: alertPop 0.35s ease-out;
+      animation: alertPop 0.35s ease-out;
+    }
+    .severe-warning-banner .swb-title { font-size: 13px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+    .severe-warning-banner .swb-row { font-size: 15px; font-weight: 600; margin-top: 3px; }
+    .severe-warning-banner .swb-sub { font-size: 11px; opacity: 0.75; margin-top: 4px; }
+
     .needs-attention {
       margin: 0 0 10px 0;
       padding: 10px 12px;
@@ -233,6 +303,20 @@
       font-size: 0.78em;
       margin-top: 2px;
       line-height: 1.25;
+    }
+
+    .bushfire-dismiss-button {
+      margin-top: 6px;
+      padding: 6px 12px;
+      background: rgba(248,113,113,0.12);
+      color: #fca5a5;
+      border: 1px solid rgba(248,113,113,0.35);
+      border-radius: 7px;
+      -webkit-border-radius: 7px;
+      font: inherit;
+      font-size: 0.78em;
+      font-weight: 600;
+      cursor: pointer;
     }
 
     .cards-grid.reorder-active {
@@ -831,7 +915,80 @@
       cursor: pointer;
       font-size: 0.85em;
       flex: none;
-    }    .settings-section-title {
+    }
+
+    /* Settings Panel */
+    .settings-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 100;
+      -webkit-box-align: end;
+      -webkit-align-items: flex-end;
+      align-items: flex-end;
+    }
+
+    .settings-overlay.active {
+      display: -webkit-box;
+      display: -webkit-flex;
+      display: flex;
+    }
+
+    .settings-panel {
+      width: 100%;
+      background: #1e1e2e;
+      border-radius: 20px 20px 0 0;
+      -webkit-border-radius: 20px 20px 0 0;
+      max-height: 85vh;
+      display: -webkit-box;
+      display: -webkit-flex;
+      display: flex;
+      -webkit-box-orient: vertical;
+      -webkit-flex-direction: column;
+      flex-direction: column;
+      outline: none;
+    }
+
+    .settings-scroll-content {
+      -webkit-box-flex: 1;
+      -webkit-flex: 1;
+      flex: 1;
+      overflow-y: scroll;
+      -webkit-overflow-scrolling: touch;
+      padding: 20px;
+      min-height: 0;
+    }
+
+    .settings-header {
+      display: -webkit-box;
+      display: -webkit-flex;
+      display: flex;
+      -webkit-box-pack: justify;
+      -webkit-justify-content: space-between;
+      justify-content: space-between;
+      -webkit-box-align: center;
+      -webkit-align-items: center;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .settings-header h2 { font-size: 1.2em; color: #fff; }
+    .settings-close {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 1.5em;
+      cursor: pointer;
+      padding: 5px;
+      -webkit-appearance: none;
+    }
+    .settings-section { margin-bottom: 20px; }
+
+    .settings-section-title {
       font-size: 0.85em;
       color: #60a5fa;
       margin-bottom: 10px;
@@ -1299,11 +1456,28 @@
     .standings-title { font-size: 0.82em; color: rgba(255,255,255,0.5); font-weight: bold; margin-top: 10px; margin-bottom: 2px; }
 
     /* Scrolling Ticker Bar */
+    .ticker-stack { margin-bottom: 15px; }
+    .status-strip {
+      display: -webkit-box; display: -webkit-flex; display: flex; overflow: hidden;
+      margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.09); border-radius: 10px;
+      -webkit-border-radius: 10px; background: rgba(15,23,42,0.42);
+    }
+    .status-strip-item {
+      -webkit-box-flex: 1; -webkit-flex: 1 1 0; flex: 1 1 0; min-width: 0;
+      padding: 9px 11px; border-right: 1px solid rgba(255,255,255,0.07);
+    }
+    .status-strip-item:last-child { border-right: none; }
+    .status-strip-label {
+      display: block; overflow: hidden; color: rgba(255,255,255,0.72); font-size: 0.75em;
+      font-weight: 600; letter-spacing: 0.03em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap;
+    }
+    .status-strip-reading { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-align-items: baseline; align-items: baseline; min-width: 0; margin-top: 2px; }
+    .status-strip-value { overflow: hidden; color: rgba(255,255,255,0.92); font-size: 0.86em; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .status-strip-detail { -webkit-flex-shrink: 0; flex-shrink: 0; margin-left: 5px; color: rgba(255,255,255,0.48); font-size: 0.66em; white-space: nowrap; }
     .scrolling-ticker {
       overflow: hidden;
       background: rgba(0,0,0,0.4);
       border-bottom: 1px solid rgba(255,255,255,0.1);
-      margin-bottom: 15px;
       padding: 8px 0;
       white-space: nowrap;
       position: relative;
@@ -1343,6 +1517,10 @@
       margin-right: 20px;
       color: rgba(255,255,255,0.2);
     }
+    .scrolling-ticker.news-ticker { background: rgba(0,0,0,0.25); padding: 6px 0; }
+    .news-ticker .ticker-item-label { color: #64b5f6; text-transform: uppercase; font-size: 0.85em; }
+    .news-ticker .ticker-item-value { color: #e8e8e8; font-weight: 500; }
+    .news-ticker .ticker-item-change { color: #888; }
 
     /* Ticker Mode */
     .ticker-overlay {
@@ -1657,6 +1835,11 @@
     body.light-theme .scrolling-ticker-sep {
       color: rgba(0,0,0,0.15);
     }
+    body.light-theme .status-strip { background: rgba(255,255,255,0.62); border-color: rgba(0,0,0,0.08); }
+    body.light-theme .status-strip-item { border-right-color: rgba(0,0,0,0.07); }
+    body.light-theme .status-strip-label { color: rgba(0,0,0,0.58); }
+    body.light-theme .status-strip-value { color: #1a1a2e; }
+    body.light-theme .status-strip-detail { color: rgba(0,0,0,0.48); }
     /* Ticker Overlay */
     body.light-theme .ticker-overlay {
       background: #f0f2f5;
@@ -1736,6 +1919,8 @@
     }
 
     @media (max-width: 600px) {
+      .status-strip { -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+      .status-strip-item { -webkit-flex-basis: 50%; flex-basis: 50%; border-bottom: 1px solid rgba(255,255,255,0.07); }
       .card {
         width: 100%;
       }
@@ -1771,13 +1956,23 @@
       </div>
     </div>
 
-    <div class="scrolling-ticker" id="scrollingTicker" style="display:none;">
-      <div class="scrolling-ticker-content" id="scrollingTickerContent"></div>
+    <div class="ticker-stack" id="tickerStack" style="display:none;">
+      <div class="status-strip" id="statusStrip" style="display:none;" role="list"></div>
+      <div class="scrolling-ticker" id="scrollingTicker" style="display:none;">
+        <div class="scrolling-ticker-content" id="scrollingTickerContent"></div>
+      </div>
+      <div class="scrolling-ticker news-ticker" id="newsTicker" style="display:none;">
+        <div class="scrolling-ticker-content" id="newsTickerContent"></div>
+      </div>
     </div>
+
+    <div id="severeWarningBanner" class="severe-warning-banner" style="display:none;"></div>
 
     <div id="needsAttention" class="needs-attention" style="display:none;"></div>
 
     <div id="bannerCards" class="banner-cards" style="display:none;"></div>
+
+    <div id="transientAlerts" class="transient-alerts" style="display:none;"></div>
 
     <div id="welcomeMessage" class="welcome-message" style="display: none;">
       <h2>Welcome</h2>
@@ -2137,6 +2332,10 @@
               <select id="newsDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
               <label class="master-label"><input type="checkbox" id="showNews"></label>
             </div>
+          </div>
+          <div class="card-setting-body" style="display:block;">
+            <label class="checkbox-label"><input type="checkbox" id="newsOwnTickerRow"> Put headlines on their own ticker row</label>
+            <div class="settings-group" style="margin-top:6px;"><label for="newsTickerCount">Headlines in that row</label> <input type="number" id="newsTickerCount" min="1" max="12" value="6" style="width:55px;"></div>
           </div>
         </div>
 
@@ -2745,6 +2944,9 @@
           <div class="card-setting-body" id="weatherSettingsCollapsible" style="display:none;">
             <div class="settings-group">
               <label class="checkbox-label">
+                <input type="checkbox" id="rainSoonAlerts" checked> Pop up a banner when rain is newly forecast within 90 minutes
+              </label>
+              <label class="checkbox-label">
                 <input type="checkbox" id="weatherScheduleHide"> Only show during hours
               </label>
               <div class="settings-row" style="margin-top:4px;">
@@ -2891,6 +3093,11 @@
             <input type="file" id="importFileInput" accept=".json" style="display:none;">
           </div>
         </div>
+        <div class="settings-section">
+          <div class="settings-section-title">Feed Health</div>
+          <button type="button" class="btn" id="feedHealthBtn">Check feeds</button>
+          <div id="feedHealthResult" class="settings-info" style="margin-top:8px;" aria-live="polite">Shows recent upstream successes, stale fallbacks, and errors for this Worker instance.</div>
+        </div>
         <button class="settings-reload" id="settingsReload">Force Reload App</button>
       </div><!-- end tabSystemContent -->
 
@@ -3016,6 +3223,7 @@
         dataInterval: 300,
         reloadTime: 2,
         showWeather: true,
+        rainSoonAlerts: true,
         showWeatherWarnings: false,
         weatherWarningsOnlyWhenActive: false,
         showBushfires: false,
@@ -3119,6 +3327,8 @@
         weatherWarningsDisplayMode: 'card',
         bushfiresDisplayMode: 'card',
         newsDisplayMode: 'ticker',
+        newsOwnTickerRow: false,
+        newsTickerCount: 6,
         birthdaysDisplayMode: 'card',
         airQualityDisplayMode: 'both',
         uvIndexDisplayMode: 'both',
@@ -3174,6 +3384,8 @@
         elements.dashboard = document.getElementById('dashboard');
         elements.needsAttention = document.getElementById('needsAttention');
         elements.bannerCards = document.getElementById('bannerCards');
+        elements.transientAlerts = document.getElementById('transientAlerts');
+        elements.severeWarningBanner = document.getElementById('severeWarningBanner');
         elements.settingsOverlay = document.getElementById('settingsOverlay');
         elements.weatherCard = document.getElementById('weatherCard');
         elements.weatherContent = document.getElementById('weatherContent');
@@ -3196,6 +3408,8 @@
         elements.newsUpdated = document.getElementById('newsUpdated');
         elements.showNews = document.getElementById('showNews');
         elements.newsDisplayMode = document.getElementById('newsDisplayMode');
+        elements.newsOwnTickerRow = document.getElementById('newsOwnTickerRow');
+        elements.newsTickerCount = document.getElementById('newsTickerCount');
         elements.birthdaysCard = document.getElementById('birthdaysCard');
         elements.birthdaysContent = document.getElementById('birthdaysContent');
         elements.birthdaysUpdated = document.getElementById('birthdaysUpdated');
@@ -3306,6 +3520,7 @@
         elements.dataInterval = document.getElementById('dataInterval');
         elements.reloadTimeInput = document.getElementById('reloadTimeInput');
         elements.showWeather = document.getElementById('showWeather');
+        elements.rainSoonAlerts = document.getElementById('rainSoonAlerts');
         elements.showAirQuality = document.getElementById('showAirQuality');
         elements.airQualityShowWhenPoor = document.getElementById('airQualityShowWhenPoor');
         elements.showUvIndex = document.getElementById('showUvIndex');
@@ -3445,11 +3660,17 @@
             config.dataInterval = parsed.dataInterval || 300;
             config.reloadTime = parsed.reloadTime !== undefined ? parseInt(parsed.reloadTime) : 2;
             config.showWeather = parsed.showWeather !== undefined ? parsed.showWeather : true;
+            config.rainSoonAlerts = parsed.rainSoonAlerts !== undefined ? parsed.rainSoonAlerts : true;
             config.showWeatherWarnings = parsed.showWeatherWarnings !== undefined ? parsed.showWeatherWarnings : false;
             config.weatherWarningsOnlyWhenActive = parsed.weatherWarningsOnlyWhenActive !== undefined ? parsed.weatherWarningsOnlyWhenActive : false;
             config.showBushfires = parsed.showBushfires !== undefined ? parsed.showBushfires : false;
             config.bushfiresOnlyWhenNearby = parsed.bushfiresOnlyWhenNearby !== undefined ? parsed.bushfiresOnlyWhenNearby : true;
             config.showNews = parsed.showNews !== undefined ? parsed.showNews : false;
+            config.newsOwnTickerRow = parsed.newsOwnTickerRow !== undefined ? parsed.newsOwnTickerRow : false;
+            config.newsTickerCount = parsed.newsTickerCount !== undefined ? parseInt(parsed.newsTickerCount, 10) : 6;
+            if (isNaN(config.newsTickerCount)) config.newsTickerCount = 6;
+            if (config.newsTickerCount < 1) config.newsTickerCount = 1;
+            if (config.newsTickerCount > 12) config.newsTickerCount = 12;
             config.showBirthdays = parsed.showBirthdays !== undefined ? parsed.showBirthdays : false;
             config.birthdaysConditionalHide = parsed.birthdaysConditionalHide !== undefined ? parsed.birthdaysConditionalHide : false;
             config.birthdays = sanitizeBirthdays(parsed.birthdays);
@@ -4174,13 +4395,10 @@
         elements.nflCard.style.display = (config.showNFL && isCardDisplayMode(config.nflDisplayMode)) ? '' : 'none';
         elements.financeCard.style.display = (config.showFinance && isCardDisplayMode(config.financeDisplayMode)) ? '' : 'none';
         elements.polymarketCard.style.display = (config.showPolymarket && isCardDisplayMode(config.polymarketDisplayMode)) ? '' : 'none';
+        if (!config.showWeatherWarnings && elements.severeWarningBanner) elements.severeWarningBanner.style.display = 'none';
         var tickerBtn = document.getElementById('tickerBtn');
         if (tickerBtn) tickerBtn.style.display = config.showTicker ? '' : 'none';
-        var scrollTickerEl = document.getElementById('scrollingTicker');
-        if (scrollTickerEl) {
-          scrollTickerEl.style.display = config.scrollingTicker ? '' : 'none';
-          if (config.scrollingTicker) buildScrollingTicker();
-        }
+        buildScrollingTicker();
         renderNeedsAttention();
         updateBannerContainerVisibility();
         scheduleMasonry();
@@ -4472,6 +4690,7 @@
                   '&longitude=' + config.longitude +
                   '&current=temperature_2m,relative_humidity_2m,dew_point_2m,weather_code,uv_index,cloud_cover' +
                   '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
+                  '&minutely_15=precipitation&forecast_minutely_15=10' +
                   '&timezone=auto&forecast_days=2&timeformat=unixtime';
 
         var xhr = new XMLHttpRequest();
@@ -4482,6 +4701,7 @@
               try {
                 var data = JSON.parse(xhr.responseText);
                 renderWeather(data);
+                processRainSoon(data);
                 elements.weatherUpdated.textContent = formatUpdatedTime(new Date());
               } catch (e) {
                 elements.weatherContent.innerHTML = '<div class="card-error">Parse error</div>';
@@ -4495,6 +4715,72 @@
           elements.weatherContent.innerHTML = '<div class="card-error">Network error</div>';
         };
         xhr.send();
+      }
+
+      var rainSoonBaselineReady = false;
+      var rainSoonLastHadCandidate = false;
+      var rainSoonLastProcessTime = 0;
+      var lastRainSoonAlertTime = 0;
+
+      function updateTransientAlertsVisibility() {
+        if (!elements.transientAlerts) return;
+        elements.transientAlerts.style.display = elements.transientAlerts.childNodes.length ? '' : 'none';
+        scheduleMasonry();
+      }
+
+      function showTransientAlert(headHtml, mainText, subText, color) {
+        var container = elements.transientAlerts;
+        if (!container) return;
+        var node = document.createElement('div');
+        node.className = 'transient-alert';
+        if (color) node.style.borderColor = color;
+        var html = '<button type="button" class="transient-alert-close" aria-label="Dismiss alert">&times;</button>';
+        html += '<div class="transient-alert-head">' + headHtml + '</div>';
+        html += '<div class="transient-alert-main">' + escapeHtml(mainText) + '</div>';
+        html += '<div class="transient-alert-sub">' + escapeHtml(subText) + '</div>';
+        node.innerHTML = html;
+        var removed = false;
+        function remove() {
+          if (removed) return;
+          removed = true;
+          if (node.parentNode) node.parentNode.removeChild(node);
+          updateTransientAlertsVisibility();
+        }
+        var timer = setTimeout(remove, 10 * 60 * 1000);
+        node.onclick = function() { clearTimeout(timer); remove(); };
+        if (container.firstChild) container.insertBefore(node, container.firstChild);
+        else container.appendChild(node);
+        updateTransientAlertsVisibility();
+      }
+
+      function processRainSoon(data) {
+        var m15 = data && data.minutely_15;
+        if (!m15 || !m15.time || !m15.precipitation) return;
+        var now = Date.now();
+        var wakeGap = rainSoonLastProcessTime > 0 && now - rainSoonLastProcessTime > 15 * 60 * 1000;
+        rainSoonLastProcessTime = now;
+        var firstWet = -1;
+        for (var i = 0; i < m15.time.length; i++) {
+          if (m15.time[i] * 1000 + 15 * 60 * 1000 <= now) continue;
+          if (m15.precipitation[i] != null && m15.precipitation[i] >= 0.2) { firstWet = i; break; }
+        }
+        var minsAway = firstWet === -1 ? -1 : Math.round((m15.time[firstWet] * 1000 - now) / 60000);
+        var hasCandidate = firstWet !== -1 && minsAway >= 5 && minsAway <= 90;
+        if (!rainSoonBaselineReady || wakeGap) {
+          rainSoonBaselineReady = true;
+          rainSoonLastHadCandidate = hasCandidate;
+          return;
+        }
+        var newlyForecast = hasCandidate && !rainSoonLastHadCandidate;
+        rainSoonLastHadCandidate = hasCandidate;
+        if (!config.rainSoonAlerts || !newlyForecast || now - lastRainSoonAlertTime < 2 * 60 * 60 * 1000) return;
+        lastRainSoonAlertTime = now;
+        var total = 0;
+        for (var j = firstWet; j < m15.precipitation.length; j++) {
+          if (m15.precipitation[j]) total += m15.precipitation[j];
+        }
+        total = Math.round(total * 10) / 10;
+        showTransientAlert('&#127783;&#65039; Rain soon', '~' + minsAway + ' min', total + ' mm expected over the next 2.5 h', '#42A5F5');
       }
 
       function getWeatherEmoji(code) {
@@ -5986,12 +6272,15 @@
         elements.dataInterval.value = config.dataInterval;
         elements.reloadTimeInput.value = config.reloadTime;
         elements.showWeather.checked = config.showWeather;
+        elements.rainSoonAlerts.checked = config.rainSoonAlerts;
         setMasterClass('showWeatherMasterLabel', config.showWeather, config.showWeather);
         elements.showWeatherWarnings.checked = config.showWeatherWarnings;
         elements.weatherWarningsOnlyWhenActive.checked = config.weatherWarningsOnlyWhenActive;
         elements.showBushfires.checked = config.showBushfires;
         elements.bushfiresOnlyWhenNearby.checked = config.bushfiresOnlyWhenNearby;
         elements.showNews.checked = config.showNews;
+        elements.newsOwnTickerRow.checked = config.newsOwnTickerRow;
+        elements.newsTickerCount.value = config.newsTickerCount;
         elements.showBirthdays.checked = config.showBirthdays;
         elements.birthdaysConditionalHide.checked = config.birthdaysConditionalHide;
         renderBirthdaySettingsRows();
@@ -6180,11 +6469,16 @@
         config.reloadTime = parseInt(elements.reloadTimeInput.value, 10);
         if (isNaN(config.reloadTime) || config.reloadTime < -1 || config.reloadTime > 23) config.reloadTime = -1;
         config.showWeather = elements.showWeather.checked;
+        config.rainSoonAlerts = elements.rainSoonAlerts.checked;
         config.showWeatherWarnings = elements.showWeatherWarnings.checked;
         config.weatherWarningsOnlyWhenActive = elements.weatherWarningsOnlyWhenActive.checked;
         config.showBushfires = elements.showBushfires.checked;
         config.bushfiresOnlyWhenNearby = elements.bushfiresOnlyWhenNearby.checked;
         config.showNews = elements.showNews.checked;
+        config.newsOwnTickerRow = elements.newsOwnTickerRow.checked;
+        config.newsTickerCount = parseInt(elements.newsTickerCount.value, 10) || 6;
+        if (config.newsTickerCount < 1) config.newsTickerCount = 1;
+        if (config.newsTickerCount > 12) config.newsTickerCount = 12;
         config.showBirthdays = elements.showBirthdays.checked;
         config.birthdaysConditionalHide = elements.birthdaysConditionalHide.checked;
         config.birthdays = readBirthdaySettingsRows();
@@ -6471,6 +6765,73 @@
         if (status) status.textContent = query ? visible + ' of ' + rows.length + ' cards' : rows.length + ' cards';
       }
 
+      function settingsExpanderKeydown(e) {
+        if (e.keyCode === 13 || e.keyCode === 32) {
+          e.preventDefault();
+          this.click();
+        }
+      }
+
+      function settingsTabKeydown(e) {
+        var names = ['cards', 'general', 'system'];
+        var tabs = [document.getElementById('settingsTabCards'), document.getElementById('settingsTabGeneral'), document.getElementById('settingsTabSystem')];
+        var current = 0;
+        for (var i = 0; i < tabs.length; i++) { if (tabs[i] === this) current = i; }
+        var next = -1;
+        if (e.keyCode === 37) next = (current + tabs.length - 1) % tabs.length;
+        if (e.keyCode === 39) next = (current + 1) % tabs.length;
+        if (e.keyCode === 36) next = 0;
+        if (e.keyCode === 35) next = tabs.length - 1;
+        if (next !== -1) {
+          e.preventDefault();
+          switchTab(names[next]);
+          tabs[next].focus();
+        }
+      }
+
+      function initSettingsAccessibility() {
+        var tabList = document.querySelector('.settings-tabs');
+        if (tabList) tabList.setAttribute('role', 'tablist');
+        var tabNames = ['Cards', 'General', 'System'];
+        for (var ti = 0; ti < tabNames.length; ti++) {
+          var tab = document.getElementById('settingsTab' + tabNames[ti]);
+          var panelId = 'settingsTabContent' + tabNames[ti];
+          if (!tab) continue;
+          tab.setAttribute('role', 'tab');
+          tab.setAttribute('aria-controls', panelId);
+          tab.onkeydown = settingsTabKeydown;
+          var panel = document.getElementById(panelId);
+          if (panel) panel.setAttribute('role', 'tabpanel');
+        }
+        var rows = document.querySelectorAll('#settingsTabContentCards .card-setting-row');
+        for (var i = 0; i < rows.length; i++) {
+          var nameEl = rows[i].querySelector('.card-setting-name');
+          var name = nameEl ? nameEl.textContent : 'card';
+          var checkbox = rows[i].querySelector('.master-label input[type="checkbox"]');
+          var mode = rows[i].querySelector('.display-mode-select');
+          var expander = rows[i].querySelector('.card-setting-expander');
+          if (checkbox && !checkbox.getAttribute('aria-label')) checkbox.setAttribute('aria-label', 'Enable ' + name);
+          if (mode && !mode.getAttribute('aria-label')) mode.setAttribute('aria-label', 'Display mode for ' + name);
+          if (expander && expander.id) {
+            var bodyId = expander.id.replace(/Expander$/, 'Collapsible');
+            if (document.getElementById(bodyId)) {
+              expander.setAttribute('role', 'button');
+              expander.setAttribute('tabindex', '0');
+              expander.setAttribute('aria-controls', bodyId);
+              expander.onkeydown = settingsExpanderKeydown;
+            }
+          }
+        }
+        if (elements.busStopsToggle) {
+          elements.busStopsToggle.setAttribute('role', 'button');
+          elements.busStopsToggle.setAttribute('tabindex', '0');
+          elements.busStopsToggle.setAttribute('aria-controls', 'busStopsCollapsible');
+          elements.busStopsToggle.setAttribute('aria-expanded', elements.busStopsCollapsible && elements.busStopsCollapsible.style.display !== 'none' ? 'true' : 'false');
+          elements.busStopsToggle.onkeydown = settingsExpanderKeydown;
+        }
+        filterSettingsCards();
+      }
+
       function initSettings() {
         var settingsBtn = document.getElementById('settingsBtn');
         var settingsClose = document.getElementById('settingsClose');
@@ -6484,11 +6845,13 @@
         var importBtn = document.getElementById('importSettings');
         var importFileInput = document.getElementById('importFileInput');
         var cardsFilter = document.getElementById('cardsSettingsFilter');
+        var feedHealthBtn = document.getElementById('feedHealthBtn');
 
         if (settingsVersion) {
           settingsVersion.textContent = 'v' + APP_VERSION;
         }
         if (cardsFilter) cardsFilter.oninput = filterSettingsCards;
+        if (feedHealthBtn) feedHealthBtn.onclick = loadFeedHealth;
 
         var floatingSettingsBtn = document.getElementById('floatingSettingsBtn');
         var floatingTickerBtn = document.getElementById('floatingTickerBtn');
@@ -6531,6 +6894,7 @@
           elements.busStopsCollapsible.style.display = '';
           elements.busStopsArrow.style.webkitTransform = 'rotate(90deg)';
           elements.busStopsArrow.style.transform = 'rotate(90deg)';
+          elements.busStopsToggle.setAttribute('aria-expanded', 'true');
         };
 
         elements.busStopsToggle.onclick = function() {
@@ -6538,6 +6902,7 @@
           elements.busStopsCollapsible.style.display = collapsed ? '' : 'none';
           elements.busStopsArrow.style.webkitTransform = collapsed ? 'rotate(90deg)' : '';
           elements.busStopsArrow.style.transform = collapsed ? 'rotate(90deg)' : '';
+          elements.busStopsToggle.setAttribute('aria-expanded', collapsed ? 'true' : 'false');
         };
 
         document.getElementById('settingsTabCards').onclick = function() { switchTab('cards'); };
@@ -6647,6 +7012,7 @@
         elements.addFuelStation.onclick = function() { addFuelStationRow({name: '', displayName: '', discount: 0}); };
 
         applySettingsUiState();
+        initSettingsAccessibility();
 
         refreshBtn.onclick = function() {
           fetchAllData();
@@ -6717,6 +7083,88 @@
         return hours < 24 ? hours + 'h ago' : Math.floor(hours / 24) + 'd ago';
       }
 
+      var severeWarningBaselineReady = false;
+      var severeWarningLastProcessTime = 0;
+      var severeWarningObserved = {};
+      var severeWarningEligible = {};
+
+      function warningBannerKey(warning) {
+        return String((warning && warning.id) || (warning && warning.title) || 'warning');
+      }
+
+      function getDismissedWarningBanners() {
+        var output = {};
+        var now = Date.now();
+        try {
+          var raw = localStorage.getItem(storageKey('warning_banner_dismissed'));
+          var parsed = raw ? JSON.parse(raw) : {};
+          for (var key in parsed) {
+            if (parsed.hasOwnProperty(key) && typeof parsed[key] === 'number' && now - parsed[key] <= 7 * 24 * 60 * 60 * 1000) {
+              output[key] = parsed[key];
+            }
+          }
+        } catch (e) {}
+        return output;
+      }
+
+      function updateSevereWarningBanner() {
+        var el = elements.severeWarningBanner;
+        if (!el) return;
+        var now = Date.now();
+        var wakeGap = severeWarningLastProcessTime > 0 && now - severeWarningLastProcessTime > 15 * 60 * 1000;
+        severeWarningLastProcessTime = now;
+        var active = getActiveWeatherWarnings();
+        var severe = [];
+        var current = {};
+        for (var i = 0; i < active.length; i++) {
+          if ((active[i].group || '') !== 'warning') continue;
+          var currentKey = warningBannerKey(active[i]);
+          current[currentKey] = true;
+          severe.push(active[i]);
+        }
+        if (!severeWarningBaselineReady || wakeGap) {
+          severeWarningBaselineReady = true;
+          severeWarningObserved = current;
+          severeWarningEligible = {};
+        } else {
+          for (var j = 0; j < severe.length; j++) {
+            var newKey = warningBannerKey(severe[j]);
+            if (!severeWarningObserved[newKey]) severeWarningEligible[newKey] = true;
+          }
+          severeWarningObserved = current;
+          for (var oldKey in severeWarningEligible) {
+            if (severeWarningEligible.hasOwnProperty(oldKey) && !current[oldKey]) delete severeWarningEligible[oldKey];
+          }
+        }
+        var dismissed = getDismissedWarningBanners();
+        var shown = [];
+        for (var k = 0; k < severe.length; k++) {
+          var shownKey = warningBannerKey(severe[k]);
+          if (severeWarningEligible[shownKey] && !dismissed[shownKey]) shown.push(severe[k]);
+        }
+        if (!shown.length) {
+          el.style.display = 'none';
+          scheduleMasonry();
+          return;
+        }
+        var html = '<div class="swb-title">&#9888;&#65039; Severe Weather Warning</div>';
+        for (var n = 0; n < shown.length; n++) {
+          html += '<div class="swb-row">' + escapeHtml(shown[n].shortTitle || shown[n].title || 'Warning') + '</div>';
+        }
+        html += '<div class="swb-sub">Bureau of Meteorology &middot; tap to dismiss</div>';
+        el.innerHTML = html;
+        el.style.display = '';
+        el.onclick = function() {
+          var saved = getDismissedWarningBanners();
+          var dismissedAt = Date.now();
+          for (var p = 0; p < shown.length; p++) saved[warningBannerKey(shown[p])] = dismissedAt;
+          try { localStorage.setItem(storageKey('warning_banner_dismissed'), JSON.stringify(saved)); } catch (e) {}
+          el.style.display = 'none';
+          scheduleMasonry();
+        };
+        scheduleMasonry();
+      }
+
       function renderWeatherWarnings() {
         if (!elements.weatherWarningsContent) return;
         var warnings = getActiveWeatherWarnings();
@@ -6736,6 +7184,7 @@
         if (!warnings.length) html = '<div class="sport-event-meta" style="padding:8px 0;text-align:center;">No active warnings</div>';
         elements.weatherWarningsContent.innerHTML = html;
         elements.weatherWarningsUpdated.textContent = formatUpdatedTime(new Date());
+        updateSevereWarningBanner();
         scheduleMasonry();
       }
 
@@ -6745,11 +7194,32 @@
       var BUSHFIRE_SERIOUS_KM = 60;
       var BUSHFIRE_INFO_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 
+      function bushfireWarningKey(incident) {
+        return ((incident && incident.id) || ((incident && incident.title) || '') + ':' + ((incident && incident.updated) || '')) + ':' + ((incident && incident.severity) || 0);
+      }
+
+      function getDismissedBushfireWarnings() {
+        var output = {};
+        var now = Date.now();
+        try {
+          var raw = localStorage.getItem(storageKey('bushfire_warning_dismissed'));
+          var parsed = raw ? JSON.parse(raw) : {};
+          for (var key in parsed) {
+            if (parsed.hasOwnProperty(key) && typeof parsed[key] === 'number' && now - parsed[key] <= 7 * 24 * 60 * 60 * 1000) {
+              output[key] = parsed[key];
+            }
+          }
+        } catch (e) {}
+        return output;
+      }
+
       function getNearbyBushfires() {
         var incidents = lastBushfiresData && lastBushfiresData.incidents ? lastBushfiresData.incidents : [];
         var output = [];
+        var dismissed = getDismissedBushfireWarnings();
         for (var i = 0; i < incidents.length; i++) {
           var incident = incidents[i];
+          if (dismissed[bushfireWarningKey(incident)]) continue;
           if (typeof incident.distanceKm !== 'number') continue;
           if (incident.severity === 0 && incident.updated) {
             var updated = Date.parse(incident.updated);
@@ -6762,6 +7232,19 @@
         }
         return output;
       }
+
+      function dismissBushfireWarning(index) {
+        var nearby = getNearbyBushfires();
+        var incident = nearby[index];
+        if (!incident) return;
+        var dismissed = getDismissedBushfireWarnings();
+        dismissed[bushfireWarningKey(incident)] = Date.now();
+        try { localStorage.setItem(storageKey('bushfire_warning_dismissed'), JSON.stringify(dismissed)); } catch (e) {}
+        renderBushfires();
+        updateCardVisibility();
+        buildScrollingTicker();
+      }
+      window.dismissBushfireWarning = dismissBushfireWarning;
 
       function fetchBushfires() {
         if (!config.showBushfires) return;
@@ -6813,6 +7296,7 @@
           html += '<div style="font-size:0.85em;color:#ccc;">' + escapeHtml(bushfireAreaTitle(incident)) + '</div>';
           if (incident.content) html += '<div style="font-size:0.8em;color:#bbb;margin-top:1px;">' + escapeHtml(incident.content) + '</div>';
           html += '<div style="font-size:0.8em;color:#999;">' + Math.round(incident.distanceKm) + ' km away' + (incident.updated ? ' &middot; updated ' + escapeHtml(warningRelativeTime(incident.updated)) : '') + '</div>';
+          html += '<button type="button" class="bushfire-dismiss-button" onclick="dismissBushfireWarning(' + i + ')">Dismiss warning</button>';
           html += '</div>';
         }
         if (!nearby.length) html = '<div class="sport-event-meta" style="padding:8px 0;text-align:center;">No bushfire incidents nearby</div>';
@@ -6858,6 +7342,65 @@
         elements.newsContent.innerHTML = html;
         elements.newsUpdated.textContent = formatUpdatedTime(new Date());
         scheduleMasonry();
+      }
+
+      function feedHealthAge(now, timestamp) {
+        if (!timestamp) return 'never';
+        var minutes = Math.floor((now - timestamp) / 60000);
+        if (minutes < 1) return 'just now';
+        if (minutes < 60) return minutes + 'm ago';
+        var hours = Math.floor(minutes / 60);
+        if (hours < 24) return hours + 'h ago';
+        return Math.floor(hours / 24) + 'd ago';
+      }
+
+      function loadFeedHealth() {
+        var result = document.getElementById('feedHealthResult');
+        if (!result) return;
+        result.textContent = 'Loading...';
+        var proxyUrl = config.busProxyUrl || window.location.origin;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', proxyUrl + '/api/feed-health', true);
+        setWorkerAuth(xhr);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status !== 200) {
+            result.innerHTML = '<span style="color:#f44336;">Failed to load (' + escapeHtml(String(xhr.status)) + ')</span>';
+            return;
+          }
+          var data;
+          try { data = JSON.parse(xhr.responseText); } catch (e) {
+            result.innerHTML = '<span style="color:#f44336;">Invalid response</span>';
+            return;
+          }
+          var feeds = data.feeds || {};
+          var names = [];
+          for (var key in feeds) { if (feeds.hasOwnProperty(key)) names.push(key); }
+          names.sort();
+          var uptimeMinutes = Math.max(0, Math.floor(((data.now || Date.now()) - (data.bootedAt || Date.now())) / 60000));
+          var uptime = uptimeMinutes < 60 ? uptimeMinutes + 'm' : Math.floor(uptimeMinutes / 60) + 'h ' + (uptimeMinutes % 60) + 'm';
+          if (!names.length) {
+            result.textContent = 'No feed activity yet on this Worker instance (up ' + uptime + '). Refresh the dashboard, then check again.';
+            return;
+          }
+          var html = '<div style="font-size:0.8em;color:#999;margin-bottom:6px;">Worker instance up ' + escapeHtml(uptime) + '</div>';
+          for (var i = 0; i < names.length; i++) {
+            var health = feeds[names[i]] || {};
+            var color = '#4CAF50';
+            var note = 'OK ' + feedHealthAge(data.now, health.ok);
+            if (health.stale && (!health.ok || health.stale > health.ok)) {
+              color = '#FF9800';
+              note = 'serving stale (last OK ' + feedHealthAge(data.now, health.ok) + ')';
+            }
+            if (health.err && (!health.ok || health.err > health.ok)) {
+              color = '#f44336';
+              note = 'error ' + feedHealthAge(data.now, health.err) + (health.errDetail ? ' - ' + health.errDetail : '') + ' (last OK ' + feedHealthAge(data.now, health.ok) + ')';
+            }
+            html += '<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.06);"><span style="color:' + color + ';">&#9679;</span> <strong>' + escapeHtml(names[i]) + '</strong> <span style="color:#aaa;">' + escapeHtml(note) + '</span></div>';
+          }
+          result.innerHTML = html;
+        };
+        xhr.send();
       }
 
       // --- Birthdays (local settings only; no bundled personal data) ---
@@ -7986,7 +8529,9 @@
             label: 'Weather',
             value: wTemp + '\u00B0C',
             changeClass: '',
-            changeText: ''
+            changeText: '',
+            kind: 'status',
+            statusOrder: 10
           });
         }
 
@@ -8022,7 +8567,8 @@
             label: lastNewsData.items[0].source || 'News',
             value: lastNewsData.items[0].title || '',
             changeClass: '',
-            changeText: ''
+            changeText: '',
+            kind: 'news'
           });
         }
 
@@ -8049,7 +8595,9 @@
             label: 'Air Quality',
             value: '' + aqVal,
             changeClass: aqCat.cls,
-            changeText: aqCat.label
+            changeText: aqCat.label,
+            kind: 'status',
+            statusOrder: 40
           });
         }
 
@@ -8063,7 +8611,9 @@
               label: 'UV Index',
               value: formatUvIndexValue(uvVal),
               changeClass: uvCat.cls,
-              changeText: uvCat.label
+              changeText: uvCat.label,
+              kind: 'status',
+              statusOrder: 20
             });
           }
         }
@@ -8079,7 +8629,7 @@
             }
           }
           if (highestPollen) {
-            slides.push({ icon: '\uD83C\uDF31', label: highestPollen.name + ' pollen', value: String(highestPollen.value), changeClass: '', changeText: highestPollen.category });
+            slides.push({ icon: '\uD83C\uDF31', label: highestPollen.name + ' pollen', value: String(highestPollen.value), changeClass: '', changeText: highestPollen.category, kind: 'status', statusOrder: 30 });
           }
         }
 
@@ -8317,36 +8867,37 @@
         tickerSlides = slides;
       }
 
-      var _lastScrollingTickerHtml = '';
-      var _scrollTickerPos = 0;
-      var _scrollTickerHalfWidth = 0;
+      var _scrollTickerRows = [
+        { barId: 'scrollingTicker', contentId: 'scrollingTickerContent', speed: 60, lastHtml: '', pos: 0, halfWidth: 0, paused: false, hoverBound: false },
+        { barId: 'newsTicker', contentId: 'newsTickerContent', speed: 45, lastHtml: '', pos: 0, halfWidth: 0, paused: false, hoverBound: false }
+      ];
       var _scrollTickerRafId = null;
-      var _scrollTickerPaused = false;
-      var _scrollTickerSpeed = 60; // pixels per second
 
       function _scrollTickerFrame(timestamp) {
-        if (!_scrollTickerPaused && _scrollTickerHalfWidth > 0) {
-          _scrollTickerPos -= _scrollTickerSpeed / 60;
-          if (_scrollTickerPos <= -_scrollTickerHalfWidth) {
-            _scrollTickerPos += _scrollTickerHalfWidth;
-          }
-          var contentEl = document.getElementById('scrollingTickerContent');
+        for (var ri = 0; ri < _scrollTickerRows.length; ri++) {
+          var row = _scrollTickerRows[ri];
+          if (row.paused || row.halfWidth <= 0) continue;
+          row.pos -= row.speed / 60;
+          if (row.pos <= -row.halfWidth) row.pos += row.halfWidth;
+          var contentEl = document.getElementById(row.contentId);
           if (contentEl) {
-            contentEl.style.webkitTransform = 'translate3d(' + _scrollTickerPos + 'px,0,0)';
-            contentEl.style.transform = 'translate3d(' + _scrollTickerPos + 'px,0,0)';
+            contentEl.style.webkitTransform = 'translate3d(' + row.pos + 'px,0,0)';
+            contentEl.style.transform = 'translate3d(' + row.pos + 'px,0,0)';
           }
         }
         _scrollTickerRafId = requestAnimationFrame(_scrollTickerFrame);
       }
 
-      function startScrollingTickerAnimation() {
-        if (_scrollTickerRafId) return;
-        _scrollTickerRafId = requestAnimationFrame(_scrollTickerFrame);
-        var tickerEl = document.getElementById('scrollingTicker');
-        if (tickerEl) {
-          tickerEl.onmouseenter = function() { _scrollTickerPaused = true; };
-          tickerEl.onmouseleave = function() { _scrollTickerPaused = false; };
+      function startScrollingTickerAnimation(row) {
+        if (row && !row.hoverBound) {
+          var tickerEl = document.getElementById(row.barId);
+          if (tickerEl) {
+            row.hoverBound = true;
+            tickerEl.onmouseenter = function() { row.paused = true; };
+            tickerEl.onmouseleave = function() { row.paused = false; };
+          }
         }
+        if (!_scrollTickerRafId) _scrollTickerRafId = requestAnimationFrame(_scrollTickerFrame);
       }
 
       function stopScrollingTickerAnimation() {
@@ -8354,6 +8905,64 @@
           cancelAnimationFrame(_scrollTickerRafId);
           _scrollTickerRafId = null;
         }
+      }
+
+      function scrollTickerItemHtml(slide) {
+        var html = '<span class="scrolling-ticker-item">';
+        html += '<span class="ticker-item-icon">' + escapeHtml(slide.icon) + '</span>';
+        html += '<span class="ticker-item-label">' + escapeHtml(slide.label) + '</span>';
+        html += '<span class="ticker-item-value">' + escapeHtml(slide.value) + '</span>';
+        if (slide.changeText) html += '<span class="ticker-item-change' + (slide.changeClass ? ' ' + slide.changeClass : '') + '">' + escapeHtml(slide.changeText) + '</span>';
+        return html + '</span>';
+      }
+
+      function renderStatusStrip(slides) {
+        var statusEl = document.getElementById('statusStrip');
+        if (!statusEl) return;
+        var html = '';
+        for (var i = 0; i < slides.length; i++) {
+          var slide = slides[i];
+          html += '<div class="status-strip-item" role="listitem"><span class="status-strip-label">' + escapeHtml(slide.label) + '</span><span class="status-strip-reading"><span class="status-strip-value">' + escapeHtml(slide.value) + '</span>';
+          if (slide.changeText) html += '<span class="status-strip-detail' + (slide.changeClass ? ' ' + slide.changeClass : '') + '">' + escapeHtml(slide.changeText) + '</span>';
+          html += '</span></div>';
+        }
+        if (statusEl.innerHTML !== html) statusEl.innerHTML = html;
+      }
+
+      function renderScrollTickerRow(row, slides) {
+        var html = '';
+        for (var i = 0; i < slides.length; i++) {
+          html += scrollTickerItemHtml(slides[i]);
+          if (i < slides.length - 1) html += '<span class="scrolling-ticker-sep">&middot;</span>';
+        }
+        if (html === row.lastHtml) return;
+        row.lastHtml = html;
+        var contentEl = document.getElementById(row.contentId);
+        if (!contentEl) return;
+        contentEl.innerHTML = html + '<span class="scrolling-ticker-sep">&middot;</span>' + html + '<span class="scrolling-ticker-sep">&middot;</span>';
+        var newHalf = contentEl.scrollWidth / 2;
+        row.pos = row.halfWidth > 0 && row.pos < 0 && newHalf > 0 ? -(Math.abs(row.pos) % newHalf) : 0;
+        row.halfWidth = newHalf;
+        startScrollingTickerAnimation(row);
+      }
+
+      function clearScrollTickerRow(row) {
+        row.lastHtml = '';
+        row.pos = 0;
+        row.halfWidth = 0;
+        var contentEl = document.getElementById(row.contentId);
+        if (contentEl) contentEl.innerHTML = '';
+      }
+
+      function buildNewsTickerSlides() {
+        var slides = [];
+        if (!config.showNews || !isTickerDisplayMode(config.newsDisplayMode) || !lastNewsData || !lastNewsData.items) return slides;
+        var count = lastNewsData.items.length < config.newsTickerCount ? lastNewsData.items.length : config.newsTickerCount;
+        for (var i = 0; i < count; i++) {
+          var item = lastNewsData.items[i];
+          slides.push({ icon: '\uD83D\uDCF0', label: item.source || 'News', value: item.title || '', changeClass: '', changeText: item.publishedAt ? warningRelativeTime(item.publishedAt) : '' });
+        }
+        return slides;
       }
 
       function buildScrollingTicker() {
@@ -8365,44 +8974,30 @@
           }
           renderTickerSlide();
         }
-        if (!config.scrollingTicker) {
-          stopScrollingTickerAnimation();
-          return;
-        }
-        if (tickerSlides.length === 0) return;
-        var html = '';
+        var mainSlides = [];
+        var statusSlides = [];
         for (var i = 0; i < tickerSlides.length; i++) {
-          var s = tickerSlides[i];
-          html += '<span class="scrolling-ticker-item">';
-          html += '<span class="ticker-item-icon">' + escapeHtml(s.icon) + '</span>';
-          html += '<span class="ticker-item-label">' + escapeHtml(s.label) + '</span>';
-          html += '<span class="ticker-item-value">' + escapeHtml(s.value) + '</span>';
-          if (s.changeText) {
-            html += '<span class="ticker-item-change' + (s.changeClass ? ' ' + s.changeClass : '') + '">' + escapeHtml(s.changeText) + '</span>';
-          }
-          html += '</span>';
-          if (i < tickerSlides.length - 1) {
-            html += '<span class="scrolling-ticker-sep">&middot;</span>';
-          }
+          if (config.scrollingTicker && tickerSlides[i].kind === 'status') statusSlides.push(tickerSlides[i]);
+          else if (config.scrollingTicker && !(config.newsOwnTickerRow && tickerSlides[i].kind === 'news')) mainSlides.push(tickerSlides[i]);
         }
-        // Skip rebuild if content unchanged
-        if (html === _lastScrollingTickerHtml) return;
-        _lastScrollingTickerHtml = html;
-        // Duplicate for seamless loop
-        var fullHtml = html + '<span class="scrolling-ticker-sep">&middot;</span>' + html + '<span class="scrolling-ticker-sep">&middot;</span>';
-        var contentEl = document.getElementById('scrollingTickerContent');
-        if (!contentEl) return;
-        contentEl.innerHTML = fullHtml;
-        var newHalf = contentEl.scrollWidth / 2;
-        // Preserve scroll position instead of resetting to avoid visual jump
-        if (_scrollTickerHalfWidth > 0 && _scrollTickerPos < 0) {
-          // Normalize position to new content width
-          _scrollTickerPos = -(Math.abs(_scrollTickerPos) % newHalf);
-        } else {
-          _scrollTickerPos = 0;
-        }
-        _scrollTickerHalfWidth = newHalf;
-        startScrollingTickerAnimation();
+        statusSlides.sort(function(a, b) { return (a.statusOrder || 999) - (b.statusOrder || 999); });
+        var newsSlides = config.newsOwnTickerRow ? buildNewsTickerSlides() : [];
+        var statusVisible = statusSlides.length > 0;
+        var mainVisible = config.scrollingTicker && mainSlides.length > 0;
+        var newsVisible = newsSlides.length > 0;
+        var statusEl = document.getElementById('statusStrip');
+        var mainEl = document.getElementById('scrollingTicker');
+        var newsEl = document.getElementById('newsTicker');
+        var stackEl = document.getElementById('tickerStack');
+        if (statusEl) statusEl.style.display = statusVisible ? '' : 'none';
+        if (mainEl) mainEl.style.display = mainVisible ? '' : 'none';
+        if (newsEl) newsEl.style.display = newsVisible ? '' : 'none';
+        if (stackEl) stackEl.style.display = statusVisible || mainVisible || newsVisible ? '' : 'none';
+        if (statusVisible) renderStatusStrip(statusSlides);
+        if (mainVisible) renderScrollTickerRow(_scrollTickerRows[0], mainSlides); else clearScrollTickerRow(_scrollTickerRows[0]);
+        if (newsVisible) renderScrollTickerRow(_scrollTickerRows[1], newsSlides); else clearScrollTickerRow(_scrollTickerRows[1]);
+        if (!mainVisible && !newsVisible) stopScrollingTickerAnimation();
+        scheduleMasonry();
       }
 
       function showTicker() {
@@ -8731,8 +9326,15 @@
           var capT = t.charAt(0).toUpperCase() + t.slice(1);
           var btn = document.getElementById('settingsTab' + capT);
           var content = document.getElementById('settingsTabContent' + capT);
-          if (btn) btn.className = 'settings-tab' + (t === tab ? ' active' : '');
-          if (content) content.style.display = t === tab ? '' : 'none';
+          if (btn) {
+            btn.className = 'settings-tab' + (t === tab ? ' active' : '');
+            btn.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+            btn.setAttribute('tabindex', t === tab ? '0' : '-1');
+          }
+          if (content) {
+            content.style.display = t === tab ? '' : 'none';
+            content.setAttribute('aria-hidden', t === tab ? 'false' : 'true');
+          }
         }
         saveSettingsUiState();
       }
@@ -8770,6 +9372,8 @@
             arrow.style.webkitTransform = expanded ? 'rotate(90deg)' : '';
             arrow.style.transform = expanded ? 'rotate(90deg)' : '';
           }
+          var expander = document.getElementById(key + 'Expander');
+          if (expander) expander.setAttribute('aria-expanded', expanded ? 'true' : 'false');
         }
       }
 
@@ -8783,6 +9387,8 @@
             arrow.style.webkitTransform = settingsUiState[key] ? 'rotate(90deg)' : '';
             arrow.style.transform = settingsUiState[key] ? 'rotate(90deg)' : '';
           }
+          var expander = document.getElementById(key + 'Expander');
+          if (expander) expander.setAttribute('aria-expanded', settingsUiState[key] ? 'true' : 'false');
           saveSettingsUiState();
         };
       }

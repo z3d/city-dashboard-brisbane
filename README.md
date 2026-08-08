@@ -6,8 +6,8 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 
 ## Features
 
-- Weather, BoM warnings, air quality, UV index, sunrise, and sunset
-- Nearby Queensland bushfire incidents and local ABC/Brisbane Times headlines
+- Weather, BoM warnings, rain-soon alerts, air quality, UV index, sunrise, and sunset
+- Nearby Queensland bushfire incidents with local dismissal, plus ABC/Brisbane Times headlines
 - Optional pollen forecasts through the Google Pollen API
 - Optional locally configured birthday reminders (ships with an empty list)
 - Queensland electricity spot prices via AEMO NEMWEB
@@ -19,7 +19,8 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Finance prices via Yahoo Finance, including user-defined symbols
 - Queensland fuel prices, when a FPD Direct API token is configured
 - Optional Polymarket event card
-- Touch-friendly card ordering, collapsible cards, schedules, ticker mode, import/export settings, and dark/light themes
+- Touch-friendly card ordering, collapsible cards, schedules, keyboard-accessible settings, import/export settings, and dark/light themes
+- Static conditions strip, moving data ticker, optional dedicated headline row, and on-demand Worker feed diagnostics
 
 Private/person-specific integrations have been removed from this public fork. Do not commit local `.dev.vars`, API tokens, proxy URLs, or device-specific settings.
 
@@ -79,6 +80,7 @@ npm run validate
 | Endpoint | Description |
 | --- | --- |
 | `GET /api/health` | Health check |
+| `GET /api/feed-health` | Per-Worker-instance feed success/stale/error diagnostics |
 | `GET /api/electricity` | Queensland electricity spot price proxy |
 | `GET /api/warnings?lat=..&lon=..` | BoM weather warnings for a geohash area |
 | `GET /api/bushfires?lat=..&lon=..` | Queensland bushfire incidents with distance |

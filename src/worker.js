@@ -61,6 +61,31 @@ let _newsCache = null;         // JSON string
 let _newsTime = 0;
 let _lastFeatureRequestTime = 0;
 
+// Per-isolate diagnostics only: no KV writes and no polling side effects.
+const _workerBootTime = Date.now();
+const _feedHealth = {};
+const FEED_HEALTH_SKIP = new Set(['health', 'feed-health', 'dashboard-status', 'feature-request']);
+
+function recordFeedEvent(feed, kind, detail) {
+  const health = _feedHealth[feed] = _feedHealth[feed] || {};
+  health[kind] = Date.now();
+  if (kind === 'err') health.errDetail = String(detail || '').slice(0, 140);
+}
+
+function recordFeedHealth(request, response) {
+  try {
+    if (!response || request.method !== 'GET') return;
+    const path = new URL(request.url).pathname;
+    if (!path.startsWith('/api/')) return;
+    const feed = path.slice(5).split('/')[0];
+    if (!feed || FEED_HEALTH_SKIP.has(feed)) return;
+    const cacheStatus = response.headers.get('X-Cache');
+    if (response.status >= 500) recordFeedEvent(feed, 'err', 'HTTP ' + response.status);
+    else if (cacheStatus === 'STALE') recordFeedEvent(feed, 'stale');
+    else if (response.ok && cacheStatus !== 'HIT') recordFeedEvent(feed, 'ok');
+  } catch (e) {}
+}
+
 const DASHBOARD_STATUS_KV_KEY = 'dashboard_status';
 const WARNINGS_DATA_TTL = 5 * 60 * 1000;
 const POLLEN_DATA_TTL = 12 * 60 * 60 * 1000;
@@ -566,6 +591,13 @@ function timingSafeEqual(a, b) {
 
 export default {
   async fetch(request, env) {
+    const response = await handleRequest(request, env);
+    recordFeedHealth(request, response);
+    return response;
+  }
+};
+
+async function handleRequest(request, env) {
     var url = new URL(request.url);
     var path = url.pathname;
 
@@ -604,6 +636,12 @@ export default {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+      });
+    }
+
+    if (path === '/api/feed-health') {
+      return new Response(JSON.stringify({ bootedAt: _workerBootTime, now: Date.now(), feeds: _feedHealth }), {
+        headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, corsHeaders)
       });
     }
 
@@ -2125,5 +2163,4 @@ export default {
       status: 404,
       headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
     });
-  }
-};
+}
