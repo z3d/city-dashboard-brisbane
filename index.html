@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.60.0">
+  <meta name="app-version" content="1.61.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -281,6 +281,9 @@
     .needs-attention-item.good {
       border-left-color: #4ade80;
     }
+
+    .needs-attention-item.action { cursor: pointer; }
+    .needs-attention-item.action:focus { outline: 2px solid #60a5fa; outline-offset: 2px; }
 
     .needs-attention-label {
       color: #9ca3af;
@@ -2355,7 +2358,12 @@
             <label class="checkbox-label"><input type="checkbox" id="birthdaysConditionalHide"> Only show the card on a birthday</label>
             <div id="birthdaysList" style="margin-top:8px;"></div>
             <button type="button" id="addBirthdayBtn" style="margin-top:8px;padding:6px 16px;border-radius:8px;border:1px solid #444;background:#23234a;color:#e0e0e0;cursor:pointer;">+ Add Birthday</button>
-            <div class="settings-info">Starts empty. Birthday details are stored only in this browser and in settings exports you create.</div>
+            <div style="margin-top:8px;">
+              <button type="button" id="exportBirthdaysBtn" style="padding:6px 12px;border-radius:8px;border:1px solid #444;background:#23234a;color:#e0e0e0;cursor:pointer;margin-right:6px;">Export Birthdays</button>
+              <button type="button" id="importBirthdaysBtn" style="padding:6px 12px;border-radius:8px;border:1px solid #444;background:#23234a;color:#e0e0e0;cursor:pointer;">Import Birthdays</button>
+              <input type="file" id="importBirthdaysFile" accept=".json,application/json" style="display:none;">
+            </div>
+            <div class="settings-info">Starts empty. Names, dates, and timezones are stored only in this browser and in settings exports you create.</div>
           </div>
         </div>
 
@@ -4021,13 +4029,14 @@
         }, 120);
       }
 
-      function addNeedsAttentionItem(items, priority, tone, label, value, detail) {
+      function addNeedsAttentionItem(items, priority, tone, label, value, detail, action) {
         items.push({
           priority: priority,
           tone: tone || 'warn',
           label: label || '',
           value: value || '',
-          detail: detail || ''
+          detail: detail || '',
+          action: action || ''
         });
       }
 
@@ -4154,9 +4163,48 @@
         }
       }
 
+      function addWeatherWarningsNeedsAttention(items) {
+        if (!config.showWeatherWarnings || isCardDisplayMode(config.weatherWarningsDisplayMode)) return;
+        var active = getActiveWeatherWarnings();
+        if (!active.length) return;
+        var firstTitle = active[0].shortTitle || active[0].title || 'Warning active';
+        if (active.length === 1) {
+          addNeedsAttentionItem(items, 80, 'urgent', 'Weather', firstTitle, 'BoM warning current for your area');
+        } else {
+          addNeedsAttentionItem(items, 80, 'urgent', 'Weather', active.length + ' warnings active', firstTitle);
+        }
+      }
+
+      function addBushfiresNeedsAttention(items) {
+        if (!config.showBushfires) return;
+        var nearby = getNearbyBushfires();
+        for (var i = 0; i < nearby.length; i++) {
+          var incident = nearby[i];
+          if (incident.severity >= 3) {
+            addNeedsAttentionItem(items, 90, 'urgent', 'Bushfire', 'EMERGENCY WARNING ' + Math.round(incident.distanceKm) + 'km away', bushfireAreaTitle(incident) + ' - tap to dismiss', 'dismissBushfireWarning(' + i + ')');
+          } else if (incident.severity >= 2) {
+            addNeedsAttentionItem(items, 85, 'urgent', 'Bushfire', 'Watch and Act ' + Math.round(incident.distanceKm) + 'km away', bushfireAreaTitle(incident) + ' - tap to dismiss', 'dismissBushfireWarning(' + i + ')');
+          }
+        }
+      }
+
+      function addBirthdaysNeedsAttention(items) {
+        if (!config.showBirthdays || !config.birthdays || !config.birthdays.length) return;
+        for (var i = 0; i < config.birthdays.length; i++) {
+          var birthday = config.birthdays[i];
+          if (isBirthdayToday(birthday) && !isBirthdayAcknowledgedToday(birthday) && hasBirthdayShownForHours(birthday, 12)) {
+            addNeedsAttentionItem(items, 40, 'warn', 'Birthday', (birthday.name || 'Someone') + ' today', 'Do not forget', 'acknowledgeBirthdays()');
+            return;
+          }
+        }
+      }
+
       function buildNeedsAttentionItems() {
         var items = [];
         addWeatherNeedsAttention(items);
+        addWeatherWarningsNeedsAttention(items);
+        addBushfiresNeedsAttention(items);
+        addBirthdaysNeedsAttention(items);
         addAirQualityNeedsAttention(items);
         addUvNeedsAttention(items);
         addElectricityNeedsAttention(items);
@@ -4191,7 +4239,9 @@
         html += '<div class="needs-attention-list">';
         for (var i = 0; i < visibleCount; i++) {
           var item = items[i];
-          html += '<div class="needs-attention-item ' + escapeHtml(item.tone) + '">' +
+          var itemClass = 'needs-attention-item ' + escapeHtml(item.tone) + (item.action ? ' action' : '');
+          var actionAttrs = item.action ? ' role="button" tabindex="0" onclick="' + escapeHtml(item.action) + '" onkeydown="if(event.keyCode===13||event.keyCode===32){event.preventDefault();' + escapeHtml(item.action) + '}"' : '';
+          html += '<div class="' + itemClass + '"' + actionAttrs + '>' +
             '<div class="needs-attention-label">' + escapeHtml(item.label) + '</div>' +
             '<div class="needs-attention-value">' + escapeHtml(item.value) + '</div>' +
             (item.detail ? '<div class="needs-attention-detail">' + escapeHtml(item.detail) + '</div>' : '') +
@@ -6762,7 +6812,7 @@
           rows[i].style.display = show ? '' : 'none';
           if (show) visible++;
         }
-        if (status) status.textContent = query ? visible + ' of ' + rows.length + ' cards' : rows.length + ' cards';
+        if (status) status.textContent = !query ? rows.length + ' cards' : (visible ? visible + ' of ' + rows.length + ' cards' : 'No cards match');
       }
 
       function settingsExpanderKeydown(e) {
@@ -6930,6 +6980,14 @@
           updateFinanceMaster();
         };
         document.getElementById('addBirthdayBtn').onclick = function() { addBirthdaySettingsRow(null); };
+        document.getElementById('exportBirthdaysBtn').onclick = exportBirthdays;
+        document.getElementById('importBirthdaysBtn').onclick = function() {
+          document.getElementById('importBirthdaysFile').click();
+        };
+        document.getElementById('importBirthdaysFile').onchange = function() {
+          if (this.files && this.files[0]) importBirthdays(this.files[0]);
+          this.value = '';
+        };
         document.getElementById('polymarketSettingsExpander').onclick = makeSettingsToggle('polymarketSettings');
 
         elements.showSoccer.onchange = function() {
@@ -7048,6 +7106,7 @@
         var now = Date.now();
         var active = [];
         for (var i = 0; i < warnings.length; i++) {
+          if (warnings[i].phase === 'cancelled' || warnings[i].phase === 'final') continue;
           var expiry = warnings[i].expiresAt ? new Date(warnings[i].expiresAt).getTime() : 0;
           if (!expiry || expiry > now) active.push(warnings[i]);
         }
@@ -7154,6 +7213,8 @@
         html += '<div class="swb-sub">Bureau of Meteorology &middot; tap to dismiss</div>';
         el.innerHTML = html;
         el.style.display = '';
+        el.setAttribute('role', 'alert');
+        el.setAttribute('tabindex', '0');
         el.onclick = function() {
           var saved = getDismissedWarningBanners();
           var dismissedAt = Date.now();
@@ -7161,6 +7222,12 @@
           try { localStorage.setItem(storageKey('warning_banner_dismissed'), JSON.stringify(saved)); } catch (e) {}
           el.style.display = 'none';
           scheduleMasonry();
+        };
+        el.onkeydown = function(event) {
+          if (event.keyCode === 13 || event.keyCode === 32) {
+            event.preventDefault();
+            el.onclick();
+          }
         };
         scheduleMasonry();
       }
@@ -7240,6 +7307,7 @@
         var dismissed = getDismissedBushfireWarnings();
         dismissed[bushfireWarningKey(incident)] = Date.now();
         try { localStorage.setItem(storageKey('bushfire_warning_dismissed'), JSON.stringify(dismissed)); } catch (e) {}
+        renderNeedsAttention();
         renderBushfires();
         updateCardVisibility();
         buildScrollingTicker();
@@ -7299,7 +7367,23 @@
           html += '<button type="button" class="bushfire-dismiss-button" onclick="dismissBushfireWarning(' + i + ')">Dismiss warning</button>';
           html += '</div>';
         }
-        if (!nearby.length) html = '<div class="sport-event-meta" style="padding:8px 0;text-align:center;">No bushfire incidents nearby</div>';
+        if (nearby.length > shown) html += '<div style="font-size:0.8em;color:#999;padding-top:4px;">+' + (nearby.length - shown) + ' more further out</div>';
+        if (!nearby.length) {
+          html = '<div class="sport-event-meta" style="padding:8px 0;text-align:center;">No bushfire incidents nearby</div>';
+          var incidents = lastBushfiresData.incidents || [];
+          var nearest = null;
+          var dismissed = getDismissedBushfireWarnings();
+          for (var nearestIndex = 0; nearestIndex < incidents.length; nearestIndex++) {
+            if (dismissed[bushfireWarningKey(incidents[nearestIndex])]) continue;
+            if (typeof incidents[nearestIndex].distanceKm !== 'number') continue;
+            if (!nearest || incidents[nearestIndex].distanceKm < nearest.distanceKm) nearest = incidents[nearestIndex];
+          }
+          if (nearest) {
+            html += '<div style="font-size:0.8em;color:#999;text-align:center;padding-bottom:4px;">Nearest: ' +
+              escapeHtml((nearest.level || 'Incident') + ' - ' + bushfireAreaTitle(nearest)) +
+              ' (' + Math.round(nearest.distanceKm) + ' km)</div>';
+          }
+        }
         elements.bushfiresContent.innerHTML = html;
         elements.bushfiresUpdated.textContent = formatUpdatedTime(new Date());
         scheduleMasonry();
@@ -7405,6 +7489,38 @@
 
       // --- Birthdays (local settings only; no bundled personal data) ---
 
+      var DEFAULT_BIRTHDAY_TIMEZONE = 'Australia/Brisbane';
+      var COMMON_TIMEZONES = [
+        'Pacific/Auckland', 'Australia/Sydney', 'Australia/Brisbane', 'Australia/Adelaide',
+        'Australia/Perth', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Shanghai', 'Asia/Hong_Kong',
+        'Asia/Singapore', 'Asia/Kolkata', 'Asia/Dubai', 'Asia/Karachi', 'Asia/Dhaka',
+        'Africa/Johannesburg', 'Africa/Cairo', 'Europe/Moscow', 'Europe/Istanbul',
+        'Europe/Helsinki', 'Europe/Berlin', 'Europe/Paris', 'Europe/London',
+        'Atlantic/Reykjavik', 'America/Sao_Paulo', 'America/Buenos_Aires',
+        'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+        'America/Anchorage', 'Pacific/Honolulu'
+      ];
+
+      function sanitizeBirthdayTimezone(value) {
+        var timezone = String(value || DEFAULT_BIRTHDAY_TIMEZONE).slice(0, 80);
+        for (var i = 0; i < COMMON_TIMEZONES.length; i++) {
+          if (COMMON_TIMEZONES[i] === timezone) return timezone;
+        }
+        return DEFAULT_BIRTHDAY_TIMEZONE;
+      }
+
+      function getDateInTimezone(timezone) {
+        try {
+          var value = new Date().toLocaleString('en-US', {timeZone: sanitizeBirthdayTimezone(timezone)});
+          var date = new Date(value);
+          if (isNaN(date.getTime())) throw new Error('Unsupported timezone');
+          return {month: date.getMonth() + 1, day: date.getDate(), year: date.getFullYear(), hour: date.getHours(), minute: date.getMinutes()};
+        } catch (e) {
+          var now = new Date();
+          return {month: now.getMonth() + 1, day: now.getDate(), year: now.getFullYear(), hour: now.getHours(), minute: now.getMinutes()};
+        }
+      }
+
       function sanitizeBirthdays(list) {
         var output = [];
         if (Object.prototype.toString.call(list) !== '[object Array]') return output;
@@ -7413,7 +7529,8 @@
           var item = {
             name: String(source.name || '').trim().slice(0, 80),
             month: parseInt(source.month, 10),
-            day: parseInt(source.day, 10)
+            day: parseInt(source.day, 10),
+            timezone: sanitizeBirthdayTimezone(source.timezone)
           };
           if (!validBirthday(item)) continue;
           var year = parseInt(source.year, 10);
@@ -7433,25 +7550,43 @@
 
       function isBirthdayToday(item) {
         if (!validBirthday(item)) return false;
-        var now = new Date();
-        return now.getMonth() + 1 === parseInt(item.month, 10) && now.getDate() === parseInt(item.day, 10);
+        var today = getDateInTimezone(item.timezone);
+        return today.month === parseInt(item.month, 10) && today.day === parseInt(item.day, 10);
+      }
+
+      function hasBirthdayShownForHours(item, hours) {
+        if (!isBirthdayToday(item)) return false;
+        var today = getDateInTimezone(item.timezone);
+        return today.hour * 60 + today.minute >= hours * 60;
+      }
+
+      function getBirthdayDateString(item) {
+        var today = getDateInTimezone(item && item.timezone);
+        return today.year + '-' + ('0' + today.month).slice(-2) + '-' + ('0' + today.day).slice(-2);
+      }
+
+      function isBirthdayAcknowledgedToday(item) {
+        if (!isBirthdayToday(item)) return false;
+        var dismissed = '';
+        try { dismissed = localStorage.getItem(storageKey('birthdays_dismissed')) || ''; } catch (e) {}
+        return dismissed.indexOf(getBirthdayDateString(item)) !== -1;
       }
 
       function hasBirthdayToday() {
         var birthdays = config.birthdays || [];
         for (var i = 0; i < birthdays.length; i++) {
-          if (isBirthdayToday(birthdays[i])) return true;
+          if (isBirthdayToday(birthdays[i]) && !isBirthdayAcknowledgedToday(birthdays[i])) return true;
         }
         return false;
       }
 
       function birthdayDaysUntil(item) {
         if (!validBirthday(item)) return null;
-        var now = new Date();
-        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        var next = new Date(now.getFullYear(), parseInt(item.month, 10) - 1, parseInt(item.day, 10));
-        if (next < today) next = new Date(now.getFullYear() + 1, parseInt(item.month, 10) - 1, parseInt(item.day, 10));
-        return Math.round((next.getTime() - today.getTime()) / 86400000);
+        var today = getDateInTimezone(item.timezone);
+        var todayTime = Date.UTC(today.year, today.month - 1, today.day);
+        var nextTime = Date.UTC(today.year, parseInt(item.month, 10) - 1, parseInt(item.day, 10));
+        if (nextTime < todayTime) nextTime = Date.UTC(today.year + 1, parseInt(item.month, 10) - 1, parseInt(item.day, 10));
+        return Math.round((nextTime - todayTime) / 86400000);
       }
 
       function getBirthdayDisplayItems() {
@@ -7463,10 +7598,10 @@
           var year = parseInt(birthdays[i].year, 10);
           var age = '';
           if (!isNaN(year) && year >= 1900) {
-            var ageNow = new Date();
-            var birthdayPassed = parseInt(birthdays[i].month, 10) < ageNow.getMonth() + 1 ||
-              (parseInt(birthdays[i].month, 10) === ageNow.getMonth() + 1 && parseInt(birthdays[i].day, 10) < ageNow.getDate());
-            var nextYear = ageNow.getFullYear() + (days > 0 && birthdayPassed ? 1 : 0);
+            var ageNow = getDateInTimezone(birthdays[i].timezone);
+            var birthdayPassed = parseInt(birthdays[i].month, 10) < ageNow.month ||
+              (parseInt(birthdays[i].month, 10) === ageNow.month && parseInt(birthdays[i].day, 10) < ageNow.day);
+            var nextYear = ageNow.year + (days > 0 && birthdayPassed ? 1 : 0);
             age = days === 0 ? ' (' + (nextYear - year) + ')' : ' (turning ' + (nextYear - year) + ')';
           }
           items.push({
@@ -7474,7 +7609,8 @@
             month: parseInt(birthdays[i].month, 10),
             day: parseInt(birthdays[i].day, 10),
             daysUntil: days,
-            age: age
+            age: age,
+            timezone: sanitizeBirthdayTimezone(birthdays[i].timezone)
           });
         }
         items.sort(function(a, b) { return a.daysUntil - b.daysUntil; });
@@ -7491,11 +7627,13 @@
         }
         var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         var html = '';
+        var hasToday = false;
         var shown = config.birthdaysConditionalHide ? items.length : Math.min(items.length, 5);
         for (var i = 0; i < shown; i++) {
           var item = items[i];
           if (config.birthdaysConditionalHide && item.daysUntil !== 0) continue;
           var today = item.daysUntil === 0;
+          if (today && !isBirthdayAcknowledgedToday(item)) hasToday = true;
           html += '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between;">';
           html += '<div><span style="font-weight:600;color:' + (today ? '#ffd700' : '#e0e0e0') + ';">' + escapeHtml(item.name + item.age) + '</span>';
           if (today) html += '<div style="font-size:0.82em;color:#aaa;">Happy Birthday today!</div>';
@@ -7503,11 +7641,29 @@
           if (!today) html += '<br>(' + item.daysUntil + 'd)';
           html += '</div></div>';
         }
+        if (config.birthdaysConditionalHide && hasToday) {
+          html += '<div style="text-align:center;padding:8px 0;"><button type="button" onclick="acknowledgeBirthdays()" style="padding:6px 16px;border-radius:8px;border:1px solid #444;background:#23234a;color:#aaa;cursor:pointer;font-size:0.85em;">Acknowledge</button></div>';
+        }
         if (!html) html = '<div style="color:#888;text-align:center;padding:12px 0;">No birthdays today</div>';
         elements.birthdaysContent.innerHTML = html;
         elements.birthdaysUpdated.textContent = formatUpdatedTime(new Date());
         scheduleMasonry();
       }
+
+      function acknowledgeBirthdays() {
+        var birthdays = config.birthdays || [];
+        var dates = [];
+        for (var i = 0; i < birthdays.length; i++) {
+          if (!isBirthdayToday(birthdays[i])) continue;
+          var dateString = getBirthdayDateString(birthdays[i]);
+          if (dates.indexOf(dateString) === -1) dates.push(dateString);
+        }
+        try { localStorage.setItem(storageKey('birthdays_dismissed'), dates.join(',')); } catch (e) {}
+        renderBirthdays();
+        renderNeedsAttention();
+        updateCardVisibility();
+      }
+      window.acknowledgeBirthdays = acknowledgeBirthdays;
 
       function fetchBirthdays() {
         renderBirthdays();
@@ -7545,6 +7701,18 @@
           if (fields[i].cls === 'birthday-year-input') { input.min = '1900'; input.max = String(new Date().getFullYear()); }
           row.appendChild(input);
         }
+        var timezoneSelect = document.createElement('select');
+        timezoneSelect.className = 'birthday-timezone-select';
+        timezoneSelect.setAttribute('aria-label', 'Birthday timezone');
+        timezoneSelect.style.cssText = '-webkit-flex:1;flex:1;min-width:150px;padding:6px;margin-right:6px;border-radius:6px;border:1px solid #444;background:#1a1a3e;color:#e0e0e0;font-size:0.85em;';
+        for (var timezoneIndex = 0; timezoneIndex < COMMON_TIMEZONES.length; timezoneIndex++) {
+          var option = document.createElement('option');
+          option.value = COMMON_TIMEZONES[timezoneIndex];
+          option.textContent = COMMON_TIMEZONES[timezoneIndex];
+          timezoneSelect.appendChild(option);
+        }
+        timezoneSelect.value = sanitizeBirthdayTimezone(birthday.timezone);
+        row.appendChild(timezoneSelect);
         var removeButton = document.createElement('button');
         removeButton.type = 'button';
         removeButton.textContent = '\u00D7';
@@ -7564,10 +7732,12 @@
           var dayInput = rows[i].querySelector('.birthday-day-input');
           var monthInput = rows[i].querySelector('.birthday-month-input');
           var yearInput = rows[i].querySelector('.birthday-year-input');
+          var timezoneSelect = rows[i].querySelector('.birthday-timezone-select');
           var item = {
             name: nameInput ? nameInput.value.trim() : '',
             day: dayInput ? parseInt(dayInput.value, 10) : 0,
-            month: monthInput ? parseInt(monthInput.value, 10) : 0
+            month: monthInput ? parseInt(monthInput.value, 10) : 0,
+            timezone: sanitizeBirthdayTimezone(timezoneSelect ? timezoneSelect.value : DEFAULT_BIRTHDAY_TIMEZONE)
           };
           if (!validBirthday(item)) continue;
           var year = yearInput ? parseInt(yearInput.value, 10) : NaN;
@@ -7575,6 +7745,53 @@
           birthdays.push(item);
         }
         return birthdays;
+      }
+
+      function exportBirthdays() {
+        var data = JSON.stringify(config.birthdays || [], null, 2);
+        var textarea = document.createElement('textarea');
+        textarea.value = data;
+        textarea.style.cssText = 'position:fixed;left:-9999px;';
+        document.body.appendChild(textarea);
+        textarea.select();
+        textarea.setSelectionRange(0, data.length);
+        var copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        elements.settingsSaved.textContent = copied ? 'Birthdays copied to clipboard!' : 'Copy failed';
+        elements.settingsSaved.className = 'settings-saved visible';
+        setTimeout(function() {
+          elements.settingsSaved.textContent = 'Settings saved!';
+          elements.settingsSaved.className = 'settings-saved';
+        }, 3000);
+      }
+
+      function importBirthdays(file) {
+        var reader = new FileReader();
+        reader.onload = function(event) {
+          try {
+            var imported = JSON.parse(event.target.result);
+            if (Object.prototype.toString.call(imported) !== '[object Array]') {
+              alert('Invalid birthdays file: expected a JSON array');
+              return;
+            }
+            config.birthdays = sanitizeBirthdays(imported);
+            saveConfig();
+            renderBirthdaySettingsRows();
+            renderBirthdays();
+            renderNeedsAttention();
+            updateCardVisibility();
+            buildScrollingTicker();
+            elements.settingsSaved.textContent = 'Birthdays imported!';
+            elements.settingsSaved.className = 'settings-saved visible';
+            setTimeout(function() {
+              elements.settingsSaved.textContent = 'Settings saved!';
+              elements.settingsSaved.className = 'settings-saved';
+            }, 2000);
+          } catch (error) {
+            alert('Failed to import birthdays: Invalid JSON file');
+          }
+        };
+        reader.readAsText(file);
       }
 
       // --- Pollen ---
@@ -8922,8 +9139,9 @@
         var html = '';
         for (var i = 0; i < slides.length; i++) {
           var slide = slides[i];
+          var detail = slide.statusDetail !== undefined ? slide.statusDetail : slide.changeText;
           html += '<div class="status-strip-item" role="listitem"><span class="status-strip-label">' + escapeHtml(slide.label) + '</span><span class="status-strip-reading"><span class="status-strip-value">' + escapeHtml(slide.value) + '</span>';
-          if (slide.changeText) html += '<span class="status-strip-detail' + (slide.changeClass ? ' ' + slide.changeClass : '') + '">' + escapeHtml(slide.changeText) + '</span>';
+          if (detail) html += '<span class="status-strip-detail' + (slide.changeClass ? ' ' + slide.changeClass : '') + '">' + escapeHtml(detail) + '</span>';
           html += '</span></div>';
         }
         if (statusEl.innerHTML !== html) statusEl.innerHTML = html;

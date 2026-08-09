@@ -38,7 +38,7 @@ Worker code in `src/worker.js` runs on Cloudflare's V8 runtime and may use moder
 
 This public fork is intended to be generic. Do not add personal integrations, hardcoded device names, home proxy URLs, credentials, tokens, or private account identifiers.
 
-The birthday feature must ship with `birthdays: []`. Names and dates are user-entered local settings and must never be added to source defaults or examples.
+The birthday feature must ship with `birthdays: []`. Names and dates are user-entered local settings and must never be added to source defaults or examples. Per-birthday timezones use the allowlisted IANA names in `COMMON_TIMEZONES`.
 
 Before publishing or pushing, scan for secrets and identifying data:
 
