@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.61.0">
+  <meta name="app-version" content="1.62.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -308,6 +308,30 @@
       line-height: 1.25;
     }
 
+    /* Per-item dismiss (✕). 40px hit area for iPad / Fire TV remotes. */
+    .needs-attention-item.dismissable {
+      position: relative;
+      padding-right: 34px;
+    }
+    .needs-attention-dismiss {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 40px;
+      height: 40px;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      color: #9ca3af;
+      font-size: 15px;
+      line-height: 40px;
+      text-align: center;
+      cursor: pointer;
+      -webkit-appearance: none;
+    }
+    .needs-attention-dismiss:active { color: #fff; }
+
     .bushfire-dismiss-button {
       margin-top: 6px;
       padding: 6px 12px;
@@ -597,6 +621,36 @@
       flex-wrap: wrap;
       margin-top: -2px;
     }
+
+    /* 7-day forecast: seven equal columns, full -webkit ladder for old WebKit */
+    .forecast-row {
+      display: -webkit-box;
+      display: -webkit-flex;
+      display: flex;
+      -webkit-box-pack: justify;
+      -webkit-justify-content: space-between;
+      justify-content: space-between;
+    }
+    .forecast-day {
+      -webkit-box-flex: 1;
+      -webkit-flex: 1 1 0;
+      flex: 1 1 0;
+      min-width: 0;
+      text-align: center;
+      padding: 6px 2px;
+      border-radius: 6px;
+      -webkit-border-radius: 6px;
+    }
+    .forecast-today { background: rgba(255,255,255,0.05); }
+    .forecast-name { font-size: 0.72em; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.3px; }
+    .forecast-icon { font-size: 1.5em; line-height: 1.4; }
+    .forecast-hi { font-weight: 700; color: #fff; }
+    .forecast-lo { color: #888; font-size: 0.9em; }
+    .forecast-rain { font-size: 0.75em; color: #9ca3af; min-height: 1.2em; margin-top: 2px; white-space: nowrap; }
+    .forecast-rain-likely, .forecast-mm { color: #60a5fa; }
+    body.light-theme .forecast-today { background: rgba(0,0,0,0.05); }
+    body.light-theme .forecast-hi { color: #1a1a2e; }
+    body.light-theme .forecast-lo { color: #64748b; }
 
     .weather-item {
       margin-top: 4px;
@@ -888,9 +942,13 @@
     }
     .fuel-grade-row {
       display: -webkit-box;
+      display: -webkit-flex;
       display: flex;
       -webkit-box-pack: justify;
+      -webkit-justify-content: space-between;
       justify-content: space-between;
+      -webkit-box-align: baseline;
+      -webkit-align-items: baseline;
       align-items: baseline;
       padding: 5px 0;
     }
@@ -901,14 +959,18 @@
     .fuel-price-actual { font-size: 0.85em; color: #888; margin-left: 4px; }
     .fuel-station-row {
       display: -webkit-box;
+      display: -webkit-flex;
       display: flex;
+      -webkit-box-align: center;
+      -webkit-align-items: center;
       align-items: center;
       margin-bottom: 6px;
+      -webkit-flex-wrap: wrap;
       flex-wrap: wrap;
     }
     .fuel-station-row > * { margin-right: 6px; margin-bottom: 3px; }
-    .fuel-station-row input[type="text"] { flex: 1; min-width: 100px; }
-    .fuel-station-row .fuel-discount-input { width: 56px; flex: none; }
+    .fuel-station-row input[type="text"] { -webkit-box-flex: 1; -webkit-flex: 1; flex: 1; min-width: 100px; }
+    .fuel-station-row .fuel-discount-input { width: 56px; -webkit-flex: none; flex: none; }
     .fuel-station-row .fuel-remove-btn {
       background: rgba(239,68,68,0.2);
       border: 1px solid rgba(239,68,68,0.4);
@@ -1526,6 +1588,10 @@
     .news-ticker .ticker-item-change { color: #888; }
 
     /* Ticker Mode */
+    /* The floating buttons sit at z-index 999, above the overlay (200): hide
+       them while the ticker is open so a tap can't re-enter showTicker(). */
+    body.ticker-active .floating-ticker-btn,
+    body.ticker-active .floating-settings-btn { display: none !important; }
     .ticker-overlay {
       display: none;
       position: fixed;
@@ -1736,6 +1802,9 @@
     }
     body.light-theme .needs-attention-detail {
       color: #475569;
+    }
+    body.light-theme .needs-attention-dismiss {
+      color: #64748b;
     }
     body.light-theme .card-header {
       border-bottom-color: rgba(0,0,0,0.08);
@@ -2025,6 +2094,17 @@
           <div class="card-content" id="weatherContent">
             <div class="card-loading">Loading...</div>
           </div>
+        </div>
+      </div>
+
+      <!-- 7-Day Forecast Card -->
+      <div class="card" id="forecastCard" data-card-id="forecast">
+        <div class="card-inner">
+          <div class="card-header">
+            <div class="card-title"><span class="card-icon">&#128197;</span> 7-Day Forecast</div>
+            <div class="card-updated" id="forecastUpdated">--</div>
+          </div>
+          <div class="card-content" id="forecastContent"><div class="card-loading">Loading...</div></div>
         </div>
       </div>
 
@@ -2936,6 +3016,20 @@
           </div>
         </div>
 
+        <!-- 7-Day Forecast -->
+        <div class="card-setting-row">
+          <div class="card-setting-main">
+            <div class="card-setting-expander">
+              <span class="card-setting-icon">&#128197;</span>
+              <span class="card-setting-name">7-Day Forecast</span>
+            </div>
+            <div class="card-setting-checks">
+              <select id="forecastDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <label class="master-label" id="showForecastMasterLabel"><input type="checkbox" id="showForecast"></label>
+            </div>
+          </div>
+        </div>
+
         <!-- Weather -->
         <div class="card-setting-row">
           <div class="card-setting-main">
@@ -3075,6 +3169,19 @@
             <label for="needsAttentionMaxItems">Max alerts</label>
             <input type="number" id="needsAttentionMaxItems" value="3" min="1" max="8" step="1" style="width:70px;">
           </div>
+          <div class="settings-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="needsAttentionDismissable"> Allow dismissing alerts (tap &#x2715;; they return when the alert changes or the next day)
+            </label>
+          </div>
+          <div class="settings-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="showFeedHealthAlerts"> Alert when a data feed has had no fresh data for an hour
+            </label>
+          </div>
+          <div class="settings-group">
+            <button type="button" class="btn" onclick="resetNeedsAttentionDismissed()">Show dismissed alerts again</button>
+          </div>
           <div class="settings-info" style="margin-top:8px;font-size:0.8em;">
             Uses enabled dashboard features and only appears when something is time-sensitive or abnormal.
           </div>
@@ -3172,8 +3279,38 @@
       var _origSend = XMLHttpRequest.prototype.send;
       XMLHttpRequest.prototype.open = function(method, url) {
         this._dashboardRequestKey = String(method).toUpperCase() === 'GET' ? 'GET ' + String(url) : '';
+        this._dashboardRequestUrl = String(url);
         return _origOpen.apply(this, arguments);
       };
+
+      // Client-side feed health: last fresh success / last failure per
+      // host+path. Feeds the "Feed down" Needs Attention item — the worker's
+      // /api/feed-health is per-isolate and only visible in Settings → System.
+      var _feedLastOk = {};
+      var _feedLastFail = {};
+      var _feedPageLoadMs = Date.now();
+      function feedKeyForUrl(requestUrl) {
+        try {
+          var link = document.createElement('a');
+          link.href = requestUrl;
+          return (link.hostname || '') + link.pathname;
+        } catch (e) {
+          return '';
+        }
+      }
+      function recordFeedOutcome(xhr, failed) {
+        var key = feedKeyForUrl(xhr.responseURL || xhr._dashboardRequestUrl || '');
+        if (!key) return;
+        var nowMs = Date.now();
+        if (failed) { _feedLastFail[key] = nowMs; return; }
+        var xc = '';
+        try { xc = (typeof xhr.getResponseHeader === 'function' && xhr.getResponseHeader('X-Cache')) || ''; } catch (e) {}
+        if (xhr.status >= 200 && xhr.status < 300 && String(xc).indexOf('STALE') !== 0) {
+          _feedLastOk[key] = nowMs;
+        } else if (xhr.status >= 500 || String(xc).indexOf('STALE') === 0) {
+          _feedLastFail[key] = nowMs;
+        }
+      }
       XMLHttpRequest.prototype.send = function() {
         var xhr = this;
         var requestKey = xhr._dashboardRequestKey;
@@ -3186,11 +3323,21 @@
           }, false);
         }
         try { if (!xhr.timeout) xhr.timeout = XHR_TIMEOUT_MS; } catch (e) {}
-        xhr.addEventListener('load', function() { setOfflineStatus(false); }, false);
-        xhr.addEventListener('error', function() { setOfflineStatus(true); }, false);
+        xhr.addEventListener('load', function() { setOfflineStatus(false); recordFeedOutcome(xhr, false); }, false);
+        xhr.addEventListener('error', function() { setOfflineStatus(true); recordFeedOutcome(xhr, true); }, false);
         xhr.addEventListener('timeout', function() {
           setOfflineStatus(true);
-          if (typeof xhr.onerror === 'function') xhr.onerror.call(xhr);
+          recordFeedOutcome(xhr, true);
+          // Surface the timeout as an error to every listener style. dispatchEvent
+          // also runs the onerror property, so only call it directly as a fallback.
+          var dispatched = false;
+          try {
+            if (typeof xhr.dispatchEvent === 'function' && typeof Event === 'function') {
+              xhr.dispatchEvent(new Event('error'));
+              dispatched = true;
+            }
+          } catch (e) {}
+          if (!dispatched && typeof xhr.onerror === 'function') xhr.onerror.call(xhr);
         }, false);
         try {
           return _origSend.apply(xhr, arguments);
@@ -3207,6 +3354,9 @@
       })();
       var STORAGE_PREFIX = PROFILE ? 'brisbane_' + PROFILE + '_' : 'brisbane_';
       function storageKey(name) { return STORAGE_PREFIX + name; }
+
+      // Canonical card order; also the config default (single source of truth).
+      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'forecast', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'];
 
       var config = {
         latitude: -27.4705,
@@ -3231,6 +3381,7 @@
         dataInterval: 300,
         reloadTime: 2,
         showWeather: true,
+        showForecast: false,
         rainSoonAlerts: true,
         showWeatherWarnings: false,
         weatherWarningsOnlyWhenActive: false,
@@ -3283,7 +3434,7 @@
         fuelScheduleHide: false,
         fuelScheduleStart: 5,
         fuelScheduleEnd: 23,
-        cardOrder: ['bus1', 'bus2', 'weather', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'],
+        cardOrder: DEFAULT_CARD_ORDER.slice(),
         showSoccer: true,
         soccerEPL: true,
         soccerChampionsLeague: false,
@@ -3331,7 +3482,10 @@
         tickerInterval: 5,
         showNeedsAttention: false,
         needsAttentionMaxItems: 3,
+        needsAttentionDismissable: true,
+        showFeedHealthAlerts: true,
         weatherDisplayMode: 'both',
+        forecastDisplayMode: 'card',
         weatherWarningsDisplayMode: 'card',
         bushfiresDisplayMode: 'card',
         newsDisplayMode: 'ticker',
@@ -3357,7 +3511,6 @@
         lightTheme: false
       };
 
-      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'];
 
       var flightTimer = null;
       var dataTimer = null;
@@ -3542,6 +3695,8 @@
         elements.lightTheme = document.getElementById('lightTheme');
         elements.showNeedsAttention = document.getElementById('showNeedsAttention');
         elements.needsAttentionMaxItems = document.getElementById('needsAttentionMaxItems');
+        elements.needsAttentionDismissable = document.getElementById('needsAttentionDismissable');
+        elements.showFeedHealthAlerts = document.getElementById('showFeedHealthAlerts');
         elements.dashboardTitle = document.getElementById('dashboardTitle');
         elements.dashboardTitleInput = document.getElementById('dashboardTitleInput');
         elements.settingsSaved = document.getElementById('settingsSaved');
@@ -3573,6 +3728,11 @@
         elements.showTicker = document.getElementById('showTicker');
         elements.tickerInterval = document.getElementById('tickerInterval');
         elements.weatherDisplayMode = document.getElementById('weatherDisplayMode');
+        elements.forecastCard = document.getElementById('forecastCard');
+        elements.forecastContent = document.getElementById('forecastContent');
+        elements.forecastUpdated = document.getElementById('forecastUpdated');
+        elements.showForecast = document.getElementById('showForecast');
+        elements.forecastDisplayMode = document.getElementById('forecastDisplayMode');
         elements.airQualityDisplayMode = document.getElementById('airQualityDisplayMode');
         elements.uvIndexDisplayMode = document.getElementById('uvIndexDisplayMode');
         elements.electricityDisplayMode = document.getElementById('electricityDisplayMode');
@@ -3586,7 +3746,6 @@
         elements.tennisDisplayMode = document.getElementById('tennisDisplayMode');
         elements.financeDisplayMode = document.getElementById('financeDisplayMode');
         elements.polymarketDisplayMode = document.getElementById('polymarketDisplayMode');
-        elements.scrollingTicker = document.getElementById('scrollingTicker');
         elements.scrollingTickerCheckbox = document.getElementById('scrollingTickerCheckbox');
         elements.financeSP500 = document.getElementById('financeSP500');
         elements.financeDow = document.getElementById('financeDow');
@@ -3667,7 +3826,9 @@
             config.flightInterval = parsed.flightInterval || 120;
             config.dataInterval = parsed.dataInterval || 300;
             config.reloadTime = parsed.reloadTime !== undefined ? parseInt(parsed.reloadTime) : 2;
+            if (isNaN(config.reloadTime)) config.reloadTime = -1;
             config.showWeather = parsed.showWeather !== undefined ? parsed.showWeather : true;
+            config.showForecast = parsed.showForecast !== undefined ? parsed.showForecast : false;
             config.rainSoonAlerts = parsed.rainSoonAlerts !== undefined ? parsed.rainSoonAlerts : true;
             config.showWeatherWarnings = parsed.showWeatherWarnings !== undefined ? parsed.showWeatherWarnings : false;
             config.weatherWarningsOnlyWhenActive = parsed.weatherWarningsOnlyWhenActive !== undefined ? parsed.weatherWarningsOnlyWhenActive : false;
@@ -3759,7 +3920,6 @@
             config.tennisGeneral = parsed.tennisGeneral !== undefined ? parsed.tennisGeneral : false;
             config.showNFL = parsed.showNFL !== undefined ? parsed.showNFL : false;
             config.nflPlayoffs = parsed.nflPlayoffs !== undefined ? parsed.nflPlayoffs : false;
-            config.nflDisplayMode = parsed.nflDisplayMode || 'card';
             config.showFinance = parsed.showFinance !== undefined ? parsed.showFinance : false;
             config.financeSP500 = parsed.financeSP500 !== undefined ? parsed.financeSP500 : false;
             config.financeDow = parsed.financeDow !== undefined ? parsed.financeDow : false;
@@ -3785,8 +3945,11 @@
             config.needsAttentionMaxItems = parsed.needsAttentionMaxItems !== undefined ? parseInt(parsed.needsAttentionMaxItems, 10) : 3;
             if (isNaN(config.needsAttentionMaxItems) || config.needsAttentionMaxItems < 1) config.needsAttentionMaxItems = 3;
             if (config.needsAttentionMaxItems > 8) config.needsAttentionMaxItems = 8;
+            config.needsAttentionDismissable = parsed.needsAttentionDismissable !== undefined ? parsed.needsAttentionDismissable : true;
+            config.showFeedHealthAlerts = parsed.showFeedHealthAlerts !== undefined ? parsed.showFeedHealthAlerts : true;
             // Display mode per card (migrate from old tickerXxx booleans)
             var _dmCards = [
+              ['forecast', null, 'card'],
               ['weather', 'tickerWeather', 'both'],
               ['weatherWarnings', null, 'card'],
               ['bushfires', null, 'card'],
@@ -3886,10 +4049,16 @@
           });
         }
         var url = window.location.href.split('?')[0];
-        window.location.href = url + '?v=' + Date.now();
+        var params = '?v=' + Date.now();
+        // Keep the per-screen profile: it lives only in the query string and
+        // selects the localStorage namespace, so dropping it on a scheduled or
+        // update reload silently switches the screen to the default config.
+        if (PROFILE) params += '&profile=' + encodeURIComponent(PROFILE);
+        window.location.href = url + params;
       }
 
       function scheduleNightlyReload() {
+        if (typeof config.reloadTime !== 'number' || isNaN(config.reloadTime)) return;
         if (config.reloadTime < 0 || config.reloadTime > 23) return;
         var now = new Date();
         var target = new Date();
@@ -3936,6 +4105,46 @@
         return stored || version;
       }
 
+      // Reload backoff for auto-update. If the version probe says a newer
+      // build is deployed but the page we get back after reloading is still
+      // the old one (stale edge asset — see docs/incidents/2026-07-26), an
+      // unbounded reload every 30s wipes caches and blanks every screen.
+      // Persist the last attempt per target version and back off 2 → 4 → …
+      // → 60 min; the probe keeps running so recovery is automatic.
+      var UPDATE_RELOAD_BASE_MS = 2 * 60 * 1000;
+      var UPDATE_RELOAD_MAX_MS = 60 * 60 * 1000;
+
+      function readUpdateReloadAttempt() {
+        try {
+          var raw = localStorage.getItem(storageKey('update_reload_attempt'));
+          var parsed = raw ? JSON.parse(raw) : null;
+          if (parsed && typeof parsed.version === 'string' && typeof parsed.ts === 'number') {
+            return { version: parsed.version, count: Number(parsed.count) || 0, ts: parsed.ts };
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      function clearUpdateReloadAttempt() {
+        try { localStorage.removeItem(storageKey('update_reload_attempt')); } catch (e) {}
+      }
+
+      function canAttemptUpdateReload(targetVersion, nowMs) {
+        var attempt = readUpdateReloadAttempt();
+        if (!attempt || attempt.version !== targetVersion) return true;
+        var delay = UPDATE_RELOAD_BASE_MS * Math.pow(2, Math.min(attempt.count, 8));
+        if (delay > UPDATE_RELOAD_MAX_MS) delay = UPDATE_RELOAD_MAX_MS;
+        return (nowMs - attempt.ts) >= delay;
+      }
+
+      function recordUpdateReloadAttempt(targetVersion, nowMs) {
+        var attempt = readUpdateReloadAttempt();
+        var count = (attempt && attempt.version === targetVersion) ? attempt.count + 1 : 1;
+        try {
+          localStorage.setItem(storageKey('update_reload_attempt'), JSON.stringify({ version: targetVersion, count: count, ts: nowMs }));
+        } catch (e) {}
+      }
+
       function deployedVersionFromHtml(html) {
         var pattern = new RegExp('<meta\\s+name=[\\x22\\x27]app-version[\\x22\\x27][^>]*content=[\\x22\\x27]([^\\x22\\x27]+)[\\x22\\x27]', 'i');
         var match = String(html).match(pattern);
@@ -3957,10 +4166,14 @@
           var deployedVsHighest = compareSemver(deployedVersion, highestVersion);
           if (deployedVsCurrent > 0 && deployedVsHighest !== null && deployedVsHighest >= 0) {
             rememberHighestVersion(deployedVersion);
-            showUpdateBanner('Updating from v' + APP_VERSION + ' to v' + deployedVersion + '\u2026', true);
-            if (updateReloadVersion !== deployedVersion) {
+            var nowMs = Date.now();
+            if (updateReloadVersion !== deployedVersion && canAttemptUpdateReload(deployedVersion, nowMs)) {
               updateReloadVersion = deployedVersion;
+              showUpdateBanner('Updating from v' + APP_VERSION + ' to v' + deployedVersion + '\u2026', true);
+              recordUpdateReloadAttempt(deployedVersion, nowMs);
               setTimeout(forceReload, 2000);
+            } else if (updateReloadVersion !== deployedVersion) {
+              showUpdateBanner('v' + deployedVersion + ' is deployed but this screen still loads v' + APP_VERSION + '. Retrying later.', true);
             }
           } else if (deployedVsCurrent < 0 || (deployedVsHighest !== null && deployedVsHighest < 0)) {
             showUpdateBanner('Deployment rollback detected: server v' + deployedVersion + ', highest seen v' + highestVersion + '.', false);
@@ -3970,6 +4183,10 @@
       }
 
       function checkForUpdates() {
+        var pendingAttempt = readUpdateReloadAttempt();
+        if (pendingAttempt && compareSemver(APP_VERSION, pendingAttempt.version) !== null && compareSemver(APP_VERSION, pendingAttempt.version) >= 0) {
+          clearUpdateReloadAttempt();
+        }
         var highestVersion = rememberHighestVersion(APP_VERSION);
         if (compareSemver(APP_VERSION, highestVersion) < 0) {
           showUpdateBanner('Older dashboard loaded: v' + APP_VERSION + ', highest seen v' + highestVersion + '.', false);
@@ -3992,6 +4209,7 @@
       function getCardDisplayMode(cardId) {
         if (cardId === 'bus1' || cardId === 'bus2') return config.busDisplayMode;
         if (cardId === 'weather') return config.weatherDisplayMode;
+        if (cardId === 'forecast') return config.forecastDisplayMode;
         if (cardId === 'weatherWarnings') return config.weatherWarningsDisplayMode;
         if (cardId === 'bushfires') return config.bushfiresDisplayMode;
         if (cardId === 'news') return config.newsDisplayMode;
@@ -4029,15 +4247,160 @@
         }, 120);
       }
 
-      function addNeedsAttentionItem(items, priority, tone, label, value, detail, action) {
-        items.push({
+      function addNeedsAttentionItem(items, priority, tone, label, value, detail, action, key) {
+        var item = {
           priority: priority,
           tone: tone || 'warn',
           label: label || '',
           value: value || '',
           detail: detail || '',
-          action: action || ''
-        });
+          action: action || '',
+          // Stable identity for per-item dismissal. Items that own their own
+          // dismissal (bushfire, bin, birthday buttons) carry an action instead.
+          key: key || ((label || '') + '|' + (value || '')),
+          dismissable: !action
+        };
+        items.push(item);
+        return item;
+      }
+
+      // --- Needs Attention dismissal: per device, localStorage, zero KV writes.
+      // A dismissed item stays hidden until its value changes or the local day
+      // ends (urgent items: at most 4 hours), so nothing is silenced for good.
+      var NA_DISMISS_URGENT_MS = 4 * 60 * 60 * 1000;
+
+      function readNeedsAttentionDismissed() {
+        try {
+          var raw = localStorage.getItem(storageKey('needs_attention_dismissed'));
+          var parsed = raw ? JSON.parse(raw) : null;
+          if (parsed && typeof parsed === 'object') return parsed;
+        } catch (e) {}
+        return {};
+      }
+
+      function writeNeedsAttentionDismissed(map) {
+        try { localStorage.setItem(storageKey('needs_attention_dismissed'), JSON.stringify(map)); } catch (e) {}
+      }
+
+      function endOfLocalDayMs(now) {
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0).getTime();
+      }
+
+      function isNeedsAttentionItemDismissable(item) {
+        return config.needsAttentionDismissable !== false && !!item.dismissable;
+      }
+
+      function filterDismissedNeedsAttention(items) {
+        if (config.needsAttentionDismissable === false) return items;
+        var map = readNeedsAttentionDismissed();
+        var nowMs = Date.now();
+        var out = [];
+        for (var i = 0; i < items.length; i++) {
+          var rec = map[items[i].key];
+          if (rec && rec.value === items[i].value && nowMs < rec.until) continue;
+          out.push(items[i]);
+        }
+        var changed = false;
+        for (var k in map) {
+          if (map.hasOwnProperty(k) && (!map[k] || !(map[k].until > nowMs))) { delete map[k]; changed = true; }
+        }
+        if (changed) writeNeedsAttentionDismissed(map);
+        return out;
+      }
+
+      function dismissNeedsAttentionItem(key) {
+        if (!key) return;
+        var items = buildNeedsAttentionItems();
+        var item = null;
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].key === key) { item = items[i]; break; }
+        }
+        if (!item || !isNeedsAttentionItemDismissable(item)) return;
+        var now = new Date();
+        var until = endOfLocalDayMs(now);
+        if (item.tone === 'urgent') until = Math.min(until, now.getTime() + NA_DISMISS_URGENT_MS);
+        var map = readNeedsAttentionDismissed();
+        map[key] = { until: until, value: item.value };
+        writeNeedsAttentionDismissed(map);
+        renderNeedsAttention();
+      }
+
+      function resetNeedsAttentionDismissed() {
+        writeNeedsAttentionDismissed({});
+        renderNeedsAttention();
+      }
+      window.resetNeedsAttentionDismissed = resetNeedsAttentionDismissed;
+
+      // --- Dead-feed alert. A feed counts as down when it has failed since its
+      // last fresh success and that success is over an hour old (or it has never
+      // succeeded and the page has been up for an hour). Only feeds whose card is
+      // enabled on this screen are watched.
+      var FEED_HEALTH_DOWN_MS = 60 * 60 * 1000;
+
+      function feedHealthWatchList() {
+        var list = [];
+        var add = function(host, pathname, name, enabled) {
+          if (enabled && host) list.push({ key: host + pathname, name: name });
+        };
+        var hostOf = function(baseUrl) {
+          try {
+            if (!baseUrl) return '';
+            var link = document.createElement('a');
+            link.href = baseUrl;
+            return link.hostname || '';
+          } catch (e) { return ''; }
+        };
+        add('api.open-meteo.com', '/v1/forecast', 'Weather', config.showWeather || config.showUvIndex);
+        add('air-quality-api.open-meteo.com', '/v1/air-quality', 'Air quality', config.showAirQuality);
+        add('data.brisbane.qld.gov.au', '/api/explore/v2.1/catalog/datasets/waste-collection-days-collection-days/records', 'Bin collection', config.showBin);
+        var proxyHost = hostOf(config.busProxyUrl);
+        add(proxyHost, '/api/departures', 'Bus arrivals', config.showBus1 || config.showBus2);
+        add(proxyHost, '/api/electricity', 'Electricity', config.showElectricity);
+        add(proxyHost, '/api/flights', 'Flights', config.showFlights);
+        add(proxyHost, '/api/fuel', 'Fuel prices', config.showFuel);
+        add(proxyHost, '/api/sports', 'Sports', config.showSoccer || config.showRugby || config.showCricket || config.showTennis || config.showNFL);
+        add(proxyHost, '/api/finance', 'Finance', config.showFinance);
+        add(proxyHost, '/api/polymarket', 'Polymarket', config.showPolymarket);
+        add(proxyHost, '/api/dashboard-status', 'Dashboard sync', config.showBin);
+        add(proxyHost, '/api/warnings', 'Weather warnings', config.showWeatherWarnings);
+        add(proxyHost, '/api/bushfires', 'Bushfires', config.showBushfires);
+        add(proxyHost, '/api/news', 'News', config.showNews);
+        add(proxyHost, '/api/pollen', 'Pollen', config.showPollen);
+        return list;
+      }
+
+      function getDownFeeds(nowMs) {
+        var watch = feedHealthWatchList();
+        var down = [];
+        for (var i = 0; i < watch.length; i++) {
+          var ok = _feedLastOk[watch[i].key] || 0;
+          var failAt = _feedLastFail[watch[i].key] || 0;
+          if (!failAt || failAt <= ok) continue;
+          if ((ok || _feedPageLoadMs) > nowMs - FEED_HEALTH_DOWN_MS) continue;
+          down.push({ name: watch[i].name, lastOkMs: ok });
+        }
+        return down;
+      }
+
+      function addFeedHealthNeedsAttention(items) {
+        if (config.showFeedHealthAlerts === false) return;
+        var nowMs = Date.now();
+        var down = getDownFeeds(nowMs);
+        if (!down.length) return;
+        if (down.length > 3) {
+          var names = [];
+          for (var n = 0; n < down.length; n++) names.push(down[n].name);
+          var many = addNeedsAttentionItem(items, 30, 'warn', 'Feeds down', down.length + ' data feeds failing', names.join(', ') + ' \u00B7 tap for Settings', 'openSettings()', 'feed:many');
+          many.dismissable = true;
+          return;
+        }
+        for (var i = 0; i < down.length; i++) {
+          var since = down[i].lastOkMs
+            ? 'No fresh data for ' + formatShortMinutes(Math.round((nowMs - down[i].lastOkMs) / 60000))
+            : 'No data since this screen loaded';
+          var item = addNeedsAttentionItem(items, 30, 'warn', 'Feed down', down[i].name, since + ' \u00B7 tap for Settings', 'openSettings()', 'feed:' + down[i].name);
+          item.dismissable = true;
+        }
       }
 
       function formatShortMinutes(mins) {
@@ -4050,6 +4413,21 @@
 
       function getLocalDateString(date) {
         return date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2) + '-' + ('0' + date.getDate()).slice(-2);
+      }
+
+      // Recycling and garden waste alternate weekly from binRecyclingAnchor (a
+      // Monday of a known recycling week). Parity must come from the collection
+      // date a surface is describing — not from today — otherwise for the days
+      // between collections the card and ticker name the wrong bin. Shared by
+      // the card and the ticker slide.
+      function isBinRecyclingForDate(date) {
+        if (!config.binRecyclingAnchor) return true;
+        var anchorNoon = new Date(config.binRecyclingAnchor + 'T12:00:00');
+        var dateNoon = new Date(getLocalDateString(date) + 'T12:00:00');
+        if (isNaN(anchorNoon.getTime()) || isNaN(dateNoon.getTime())) return true;
+        var daysDiff = Math.round((dateNoon - anchorNoon) / 86400000);
+        var weekDiff = Math.floor(daysDiff / 7);
+        return Math.abs(weekDiff) % 2 === 0;
       }
 
       function getBinCollectionDayIndex() {
@@ -4181,9 +4559,9 @@
         for (var i = 0; i < nearby.length; i++) {
           var incident = nearby[i];
           if (incident.severity >= 3) {
-            addNeedsAttentionItem(items, 90, 'urgent', 'Bushfire', 'EMERGENCY WARNING ' + Math.round(incident.distanceKm) + 'km away', bushfireAreaTitle(incident) + ' - tap to dismiss', 'dismissBushfireWarning(' + i + ')');
+            addNeedsAttentionItem(items, 90, 'urgent', 'Bushfire', 'EMERGENCY WARNING ' + Math.round(incident.distanceKm) + 'km away', bushfireAreaTitle(incident) + ' - tap to dismiss', bushfireDismissAction(incident));
           } else if (incident.severity >= 2) {
-            addNeedsAttentionItem(items, 85, 'urgent', 'Bushfire', 'Watch and Act ' + Math.round(incident.distanceKm) + 'km away', bushfireAreaTitle(incident) + ' - tap to dismiss', 'dismissBushfireWarning(' + i + ')');
+            addNeedsAttentionItem(items, 85, 'urgent', 'Bushfire', 'Watch and Act ' + Math.round(incident.distanceKm) + 'km away', bushfireAreaTitle(incident) + ' - tap to dismiss', bushfireDismissAction(incident));
           }
         }
       }
@@ -4202,6 +4580,7 @@
       function buildNeedsAttentionItems() {
         var items = [];
         addWeatherNeedsAttention(items);
+        addForecastNeedsAttention(items);
         addWeatherWarningsNeedsAttention(items);
         addBushfiresNeedsAttention(items);
         addBirthdaysNeedsAttention(items);
@@ -4209,6 +4588,7 @@
         addUvNeedsAttention(items);
         addElectricityNeedsAttention(items);
         addFlightsNeedsAttention(items);
+        addFeedHealthNeedsAttention(items);
         items.sort(function(a, b) {
           return b.priority - a.priority;
         });
@@ -4224,7 +4604,7 @@
           return;
         }
 
-        var items = buildNeedsAttentionItems();
+        var items = filterDismissedNeedsAttention(buildNeedsAttentionItems());
         if (items.length === 0) {
           container.style.display = 'none';
           container.innerHTML = '';
@@ -4239,12 +4619,14 @@
         html += '<div class="needs-attention-list">';
         for (var i = 0; i < visibleCount; i++) {
           var item = items[i];
-          var itemClass = 'needs-attention-item ' + escapeHtml(item.tone) + (item.action ? ' action' : '');
+          var dismissable = isNeedsAttentionItemDismissable(item);
+          var itemClass = 'needs-attention-item ' + escapeHtml(item.tone) + (item.action ? ' action' : '') + (dismissable ? ' dismissable' : '');
           var actionAttrs = item.action ? ' role="button" tabindex="0" onclick="' + escapeHtml(item.action) + '" onkeydown="if(event.keyCode===13||event.keyCode===32){event.preventDefault();' + escapeHtml(item.action) + '}"' : '';
           html += '<div class="' + itemClass + '"' + actionAttrs + '>' +
             '<div class="needs-attention-label">' + escapeHtml(item.label) + '</div>' +
             '<div class="needs-attention-value">' + escapeHtml(item.value) + '</div>' +
             (item.detail ? '<div class="needs-attention-detail">' + escapeHtml(item.detail) + '</div>' : '') +
+            (dismissable ? '<button type="button" class="needs-attention-dismiss" data-na-key="' + escapeHtml(item.key) + '" aria-label="Dismiss alert">&#x2715;</button>' : '') +
             '</div>';
         }
         if (items.length > visibleCount) {
@@ -4257,6 +4639,18 @@
         html += '</div>';
         container.innerHTML = html;
         container.style.display = '';
+        // Delegated ✕ handler (items are re-rendered every tick, so no per-button listeners)
+        container.onclick = function(ev) {
+          var target = ev && ev.target;
+          while (target && target !== container) {
+            if (target.className && String(target.className).indexOf('needs-attention-dismiss') !== -1) {
+              if (ev.stopPropagation) ev.stopPropagation();
+              dismissNeedsAttentionItem(target.getAttribute('data-na-key'));
+              return;
+            }
+            target = target.parentNode;
+          }
+        };
       }
 
       function setCardBannerClass(card, isBanner) {
@@ -4298,7 +4692,7 @@
           if (saved) collapsedState = JSON.parse(saved);
         } catch (e) {}
         collapsedState[cardId] = isCollapsed;
-        localStorage.setItem(storageKey('collapsed'), JSON.stringify(collapsedState));
+        try { localStorage.setItem(storageKey('collapsed'), JSON.stringify(collapsedState)); } catch (e) {}
         scheduleMasonry();
       }
 
@@ -4333,6 +4727,7 @@
         document.getElementById('floatingTickerBtn').style.display = (!config.showHeader && config.showTicker) ? 'block' : 'none';
         var showWeather = config.showWeather && isCardDisplayMode(config.weatherDisplayMode) && isInSchedule(config.weatherScheduleHide, config.weatherScheduleStart, config.weatherScheduleEnd);
         elements.weatherCard.style.display = showWeather ? '' : 'none';
+        elements.forecastCard.style.display = (config.showForecast && isCardDisplayMode(config.forecastDisplayMode)) ? '' : 'none';
         var showWarnings = config.showWeatherWarnings && isCardDisplayMode(config.weatherWarningsDisplayMode);
         if (showWarnings && config.weatherWarningsOnlyWhenActive && getActiveWeatherWarnings().length === 0) showWarnings = false;
         elements.weatherWarningsCard.style.display = showWarnings ? '' : 'none';
@@ -4365,14 +4760,8 @@
         elements.electricityCard.style.display = showElec ? '' : 'none';
         var showBin = config.showBin && isCardDisplayMode(config.binDisplayMode);
         if (showBin && config.binConditionalHide && config.binDay) {
-          var dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-          var collectionDayIndex = -1;
-          for (var d = 0; d < dayNames.length; d++) {
-            if (dayNames[d].toLowerCase() === config.binDay.toLowerCase()) {
-              collectionDayIndex = d;
-              break;
-            }
-          }
+          // Same prefix matcher as the card and ticker ("Wed" / "Wednesdays" from the council feed)
+          var collectionDayIndex = getBinCollectionDayIndex();
           if (collectionDayIndex >= 0) {
             var today = new Date();
             var todayIndex = today.getDay();
@@ -4848,6 +5237,110 @@
         return '🌡️';
       }
 
+      // --- 7-day forecast (Open-Meteo daily, fetched directly like the weather
+      // card). Daily data changes slowly, so one request per hour per screen
+      // regardless of the data-refresh interval; the location change path forces.
+      var lastForecastData = null;
+      var _forecastFetchedAt = 0;
+      var _forecastLocationKey = '';
+      var FORECAST_REFRESH_MS = 60 * 60 * 1000;
+
+      function showForecastError(message) {
+        if (lastForecastData || !elements.forecastContent) return;
+        elements.forecastContent.innerHTML = '<div class="card-error">' + escapeHtml(message) + '</div>';
+      }
+
+      function fetchForecast() {
+        if (!config.showForecast) return;
+        var locKey = config.latitude + ',' + config.longitude;
+        if (lastForecastData && locKey === _forecastLocationKey && (Date.now() - _forecastFetchedAt) < FORECAST_REFRESH_MS) return;
+        var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + config.latitude +
+                  '&longitude=' + config.longitude +
+                  '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,uv_index_max' +
+                  '&timezone=Australia%2FBrisbane&forecast_days=7';
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status === 200) {
+            try {
+              var data = JSON.parse(xhr.responseText);
+              if (!data || !data.daily || !data.daily.time || !data.daily.time.length) throw new Error('no daily block');
+              lastForecastData = data;
+              _forecastFetchedAt = Date.now();
+              _forecastLocationKey = locKey;
+              renderForecast(data);
+              if (elements.forecastUpdated) elements.forecastUpdated.textContent = formatUpdatedTime(new Date());
+              renderNeedsAttention();
+            } catch (e) {
+              showForecastError('Forecast parse error');
+            }
+          } else {
+            showForecastError('Failed to load forecast');
+          }
+        };
+        xhr.onerror = function() { showForecastError('Forecast network error'); };
+        xhr.send();
+      }
+
+      function forecastDayLabel(dateStr, index) {
+        if (index === 0) return 'Today';
+        var parts = String(dateStr || '').split('-');
+        if (parts.length < 3) return '';
+        var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+      }
+
+      function forecastDay(data, index) {
+        var d = data && data.daily;
+        if (!d || !d.time || index >= d.time.length) return null;
+        var pick = function(arr) { return (arr && arr[index] !== undefined) ? arr[index] : null; };
+        return {
+          date: d.time[index],
+          code: pick(d.weather_code),
+          hi: pick(d.temperature_2m_max),
+          lo: pick(d.temperature_2m_min),
+          rainPct: pick(d.precipitation_probability_max),
+          rainMm: pick(d.precipitation_sum),
+          uvMax: pick(d.uv_index_max)
+        };
+      }
+
+      function renderForecast(data) {
+        if (!elements.forecastContent) return;
+        var html = '<div class="forecast-row">';
+        for (var i = 0; i < 7; i++) {
+          var day = forecastDay(data, i);
+          if (!day) break;
+          var rainLikely = day.rainPct != null && day.rainPct >= 50;
+          html += '<div class="forecast-day' + (i === 0 ? ' forecast-today' : '') + '">' +
+            '<div class="forecast-name">' + escapeHtml(forecastDayLabel(day.date, i)) + '</div>' +
+            '<div class="forecast-icon">' + getWeatherEmoji(day.code) + '</div>' +
+            '<div class="forecast-temps"><span class="forecast-hi">' + (day.hi != null ? Math.round(day.hi) + '\u00B0' : '--') + '</span> ' +
+              '<span class="forecast-lo">' + (day.lo != null ? Math.round(day.lo) + '\u00B0' : '--') + '</span></div>' +
+            '<div class="forecast-rain' + (rainLikely ? ' forecast-rain-likely' : '') + '">' +
+              (day.rainPct != null ? '&#128167; ' + Math.round(day.rainPct) + '%' : '') +
+              (day.rainMm != null && day.rainMm >= 1 ? ' <span class="forecast-mm">' + Math.round(day.rainMm) + 'mm</span>' : '') +
+            '</div>' +
+            '</div>';
+        }
+        html += '</div>';
+        elements.forecastContent.innerHTML = html;
+        scheduleMasonry();
+      }
+
+      // Tomorrow only: today's conditions already come from the weather card.
+      function addForecastNeedsAttention(items) {
+        if (!config.showForecast) return;
+        var tomorrow = forecastDay(lastForecastData, 1);
+        if (!tomorrow) return;
+        if (tomorrow.hi != null && tomorrow.hi >= 38) {
+          addNeedsAttentionItem(items, 40, 'warn', 'Tomorrow', Math.round(tomorrow.hi) + '\u00B0C forecast', 'Extreme heat tomorrow', '', 'forecast:heat');
+        } else if (tomorrow.rainPct != null && tomorrow.rainPct >= 90) {
+          addNeedsAttentionItem(items, 40, 'warn', 'Tomorrow', Math.round(tomorrow.rainPct) + '% rain chance', 'Rain very likely tomorrow', '', 'forecast:rain');
+        }
+      }
+
       function getDewpointComfort(dewpoint) {
         if (dewpoint < 10) return { class: 'dewpoint-dry', emoji: '😊', label: 'Dry' };
         if (dewpoint < 13) return { class: 'dewpoint-comfortable', emoji: '🙂', label: 'Comfortable' };
@@ -5170,59 +5663,28 @@
         return baseUrl + '/api/electricity';
       }
 
-      function parseElectricityCsv(csvText) {
-        var lines = (csvText || '').replace(/\r/g, '').split('\n');
-        var latestPrice = null;
-        for (var i = 0; i < lines.length; i++) {
-          var line = lines[i].trim();
-          if (!line || line.indexOf('REGION,') === 0) continue;
-          var parts = line.split(',');
-          if (parts.length < 4 || parts[0] !== 'QLD1') continue;
-          var price = parseFloat(parts[3]);
-          if (!isNaN(price)) latestPrice = price;
-        }
-        return latestPrice;
-      }
-
       function updateElectricityPrice(qldPrice) {
         renderElectricity(qldPrice);
         elements.elecUpdated.textContent = formatUpdatedTime(new Date());
       }
 
-      function fetchElectricityDirect() {
-        var url = 'https://www.nemweb.com.au/mms.GRAPHS/GRAPHS/GRAPH_5QLD1.csv';
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.onreadystatechange = function() {
-          if (xhr.readyState === 4) {
-            if (xhr.status === 200) {
-              try {
-                var qldPrice = parseElectricityCsv(xhr.responseText);
-                if (qldPrice === null || isNaN(qldPrice)) {
-                  elements.elecContent.innerHTML = '<div class="card-error">QLD price not found</div>';
-                  return;
-                }
-                updateElectricityPrice(qldPrice);
-              } catch (e) {
-                elements.elecContent.innerHTML = '<div class="card-error">Parse error</div>';
-              }
-            } else {
-              elements.elecContent.innerHTML = '<div class="card-error">Failed to load prices</div>';
-            }
-          }
-        };
-        xhr.onerror = function() {
-          elements.elecContent.innerHTML = '<div class="card-error">Network error</div>';
-        };
-        xhr.send();
+      // Only replaces the card body when nothing good has been shown yet; a
+      // transient worker error must not blank a price that was fine a minute ago
+      // (the stale-response timestamp already flags old data).
+      function showElectricityError(message) {
+        if (lastElecPrice !== null && !isNaN(lastElecPrice)) return;
+        elements.elecContent.innerHTML = '<div class="card-error">' + escapeHtml(message) + '</div>';
       }
 
       function fetchElectricity() {
         if (!config.showElectricity) return;
 
+        // The old browser-direct NEMWEB CSV fallback was removed: that feed no
+        // longer exists and the request could never pass CORS, so it only ever
+        // produced a misleading "Network error".
         var proxyUrl = getElectricityProxyUrl();
         if (!proxyUrl) {
-          fetchElectricityDirect();
+          showElectricityError('Configure the worker URL in Settings to load electricity prices.');
           return;
         }
 
@@ -5238,20 +5700,20 @@
                 var data = JSON.parse(xhr.responseText);
                 var qldPrice = parseFloat(data.price);
                 if (isNaN(qldPrice)) {
-                  fetchElectricityDirect();
+                  showElectricityError(data && data.error ? 'Electricity feed error: ' + data.error : 'QLD price not found');
                   return;
                 }
                 updateElectricityPrice(qldPrice);
               } catch (e) {
-                fetchElectricityDirect();
+                showElectricityError('Electricity price parse error');
               }
             } else {
-              fetchElectricityDirect();
+              showElectricityError('Failed to load electricity prices (HTTP ' + xhr.status + ')');
             }
           }
         };
         xhr.onerror = function() {
-          fetchElectricityDirect();
+          showElectricityError('Electricity price network error');
         };
         xhr.send();
       }
@@ -5367,17 +5829,15 @@
           }
         }
 
-        // Recycling alternates weekly from anchor date (a Monday of a known recycling week)
-        var todayStr = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2);
-        var anchorNoon = new Date(config.binRecyclingAnchor + 'T12:00:00');
-        var todayNoon = new Date(todayStr + 'T12:00:00');
-        var daysDiff = Math.round((todayNoon - anchorNoon) / 86400000);
-        var weekDiff = Math.floor(daysDiff / 7);
-        var isRecyclingWeek = (Math.abs(weekDiff) % 2 === 0);
-
         // From 6pm on collection day through the day after: show "bring bins in" message
         var nowHour = today.getHours();
         var inBringInWindow = (daysSinceCollection === 0 && nowHour >= 18) || daysSinceCollection === 1;
+
+        // Bin type for the collection this card is talking about: the one that
+        // just happened while "bring bins in" shows, otherwise the next one.
+        var describedOffsetDays = 0;
+        if (targetDayIndex !== -1) describedOffsetDays = inBringInWindow ? -daysSinceCollection : daysUntilNum;
+        var isRecyclingWeek = isBinRecyclingForDate(new Date(today.getTime() + describedOffsetDays * 86400000));
         if (config.binConditionalHide && inBringInWindow) {
           var html = '<div class="bin-next" style="color: #f0a040;">Bring bins in</div>';
           if (isRecyclingWeek) {
@@ -5453,20 +5913,23 @@
         return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
       }
 
-      function getLocalBinDismissedDate() {
+      // Profile-scoped like every other key; pre-1.82 builds wrote the bare key,
+      // so fall back to it once for screens that haven't rewritten it yet.
+      function readLocalBinDate(name) {
         try {
-          var value = localStorage.getItem('binDismissedDate');
+          var value = localStorage.getItem(storageKey(name));
+          if (!isDashboardStatusDate(value)) value = localStorage.getItem(name);
           return isDashboardStatusDate(value) ? value : '';
         } catch (e) {}
         return '';
       }
 
+      function getLocalBinDismissedDate() {
+        return readLocalBinDate('binDismissedDate');
+      }
+
       function getLocalBinTakenOutDate() {
-        try {
-          var value = localStorage.getItem('binTakenOutDate');
-          return isDashboardStatusDate(value) ? value : '';
-        } catch (e) {}
-        return '';
+        return readLocalBinDate('binTakenOutDate');
       }
 
       function getBinDismissedDate() {
@@ -5486,10 +5949,10 @@
       function saveLocalBinStatus() {
         try {
           if (dashboardStatus.bin && isDashboardStatusDate(dashboardStatus.bin.dismissedDate)) {
-            localStorage.setItem('binDismissedDate', dashboardStatus.bin.dismissedDate);
+            localStorage.setItem(storageKey('binDismissedDate'), dashboardStatus.bin.dismissedDate);
           }
           if (dashboardStatus.bin && isDashboardStatusDate(dashboardStatus.bin.takenOutDate)) {
-            localStorage.setItem('binTakenOutDate', dashboardStatus.bin.takenOutDate);
+            localStorage.setItem(storageKey('binTakenOutDate'), dashboardStatus.bin.takenOutDate);
           }
         } catch (e) {}
       }
@@ -5498,7 +5961,7 @@
         if (!isDashboardStatusDate(value)) return;
         if (!dashboardStatus.bin) dashboardStatus.bin = {};
         dashboardStatus.bin.dismissedDate = value;
-        try { localStorage.setItem('binDismissedDate', value); } catch (e) {}
+        try { localStorage.setItem(storageKey('binDismissedDate'), value); } catch (e) {}
         if (dashboardStatusLoaded) {
           saveDashboardStatus();
         } else {
@@ -5510,7 +5973,7 @@
         if (!isDashboardStatusDate(value)) return;
         if (!dashboardStatus.bin) dashboardStatus.bin = {};
         dashboardStatus.bin.takenOutDate = value;
-        try { localStorage.setItem('binTakenOutDate', value); } catch (e) {}
+        try { localStorage.setItem(storageKey('binTakenOutDate'), value); } catch (e) {}
         if (dashboardStatusLoaded) {
           saveDashboardStatus();
         } else {
@@ -5581,7 +6044,7 @@
       }
 
       function getFlightsSourceName() {
-        return config.busProxyUrl ? 'flight proxy' : 'OpenSky direct feed';
+        return 'flight proxy';
       }
 
       function parseFlightErrorDetail(responseText) {
@@ -5618,19 +6081,22 @@
         return 'Flight data unavailable from ' + getFlightsSourceName() + ' (HTTP ' + xhr.status + ')' + suffix;
       }
 
-      // Flights - worker proxy or OpenSky direct fallback
+      // Flights via the worker proxy. (The anonymous OpenSky direct fallback was
+      // removed: it needs auth now and never sent CORS headers, so it could only fail.)
       function fetchFlights() {
         if (!config.showFlights) return;
+        if (!config.busProxyUrl) {
+          setFlightsError('Configure the worker URL in Settings to load flights.');
+          return;
+        }
 
         var bbox = 'lamin=' + config.latMin + '&lomin=' + config.lonMin +
                    '&lamax=' + config.latMax + '&lomax=' + config.lonMax;
-        var url = config.busProxyUrl
-          ? config.busProxyUrl + '/api/flights?' + bbox
-          : 'https://opensky-network.org/api/states/all?' + bbox;
+        var url = config.busProxyUrl + '/api/flights?' + bbox;
 
         var xhr = new XMLHttpRequest();
         xhr.open('GET', url, true);
-        if (config.busProxyUrl) setWorkerAuth(xhr);
+        setWorkerAuth(xhr);
         xhr.onreadystatechange = function() {
           if (xhr.readyState === 4) {
             if (xhr.status === 200) {
@@ -5655,11 +6121,7 @@
           }
         };
         xhr.onerror = function() {
-          if (config.busProxyUrl) {
-            setFlightsError('Flight data network error. Could not reach the worker flight proxy.');
-          } else {
-            setFlightsError('Flight data network error. The browser could not reach the OpenSky direct feed.');
-          }
+          setFlightsError('Flight data network error. Could not reach the worker flight proxy.');
         };
         xhr.send();
       }
@@ -5919,14 +6381,22 @@
       var _routeCache = {};
 
       // Fetch routes for displayed callsigns and update flight items
+      // Callsigns the route providers don't know are remembered here so they're
+      // not re-requested on every flight poll (the URL varies with the callsign
+      // list, so the XHR dedupe can't collapse them).
+      var _routeMissCache = {};
+      var ROUTE_MISS_TTL_MS = 60 * 60 * 1000;
+
       function fetchFlightRoutes(callsigns) {
         if (!config.busProxyUrl || callsigns.length === 0) return;
-        // Filter out ones we already have cached
+        // Filter out ones we already have cached (hits and recent misses)
         var toFetch = [];
+        var nowMs = Date.now();
         for (var i = 0; i < callsigns.length; i++) {
-          if (!_routeCache[callsigns[i]]) {
-            toFetch.push(callsigns[i]);
-          }
+          var cs0 = callsigns[i];
+          if (_routeCache[cs0]) continue;
+          if (_routeMissCache[cs0] && (nowMs - _routeMissCache[cs0]) < ROUTE_MISS_TTL_MS) continue;
+          toFetch.push(cs0);
         }
         // Apply cached routes immediately
         applyFlightRoutes(callsigns);
@@ -5944,6 +6414,10 @@
                 if (routes.hasOwnProperty(cs)) {
                   _routeCache[cs] = routes[cs];
                 }
+              }
+              var missAt = Date.now();
+              for (var tf = 0; tf < toFetch.length; tf++) {
+                if (!_routeCache[toFetch[tf]]) _routeMissCache[toFetch[tf]] = missAt;
               }
               applyFlightRoutes(callsigns);
             } catch (e) { /* ignore parse errors */ }
@@ -6090,6 +6564,10 @@
         }
       }
 
+      // Departures older than this (minutes, negative = already left) are hidden
+      // on every surface. Shared by the bus card and the ticker.
+      var BUS_DEPARTED_GRACE_MIN = -1;
+
       function normalizeStopId(stopId) {
         if (!stopId) return '';
         return stopId.replace(/^0+/, '') || '0';
@@ -6203,6 +6681,9 @@
             var dep = departures[m];
             var depTime = new Date(dep.time);
             var minsAway = Math.round((depTime - now) / 60000);
+            // TransLink can leave a departure in the feed after it has gone; the
+            // ticker already skips negatives, so the card must not pin it at "Due".
+            if (minsAway < BUS_DEPARTED_GRACE_MIN) continue;
 
             var timeClass = 'bus-time';
             var timeText = '';
@@ -6299,6 +6780,7 @@
       }
 
       // Settings
+      window.openSettings = function() { openSettings(); };
       function openSettings() {
         elements.latitude.value = config.latitude;
         elements.longitude.value = config.longitude;
@@ -6441,7 +6923,12 @@
         elements.tickerInterval.value = config.tickerInterval || 5;
         elements.showNeedsAttention.checked = config.showNeedsAttention;
         elements.needsAttentionMaxItems.value = config.needsAttentionMaxItems || 3;
+        elements.needsAttentionDismissable.checked = config.needsAttentionDismissable !== false;
+        elements.showFeedHealthAlerts.checked = config.showFeedHealthAlerts !== false;
         elements.weatherDisplayMode.value = config.weatherDisplayMode;
+        elements.showForecast.checked = config.showForecast;
+        setMasterClass('showForecastMasterLabel', config.showForecast, config.showForecast);
+        elements.forecastDisplayMode.value = config.forecastDisplayMode;
         elements.weatherWarningsDisplayMode.value = config.weatherWarningsDisplayMode;
         elements.bushfiresDisplayMode.value = config.bushfiresDisplayMode;
         elements.newsDisplayMode.value = config.newsDisplayMode;
@@ -6638,7 +7125,11 @@
         config.needsAttentionMaxItems = parseInt(elements.needsAttentionMaxItems.value, 10) || 3;
         if (config.needsAttentionMaxItems < 1) config.needsAttentionMaxItems = 1;
         if (config.needsAttentionMaxItems > 8) config.needsAttentionMaxItems = 8;
+        config.needsAttentionDismissable = elements.needsAttentionDismissable.checked;
+        config.showFeedHealthAlerts = elements.showFeedHealthAlerts.checked;
         config.weatherDisplayMode = elements.weatherDisplayMode.value;
+        config.showForecast = elements.showForecast.checked;
+        config.forecastDisplayMode = elements.forecastDisplayMode.value;
         config.weatherWarningsDisplayMode = elements.weatherWarningsDisplayMode.value;
         config.bushfiresDisplayMode = elements.bushfiresDisplayMode.value;
         config.newsDisplayMode = elements.newsDisplayMode.value;
@@ -7059,6 +7550,7 @@
         elements.showBus2.onclick = updateBusMaster;
 
         elements.showWeather.onchange = function() { setMasterClass('showWeatherMasterLabel', this.checked, this.checked); };
+        elements.showForecast.onchange = function() { setMasterClass('showForecastMasterLabel', this.checked, this.checked); };
         elements.showAirQuality.onchange = function() { setMasterClass('showAirQualityMasterLabel', this.checked, this.checked); };
         elements.showUvIndex.onchange = function() { setMasterClass('showUvIndexMasterLabel', this.checked, this.checked); };
         elements.showElectricity.onchange = function() { setMasterClass('showElectricityMasterLabel', this.checked, this.checked); };
@@ -7261,6 +7753,12 @@
       var BUSHFIRE_SERIOUS_KM = 60;
       var BUSHFIRE_INFO_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 
+      // Inline handler string for a dismiss control. The key is JSON-encoded so a
+      // quote or backslash in a feed title cannot break out of the call.
+      function bushfireDismissAction(incident) {
+        return 'dismissBushfireWarning(' + JSON.stringify(bushfireWarningKey(incident)) + ')';
+      }
+
       function bushfireWarningKey(incident) {
         return ((incident && incident.id) || ((incident && incident.title) || '') + ':' + ((incident && incident.updated) || '')) + ':' + ((incident && incident.severity) || 0);
       }
@@ -7300,9 +7798,15 @@
         return output;
       }
 
-      function dismissBushfireWarning(index) {
+      // Takes the incident key, not a list index: the nearby list can shrink
+      // between paint and tap as Information notices age out.
+      function dismissBushfireWarning(key) {
+        if (!key) return;
         var nearby = getNearbyBushfires();
-        var incident = nearby[index];
+        var incident = null;
+        for (var ni = 0; ni < nearby.length; ni++) {
+          if (bushfireWarningKey(nearby[ni]) === key) { incident = nearby[ni]; break; }
+        }
         if (!incident) return;
         var dismissed = getDismissedBushfireWarnings();
         dismissed[bushfireWarningKey(incident)] = Date.now();
@@ -7364,7 +7868,7 @@
           html += '<div style="font-size:0.85em;color:#ccc;">' + escapeHtml(bushfireAreaTitle(incident)) + '</div>';
           if (incident.content) html += '<div style="font-size:0.8em;color:#bbb;margin-top:1px;">' + escapeHtml(incident.content) + '</div>';
           html += '<div style="font-size:0.8em;color:#999;">' + Math.round(incident.distanceKm) + ' km away' + (incident.updated ? ' &middot; updated ' + escapeHtml(warningRelativeTime(incident.updated)) : '') + '</div>';
-          html += '<button type="button" class="bushfire-dismiss-button" onclick="dismissBushfireWarning(' + i + ')">Dismiss warning</button>';
+          html += '<button type="button" class="bushfire-dismiss-button" onclick="' + escapeHtml(bushfireDismissAction(inc)) + '">Dismiss warning</button>';
           html += '</div>';
         }
         if (nearby.length > shown) html += '<div style="font-size:0.8em;color:#999;padding-top:4px;">+' + (nearby.length - shown) + ' more further out</div>';
@@ -7511,7 +8015,20 @@
 
       function getDateInTimezone(timezone) {
         try {
-          var value = new Date().toLocaleString('en-US', {timeZone: sanitizeBirthdayTimezone(timezone)});
+          var tz = sanitizeBirthdayTimezone(timezone);
+          // formatToParts avoids re-parsing a locale string: older Safari returns
+          // Invalid Date for "9/5/2026, 3:04:00 PM", which silently fell back to
+          // the device's local date for every birthday.
+          if (typeof Intl !== 'undefined' && Intl.DateTimeFormat && Intl.DateTimeFormat.prototype.formatToParts) {
+            var parts = new Intl.DateTimeFormat('en-US', {timeZone: tz, hour12: false, year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric'}).formatToParts(new Date());
+            var map = {};
+            for (var pi = 0; pi < parts.length; pi++) map[parts[pi].type] = parts[pi].value;
+            var hour = parseInt(map.hour, 10);
+            if (hour === 24) hour = 0;
+            var fromParts = {month: parseInt(map.month, 10), day: parseInt(map.day, 10), year: parseInt(map.year, 10), hour: hour, minute: parseInt(map.minute, 10)};
+            if (!isNaN(fromParts.month) && !isNaN(fromParts.day) && !isNaN(fromParts.year)) return fromParts;
+          }
+          var value = new Date().toLocaleString('en-US', {timeZone: tz});
           var date = new Date(value);
           if (isNaN(date.getTime())) throw new Error('Unsupported timezone');
           return {month: date.getMonth() + 1, day: date.getDate(), year: date.getFullYear(), hour: date.getHours(), minute: date.getMinutes()};
@@ -8021,14 +8538,14 @@
             var r = table[i];
             var gd = r.gd >= 0 ? '+' + r.gd : '' + r.gd;
             html += '<tr>';
-            html += '<td class="num">' + r.pos + '</td>';
-            html += '<td>' + r.team + '</td>';
-            html += '<td class="num">' + r.played + '</td>';
-            html += '<td class="num">' + r.won + '</td>';
-            html += '<td class="num">' + r.drawn + '</td>';
-            html += '<td class="num">' + r.lost + '</td>';
-            html += '<td class="num">' + gd + '</td>';
-            html += '<td class="num">' + r.points + '</td>';
+            html += '<td class="num">' + escapeHtml(r.pos) + '</td>';
+            html += '<td>' + escapeHtml(r.team) + '</td>';
+            html += '<td class="num">' + escapeHtml(r.played) + '</td>';
+            html += '<td class="num">' + escapeHtml(r.won) + '</td>';
+            html += '<td class="num">' + escapeHtml(r.drawn) + '</td>';
+            html += '<td class="num">' + escapeHtml(r.lost) + '</td>';
+            html += '<td class="num">' + escapeHtml(gd) + '</td>';
+            html += '<td class="num">' + escapeHtml(r.points) + '</td>';
             html += '</tr>';
           }
           html += '</table>';
@@ -8325,7 +8842,7 @@
             }
 
             html += '<div class="fuel-grade-row' + (isCheapest ? ' fuel-price-cheapest' : '') + '">' +
-              '<span class="fuel-grade-label">' + grade + '</span>' +
+              '<span class="fuel-grade-label">' + escapeHtml(grade) + '</span>' +
               priceStr +
               '</div>';
           }
@@ -8670,7 +9187,7 @@
           }
 
           var quote = data[info.symbol];
-          if (!quote) {
+          if (!quote || quote.price == null) {
             html += '<div class="finance-item"><div class="finance-name">' + info.name + '</div><div class="finance-value">--</div></div>';
             hasAny = true;
             continue;
@@ -8738,6 +9255,20 @@
         var slides = [];
 
         // Weather
+        // 7-day forecast — tomorrow's outlook
+        if (config.showForecast && isTickerDisplayMode(config.forecastDisplayMode)) {
+          var fcTomorrow = forecastDay(lastForecastData, 1);
+          if (fcTomorrow) {
+            slides.push({
+              icon: getWeatherEmoji(fcTomorrow.code),
+              label: 'Tomorrow',
+              value: (fcTomorrow.hi != null ? Math.round(fcTomorrow.hi) + '\u00B0' : '--') + ' / ' + (fcTomorrow.lo != null ? Math.round(fcTomorrow.lo) + '\u00B0' : '--'),
+              changeClass: (fcTomorrow.rainPct != null && fcTomorrow.rainPct >= 50) ? 'finance-down' : '',
+              changeText: fcTomorrow.rainPct != null ? '\uD83D\uDCA7 ' + Math.round(fcTomorrow.rainPct) + '% rain' : ''
+            });
+          }
+        }
+
         if (config.showWeather && isTickerDisplayMode(config.weatherDisplayMode) && lastWeatherData && lastWeatherData.current) {
           var wTemp = Math.round(lastWeatherData.current.temperature_2m);
           var wCode = lastWeatherData.current.weather_code;
@@ -8884,7 +9415,7 @@
               }
               var depTime = new Date(bd.time);
               var mins = Math.round((depTime - now) / 60000);
-              if (mins >= 0 && (nextBusMins === null || mins < nextBusMins)) {
+              if (mins >= BUS_DEPARTED_GRACE_MIN && (nextBusMins === null || mins < nextBusMins)) {
                 nextBusMins = mins;
                 nextBusRoute = bd.route;
               }
@@ -8916,10 +9447,7 @@
               var bDiff = bTarget - bDayIdx;
               if (bDiff < 0) bDiff += 7;
               var bLabel = bDiff === 0 ? 'Today' : (bDiff === 1 ? 'Tomorrow' : 'in ' + bDiff + ' days');
-              var bAnchor = new Date(config.binRecyclingAnchor + 'T12:00:00');
-              var bTodayNoon = new Date(bToday.getFullYear() + '-' + ('0' + (bToday.getMonth() + 1)).slice(-2) + '-' + ('0' + bToday.getDate()).slice(-2) + 'T12:00:00');
-              var bWeekDiff = Math.floor(Math.round((bTodayNoon - bAnchor) / 86400000) / 7);
-              var bIsRecycling = (Math.abs(bWeekDiff) % 2 === 0);
+              var bIsRecycling = isBinRecyclingForDate(new Date(bToday.getTime() + bDiff * 86400000));
               slides.push({
                 icon: '\uD83D\uDDD1\uFE0F',
                 label: 'Bin Collection',
@@ -8948,6 +9476,32 @@
             changeClass: '',
             changeText: flCallsign + (flSide ? ' · ' + flSide : '')
           });
+        }
+
+        // Fuel - cheapest configured price (the Fuel card offered a Ticker mode with no slide)
+        if (config.showFuel && isTickerDisplayMode(config.fuelDisplayMode) && lastFuelData && lastFuelData.stations) {
+          var cheapest = null;
+          for (var fsi = 0; fsi < lastFuelData.stations.length; fsi++) {
+            var st = lastFuelData.stations[fsi];
+            for (var gr in st.grades) {
+              if (st.grades.hasOwnProperty(gr)) {
+                var p = st.grades[gr].price;
+                if (p && (!cheapest || p < cheapest.price)) {
+                  cheapest = {price: p, grade: gr, station: st.name};
+                }
+              }
+            }
+          }
+          if (cheapest) {
+            var fuelCents = cheapest.price / 10;
+            slides.push({
+              icon: '\u26FD',
+              label: 'Fuel (' + cheapest.grade + ')',
+              value: fuelCents.toFixed(1) + 'c',
+              changeClass: '',
+              changeText: cheapest.station
+            });
+          }
         }
 
         var sportTypes = [
@@ -9090,11 +9644,16 @@
       ];
       var _scrollTickerRafId = null;
 
+      var _scrollTickerLastTs = 0;
       function _scrollTickerFrame(timestamp) {
+        // Advance by elapsed time so speed is the same at 60Hz, 120Hz (iPad) and
+        // under frame drops (Fire TV). Capped so a resumed tab doesn't jump.
+        var dt = (_scrollTickerLastTs > 0 && timestamp > _scrollTickerLastTs) ? Math.min((timestamp - _scrollTickerLastTs) / 1000, 0.1) : 1 / 60;
+        _scrollTickerLastTs = timestamp;
         for (var ri = 0; ri < _scrollTickerRows.length; ri++) {
           var row = _scrollTickerRows[ri];
           if (row.paused || row.halfWidth <= 0) continue;
-          row.pos -= row.speed / 60;
+          row.pos -= row.speed * dt;
           if (row.pos <= -row.halfWidth) row.pos += row.halfWidth;
           var contentEl = document.getElementById(row.contentId);
           if (contentEl) {
@@ -9184,7 +9743,13 @@
       }
 
       function buildScrollingTicker() {
-        buildTickerSlides();
+        try {
+          buildTickerSlides();
+        } catch (e) {
+          // Keep the previous slides rather than aborting before the status strip
+          // and scroll rows are re-rendered.
+          if (window.console && console.error) console.error('buildTickerSlides failed', e);
+        }
         // Update full-screen ticker if active
         if (tickerTimer && tickerSlides.length > 0) {
           if (tickerCurrentIndex >= tickerSlides.length) {
@@ -9225,6 +9790,9 @@
         renderTickerSlide();
         renderTickerDots();
         document.getElementById('tickerOverlay').className = 'ticker-overlay active';
+        document.body.className = document.body.className.replace(/\s*ticker-active/g, '') + ' ticker-active';
+        // Re-entry (floating button, keyboard) must never stack intervals.
+        if (tickerTimer) clearInterval(tickerTimer);
         tickerTimer = setInterval(function() {
           advanceTickerSlide();
         }, (config.tickerInterval || 5) * 1000);
@@ -9232,6 +9800,7 @@
 
       function hideTicker() {
         document.getElementById('tickerOverlay').className = 'ticker-overlay';
+        document.body.className = document.body.className.replace(/\s*ticker-active/g, '');
         if (tickerTimer) {
           clearInterval(tickerTimer);
           tickerTimer = null;
@@ -9307,7 +9876,7 @@
           }
 
           var quote = lastFinanceData[info.symbol];
-          if (!quote) continue;
+          if (!quote || quote.price == null) continue;
 
           price = quote.price;
           prev = quote.previousClose;
@@ -9446,6 +10015,7 @@
 
       function fetchAllData() {
         fetchWeather();
+        fetchForecast();
         fetchWeatherWarnings();
         fetchBushfires();
         fetchNews();
@@ -9476,6 +10046,7 @@
         flightTimer = setInterval(fetchFlights, flightMs);
         dataTimer = setInterval(function() {
           fetchWeather();
+          fetchForecast();
           fetchWeatherWarnings();
           fetchBushfires();
           fetchNews();

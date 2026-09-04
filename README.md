@@ -6,7 +6,7 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 
 ## Features
 
-- Weather, BoM warnings, rain-soon alerts, air quality, UV index, sunrise, and sunset
+- Weather, 7-day forecast, BoM warnings, rain-soon alerts, air quality, UV index, sunrise, and sunset
 - Nearby Queensland bushfire incidents with local dismissal, plus ABC/Brisbane Times headlines
 - Optional pollen forecasts through the Google Pollen API
 - Optional locally configured birthday reminders with per-person timezones, acknowledgement, and birthday-only import/export (ships with an empty list)
@@ -21,7 +21,7 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Optional Polymarket event card
 - Touch-friendly card ordering, collapsible cards, schedules, keyboard-accessible settings, import/export settings, and dark/light themes
 - Static conditions strip, moving data ticker, optional dedicated headline row, and on-demand Worker feed diagnostics
-- Needs Attention coverage for ticker-only weather warnings, serious nearby bushfires, and unacknowledged birthdays
+- Needs Attention coverage for ticker-only weather warnings, serious nearby bushfires, unacknowledged birthdays, tomorrow's extreme heat or rain, and data feeds that have been down for an hour; items are dismissable per device until they change or the day ends
 
 Private/person-specific integrations have been removed from this public fork. Do not commit local `.dev.vars`, API tokens, proxy URLs, or device-specific settings.
 

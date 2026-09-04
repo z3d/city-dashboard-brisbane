@@ -16,7 +16,30 @@ function fetch(input, init) {
   const options = init ? Object.assign({}, init) : {};
   options.signal = controller.signal;
   const timer = setTimeout(function() { controller.abort(); }, UPSTREAM_FETCH_TIMEOUT_MS);
-  return globalThis.fetch(input, options).finally(function() { clearTimeout(timer); });
+  const clear = function() { clearTimeout(timer); };
+  // The promise settles when headers arrive, so clearing the timer there left
+  // body reads (multi-MB GTFS-RT, zip downloads) with no deadline at all. Keep
+  // the abort armed until a body reader settles; an unread body is aborted
+  // harmlessly when the timer fires.
+  return globalThis.fetch(input, options).then(function(resp) {
+    const readers = ['text', 'json', 'arrayBuffer', 'blob', 'formData'];
+    for (let i = 0; i < readers.length; i++) {
+      const name = readers[i];
+      const orig = resp[name];
+      if (typeof orig !== 'function') continue;
+      try {
+        Object.defineProperty(resp, name, {
+          configurable: true,
+          writable: true,
+          value: function() { return orig.apply(resp, arguments).finally(clear); }
+        });
+      } catch (e) { /* non-extensible response: fall back to header-only deadline */ clear(); }
+    }
+    return resp;
+  }, function(err) {
+    clear();
+    throw err;
+  });
 }
 
 // Module-level cache: persists across requests within the same isolate
@@ -43,12 +66,12 @@ let _fuelBrands = null;
 let _fuelBrandsTime = 0;
 let _fuelResultCache = {};
 let _fuelResultTime = {};
-let _financeCache = null;
-let _financeTime = 0;
+// Keyed by sorted symbol set: screens with different custom tickers must not
+// evict each other (a single slot made every request a Yahoo miss).
+const _financeCache = {};
 let _electricityCache = null;
 let _electricityTime = 0;
-let _polymarketCache = null;
-let _polymarketTime = 0;
+const _polymarketCache = {}; // keyed by limit
 let _routesCache = {};         // { callsign -> json string }
 let _routesTime = {};
 let _warningsCache = {};       // { geohash -> json string }
@@ -81,7 +104,7 @@ function recordFeedHealth(request, response) {
     if (!feed || FEED_HEALTH_SKIP.has(feed)) return;
     const cacheStatus = response.headers.get('X-Cache');
     if (response.status >= 500) recordFeedEvent(feed, 'err', 'HTTP ' + response.status);
-    else if (cacheStatus === 'STALE') recordFeedEvent(feed, 'stale');
+    else if (cacheStatus && cacheStatus.indexOf('STALE') === 0) recordFeedEvent(feed, 'stale'); // includes STALE-PARTIAL
     else if (response.ok && cacheStatus !== 'HIT') recordFeedEvent(feed, 'ok');
   } catch (e) {}
 }
@@ -590,14 +613,19 @@ function timingSafeEqual(a, b) {
 }
 
 export default {
-  async fetch(request, env) {
-    const response = await handleRequest(request, env);
+  async fetch(request, env, ctx) {
+    let response = await handleRequest(request, env, ctx);
+    if (new URL(request.url).pathname.startsWith('/api/') && !response.headers.has('Cache-Control')) {
+      // Dynamic token-gated data: never let a browser or intermediary apply heuristic freshness.
+      response = new Response(response.body, response);
+      response.headers.set('Cache-Control', 'no-store');
+    }
     recordFeedHealth(request, response);
     return response;
   }
 };
 
-async function handleRequest(request, env) {
+async function handleRequest(request, env, ctx) {
     var url = new URL(request.url);
     var path = url.pathname;
 
@@ -755,8 +783,18 @@ async function handleRequest(request, env) {
           try {
             var flightResp = await fetch(provider.url);
             if (flightResp.ok) {
-              adsbData = await flightResp.json();
-              break;
+              var candidate = null;
+              try { candidate = await flightResp.json(); } catch (parseErr) { candidate = null; }
+              if (candidate && Array.isArray(candidate.ac)) {
+                adsbData = candidate;
+                break;
+              }
+              // e.g. {"message":"rate limited"} with HTTP 200 — try the next provider
+              lastProviderError = {
+                error: provider.source + ' returned an unexpected payload',
+                source: provider.source
+              };
+              continue;
             }
             lastProviderError = {
               error: provider.source + ' returned HTTP ' + flightResp.status,
@@ -1038,7 +1076,7 @@ async function handleRequest(request, env) {
           headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
         });
       }
-      if (leagueIds.length > 10 || leagueIds.some(id => !/^[a-z0-9._-]{1,40}$/i.test(id))) {
+      if (leagueIds.length > 10 || leagueIds.some(id => !/^[a-z0-9._-]{1,40}$/i.test(id) || /^\.+$/.test(id))) {
         return new Response(JSON.stringify({ error: 'Invalid leagues parameter' }), {
           status: 400,
           headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
@@ -1098,9 +1136,10 @@ async function handleRequest(request, env) {
           const resp = await fetch(espnUrl, { headers: espnHeaders });
           if (!resp.ok) return null;
           const text = await resp.text();
-          let data = {};
-          try { data = JSON.parse(text); } catch (e) {}
-          return data.events || [];
+          let data = null;
+          try { data = JSON.parse(text); } catch (e) { return null; } // HTML/challenge page = failure
+          if (!data || typeof data !== 'object' || !Array.isArray(data.events)) return null;
+          return data.events;
         } catch (e) {
           return null;
         }
@@ -1439,15 +1478,23 @@ async function handleRequest(request, env) {
 
       try {
         // Fetch site details, brands, and prices in parallel
-        var detailsPromise = getFuelSiteDetails(fuelToken);
-        var brandsPromise = getFuelBrands(fuelToken);
-        var pricesResp = await fetch(FPD_API_BASE + '/Price/GetSitesPrices?countryId=21&geoRegionLevel=3&geoRegionId=1', {
-          headers: { 'Authorization': 'FPDAPI SubscriberToken=' + fuelToken, 'Content-Type': 'application/json' }
-        });
+        // Settle all three together so a prices failure can't leave the other
+        // two as unhandled rejections after the handler has already returned.
+        var fuelParts = await Promise.all([
+          getFuelSiteDetails(fuelToken).then(function(v) { return { ok: true, value: v }; }, function(e) { return { ok: false, error: e }; }),
+          getFuelBrands(fuelToken).then(function(v) { return { ok: true, value: v }; }, function(e) { return { ok: false, error: e }; }),
+          fetch(FPD_API_BASE + '/Price/GetSitesPrices?countryId=21&geoRegionLevel=3&geoRegionId=1', {
+            headers: { 'Authorization': 'FPDAPI SubscriberToken=' + fuelToken, 'Content-Type': 'application/json' }
+          }).then(function(v) { return { ok: true, value: v }; }, function(e) { return { ok: false, error: e }; })
+        ]);
+        if (!fuelParts[2].ok) throw fuelParts[2].error;
+        var pricesResp = fuelParts[2].value;
         if (!pricesResp.ok) throw new Error('FPD prices API error: ' + pricesResp.status);
         var pricesData = await pricesResp.json();
-        var siteDetails = await detailsPromise;
-        var brandNames = await brandsPromise;
+        if (!fuelParts[0].ok) throw fuelParts[0].error;
+        if (!fuelParts[1].ok) throw fuelParts[1].error;
+        var siteDetails = fuelParts[0].value;
+        var brandNames = fuelParts[1].value;
 
         // Lowercase station search terms for case-insensitive matching
         var stationsLower = [];
@@ -1524,7 +1571,7 @@ async function handleRequest(request, env) {
           headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
         });
       }
-      if (leagueIds.length > 10 || leagueIds.some(id => !/^[a-z0-9._-]{1,40}$/i.test(id))) {
+      if (leagueIds.length > 10 || leagueIds.some(id => !/^[a-z0-9._-]{1,40}$/i.test(id) || /^\.+$/.test(id))) {
         return new Response(JSON.stringify({ error: 'Invalid leagues parameter' }), {
           status: 400,
           headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
@@ -1613,8 +1660,9 @@ async function handleRequest(request, env) {
 
       const sortedKey = symbols.slice().sort().join(',');
       const finNow = Date.now();
-      if (_financeCache && _financeCache.key === sortedKey && (finNow - _financeTime) < 300 * 1000) {
-        return new Response(_financeCache.json, {
+      const finCached = _financeCache[sortedKey];
+      if (finCached && (finNow - finCached.time) < 300 * 1000) {
+        return new Response(finCached.json, {
           headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'HIT' }, corsHeaders)
         });
       }
@@ -1660,14 +1708,13 @@ async function handleRequest(request, env) {
       await Promise.all(finFetches);
 
       const finAllFailed = symbols.every(sym => finResult[sym] === null);
-      if (finAllFailed && _financeCache && _financeCache.key === sortedKey) {
-        return new Response(_financeCache.json, {
+      if (finAllFailed && finCached) {
+        return new Response(finCached.json, {
           headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
         });
       }
       const finJson = JSON.stringify(finResult);
-      _financeCache = { key: sortedKey, json: finJson };
-      _financeTime = finNow;
+      _financeCache[sortedKey] = { json: finJson, time: finNow };
       return new Response(finJson, {
         headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'MISS' }, corsHeaders)
       });
@@ -1678,8 +1725,9 @@ async function handleRequest(request, env) {
       const cacheKey = 'pm_' + limit;
       const pmNow = Date.now();
 
-      if (_polymarketCache && _polymarketCache.key === cacheKey && (pmNow - _polymarketTime) < 300 * 1000) {
-        return new Response(_polymarketCache.json, {
+      const pmCached = _polymarketCache[cacheKey];
+      if (pmCached && (pmNow - pmCached.time) < 300 * 1000) {
+        return new Response(pmCached.json, {
           headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'HIT' }, corsHeaders)
         });
       }
@@ -1737,8 +1785,7 @@ async function handleRequest(request, env) {
         // Filter out near-certain markets (>95% or <5%) and take top N by volume
         const filtered = result.filter(r => r.yesPrice > 0.05 && r.yesPrice < 0.95).slice(0, limit);
         const pmJson = JSON.stringify(filtered);
-        _polymarketCache = { key: cacheKey, json: pmJson };
-        _polymarketTime = pmNow;
+        _polymarketCache[cacheKey] = { json: pmJson, time: pmNow };
         return new Response(pmJson, {
           headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'MISS' }, corsHeaders)
         });
@@ -1833,6 +1880,8 @@ async function handleRequest(request, env) {
           const response = await fetch('https://publiccontent-gis-psba-qld-gov-au.s3.amazonaws.com/content/Feeds/BushfireCurrentIncidents/bushfireAlert.xml');
           if (!response.ok) throw new Error('feed returned ' + response.status);
           const xml = await response.text();
+          // A 200 error page would parse to zero incidents and cache as "all clear".
+          if (!/<feed[\s>]/i.test(xml)) throw new Error('feed returned a non-Atom body');
           const parsed = [];
           const entryPattern = /<entry>([\s\S]*?)<\/entry>/g;
           let entryMatch;
@@ -1904,6 +1953,7 @@ async function handleRequest(request, env) {
           const response = await fetch(source.url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BrisbaneDashboard/1.0)' } });
           if (!response.ok) return null;
           const xml = await response.text();
+          if (!/<(rss|feed)[\s>]/i.test(xml)) return null; // HTML error page, not a feed
           const items = [];
           const itemPattern = /<item>([\s\S]*?)<\/item>/g;
           let itemMatch;
