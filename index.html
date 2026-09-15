@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.62.0">
+  <meta name="app-version" content="1.63.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -1546,6 +1546,9 @@
       padding: 8px 0;
       white-space: nowrap;
       position: relative;
+      /* Horizontal swipes scrub/fling the row; vertical ones still scroll the page. */
+      -ms-touch-action: pan-y;
+      touch-action: pan-y;
     }
     .scrolling-ticker-content {
       display: inline-block;
@@ -1742,6 +1745,32 @@
     }
     .spotlight-item-details > * { margin: 0 6px 6px 6px; }
     .spotlight-detail-label { color: #666; margin-right: 4px; }
+
+    /* News story overlay: reuses the spotlight chrome; opened by tapping a
+       headline in the card or on a ticker row, auto-closes after a minute so
+       a wall screen never stays parked on one story. */
+    .news-item { cursor: pointer; }
+    .news-item:active { background: rgba(255,255,255,0.06); }
+    .scrolling-ticker-item[data-news-idx] { cursor: pointer; }
+    .news-story-meta { font-size: 0.85em; color: #888; margin-bottom: 8px; }
+    .news-story-headline { font-size: 1.35em; font-weight: 600; color: #fff; line-height: 1.3; margin-bottom: 14px; }
+    .news-story-summary { font-size: 1em; color: #c8c8d0; line-height: 1.5; white-space: pre-line; }
+    .news-story-link {
+      display: inline-block;
+      margin-top: 18px;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.08);
+      color: #8ab4f8;
+      border-radius: 10px;
+      -webkit-border-radius: 10px;
+      text-decoration: none;
+      font-size: 0.95em;
+    }
+    .news-story-link:active { background: rgba(255,255,255,0.14); }
+    body.light-theme .news-story-headline { color: #1a1a2e; }
+    body.light-theme .news-story-summary { color: #333; }
+    body.light-theme .news-story-link { background: rgba(0,0,0,0.06); color: #1a56db; }
+    body.light-theme .news-item:active { background: rgba(0,0,0,0.05); }
 
     /* Light Theme Overrides */
     body.light-theme {
@@ -3247,6 +3276,17 @@
         <button class="spotlight-close" id="spotlightClose">&times;</button>
       </div>
       <div class="spotlight-content" id="spotlightContent"></div>
+    </div>
+  </div>
+
+  <!-- News Story Overlay -->
+  <div class="spotlight-overlay" id="newsStoryOverlay">
+    <div class="spotlight-panel">
+      <div class="spotlight-header">
+        <div class="spotlight-title">&#128240; News</div>
+        <button class="spotlight-close" id="newsStoryClose" aria-label="Close news story">&times;</button>
+      </div>
+      <div class="spotlight-content" id="newsStoryContent"></div>
     </div>
   </div>
 
@@ -7272,6 +7312,9 @@
           };
         }
 
+        // News story overlay: headline taps on the card + ticker rows
+        bindNewsStoryTaps();
+
         // Spotlight overlay click-to-dismiss (on background, not panel)
         var spotlightOverlay = document.getElementById('spotlightOverlay');
         if (spotlightOverlay) {
@@ -7921,7 +7964,7 @@
         var shown = items.length < 6 ? items.length : 6;
         for (var i = 0; i < shown; i++) {
           var item = items[i];
-          html += '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">';
+          html += '<div class="news-item" data-news-idx="' + i + '" style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">';
           html += '<div style="font-size:0.9em;color:#e0e0e0;">' + escapeHtml(item.title || '') + '</div>';
           html += '<div style="font-size:0.75em;color:#999;">' + escapeHtml(item.source || '') + (item.publishedAt ? ' &middot; ' + escapeHtml(warningRelativeTime(item.publishedAt)) : '') + '</div>';
           html += '</div>';
@@ -7930,6 +7973,74 @@
         elements.newsContent.innerHTML = html;
         elements.newsUpdated.textContent = formatUpdatedTime(new Date());
         scheduleMasonry();
+      }
+
+      // Tap-to-expand story overlay. Index refers to lastNewsData.items, which
+      // is the same array every surface (card, ticker rows) was rendered from —
+      // a feed refresh re-renders all of them, so indexes never go stale.
+      var _newsStoryTimer = null;
+
+      function showNewsStory(idx) {
+        if (!lastNewsData || !lastNewsData.items) return;
+        var item = lastNewsData.items[idx];
+        if (!item) return;
+        var meta = [item.source || 'News'];
+        if (item.publishedAt) meta.push(warningRelativeTime(item.publishedAt));
+        var html = '<div class="news-story-meta">' + escapeHtml(meta.join(' \u00b7 ')) + '</div>';
+        html += '<div class="news-story-headline">' + escapeHtml(item.title || '') + '</div>';
+        if (item.summary) {
+          html += '<div class="news-story-summary">' + escapeHtml(item.summary) + '</div>';
+        } else {
+          html += '<div class="news-story-summary" style="color:#888;">No summary available.</div>';
+        }
+        // Worker only emits http(s) links, but re-check at the sink since the
+        // value lands in an href.
+        if (item.link && /^https?:\/\//.test(item.link)) {
+          html += '<a class="news-story-link" href="' + escapeHtml(item.link) + '" target="_blank" rel="noopener noreferrer">Read full story \u2197</a>';
+        }
+        document.getElementById('newsStoryContent').innerHTML = html;
+        document.getElementById('newsStoryOverlay').className = 'spotlight-overlay active';
+        if (_newsStoryTimer) clearTimeout(_newsStoryTimer);
+        _newsStoryTimer = setTimeout(hideNewsStory, 60000);
+      }
+
+      function hideNewsStory() {
+        if (_newsStoryTimer) { clearTimeout(_newsStoryTimer); _newsStoryTimer = null; }
+        document.getElementById('newsStoryOverlay').className = 'spotlight-overlay';
+      }
+
+      // Walk up from a tap target to the nearest element carrying data-news-idx.
+      function newsIdxFromEvent(e, stopEl) {
+        var el = e.target;
+        while (el && el !== stopEl) {
+          if (el.getAttribute && el.getAttribute('data-news-idx') !== null) {
+            return parseInt(el.getAttribute('data-news-idx'), 10);
+          }
+          el = el.parentNode;
+        }
+        return -1;
+      }
+
+      function bindNewsStoryTaps() {
+        var ids = ['newsContent', 'scrollingTickerContent', 'newsTickerContent'];
+        for (var i = 0; i < ids.length; i++) {
+          (function(el) {
+            if (!el) return;
+            el.onclick = function(e) {
+              if (Date.now() < _tickerClickSuppressUntil) return; // release after a swipe
+              var idx = newsIdxFromEvent(e, el);
+              if (idx < 0) return;
+              e.stopPropagation();
+              showNewsStory(idx);
+            };
+          })(document.getElementById(ids[i]));
+        }
+        var overlay = document.getElementById('newsStoryOverlay');
+        if (overlay) {
+          overlay.onclick = function(e) { if (e.target === overlay) hideNewsStory(); };
+        }
+        var closeBtn = document.getElementById('newsStoryClose');
+        if (closeBtn) closeBtn.onclick = hideNewsStory;
       }
 
       function feedHealthAge(now, timestamp) {
@@ -9316,7 +9427,8 @@
             value: lastNewsData.items[0].title || '',
             changeClass: '',
             changeText: '',
-            kind: 'news'
+            kind: 'news',
+            newsIdx: 0
           });
         }
 
@@ -9639,9 +9751,22 @@
       }
 
       var _scrollTickerRows = [
-        { barId: 'scrollingTicker', contentId: 'scrollingTickerContent', speed: 60, lastHtml: '', pos: 0, halfWidth: 0, paused: false, hoverBound: false },
-        { barId: 'newsTicker', contentId: 'newsTickerContent', speed: 45, lastHtml: '', pos: 0, halfWidth: 0, paused: false, hoverBound: false }
+        { barId: 'scrollingTicker', contentId: 'scrollingTickerContent', speed: 60, lastHtml: '', pos: 0, halfWidth: 0, paused: false, hoverBound: false, dragging: false, dragSeenAt: 0, fling: 0 },
+        { barId: 'newsTicker', contentId: 'newsTickerContent', speed: 45, lastHtml: '', pos: 0, halfWidth: 0, paused: false, hoverBound: false, dragging: false, dragSeenAt: 0, fling: 0 }
       ];
+      // Swipe-to-scrub: a finger on a row drags it directly; letting go flings
+      // it in the swipe direction (left = faster, right = rewind) with the
+      // extra speed decaying back to the base crawl over ~2s. Any drag that
+      // travelled more than a tap's worth suppresses the tap-to-open that fires
+      // on release.
+      var TICKER_FLING_MAX = 2500;   // px/s cap, keeps a hard flick readable
+      var TICKER_FLING_DECAY = 0.1;  // fraction of fling remaining after 1s
+      // A drag whose release the browser swallowed (screen sleeping mid-touch,
+      // a system gesture, the iOS long-press callout, mouseup outside the
+      // window) would otherwise leave row.dragging set and freeze that row for
+      // good. Treat a drag with no input event for this long as released.
+      var TICKER_DRAG_STALE_MS = 3000;
+      var _tickerClickSuppressUntil = 0;
       var _scrollTickerRafId = null;
 
       var _scrollTickerLastTs = 0;
@@ -9652,9 +9777,19 @@
         _scrollTickerLastTs = timestamp;
         for (var ri = 0; ri < _scrollTickerRows.length; ri++) {
           var row = _scrollTickerRows[ri];
-          if (row.paused || row.halfWidth <= 0) continue;
-          row.pos -= row.speed * dt;
-          if (row.pos <= -row.halfWidth) row.pos += row.halfWidth;
+          if (row.halfWidth <= 0) continue;
+          if (row.dragging) {              // finger owns pos until release
+            if (Date.now() - row.dragSeenAt < TICKER_DRAG_STALE_MS) continue;
+            row.dragging = false;          // lost release — resume the crawl
+            row.fling = 0;
+          }
+          if (row.paused && !row.fling) continue;
+          if (row.fling) {
+            row.fling *= Math.pow(TICKER_FLING_DECAY, dt);
+            if (Math.abs(row.fling) < 5) row.fling = 0;
+          }
+          row.pos -= ((row.paused ? 0 : row.speed) + row.fling) * dt;
+          wrapScrollTickerPos(row);
           var contentEl = document.getElementById(row.contentId);
           if (contentEl) {
             contentEl.style.webkitTransform = 'translate3d(' + row.pos + 'px,0,0)';
@@ -9664,6 +9799,79 @@
         _scrollTickerRafId = requestAnimationFrame(_scrollTickerFrame);
       }
 
+      function wrapScrollTickerPos(row) {
+        if (row.halfWidth <= 0) return;
+        while (row.pos <= -row.halfWidth) row.pos += row.halfWidth;
+        while (row.pos > 0) row.pos -= row.halfWidth;
+      }
+
+      function bindScrollTickerSwipe(row, tickerEl) {
+        var lastX = 0, lastT = 0, startX = 0, vel = 0;
+        function begin(x) {
+          row.dragging = true;
+          row.fling = 0;
+          startX = lastX = x;
+          lastT = row.dragSeenAt = Date.now();
+          vel = 0;
+        }
+        function move(x) {
+          if (!row.dragging) return;
+          var now = Date.now();
+          var dx = x - lastX;
+          var dtMs = now - lastT;
+          row.dragSeenAt = now;
+          row.pos += dx;
+          wrapScrollTickerPos(row);
+          if (dtMs > 0) {
+            // Smoothed finger velocity (px/s) so a jittery last sample doesn't
+            // decide the fling.
+            var inst = dx / (dtMs / 1000);
+            vel = vel === 0 ? inst : (vel * 0.6 + inst * 0.4);
+          }
+          lastX = x;
+          lastT = now;
+          var contentEl = document.getElementById(row.contentId);
+          if (contentEl) {
+            contentEl.style.webkitTransform = 'translate3d(' + row.pos + 'px,0,0)';
+            contentEl.style.transform = 'translate3d(' + row.pos + 'px,0,0)';
+          }
+        }
+        function end() {
+          if (!row.dragging) return;
+          row.dragging = false;
+          // Finger held still before lifting → no fling, just resume crawling.
+          if (Date.now() - lastT > 120) vel = 0;
+          var fling = -vel; // content moved left with the finger → positive fling
+          if (fling > TICKER_FLING_MAX) fling = TICKER_FLING_MAX;
+          if (fling < -TICKER_FLING_MAX) fling = -TICKER_FLING_MAX;
+          row.fling = Math.abs(fling) < 60 ? 0 : fling;
+          if (Math.abs(lastX - startX) > 10) _tickerClickSuppressUntil = Date.now() + 500;
+          startScrollingTickerAnimation(row);
+        }
+        tickerEl.addEventListener('touchstart', function(e) {
+          // A second finger, or a new touch after a swallowed release, ends
+          // the drag in progress before anything else.
+          if (row.dragging) end();
+          if (e.touches.length !== 1) return;
+          begin(e.touches[0].clientX);
+        }, false);
+        tickerEl.addEventListener('touchmove', function(e) {
+          if (!row.dragging || e.touches.length !== 1) return;
+          move(e.touches[0].clientX);
+          if (e.cancelable) e.preventDefault();
+        }, false);
+        tickerEl.addEventListener('touchend', end, false);
+        tickerEl.addEventListener('touchcancel', end, false);
+        // Mouse drag for desktop testing — hover already pauses the row there.
+        tickerEl.addEventListener('mousedown', function(e) {
+          if (e.button !== 0) return;
+          begin(e.clientX);
+          e.preventDefault();
+        }, false);
+        document.addEventListener('mousemove', function(e) { if (row.dragging) move(e.clientX); }, false);
+        document.addEventListener('mouseup', end, false);
+      }
+
       function startScrollingTickerAnimation(row) {
         if (row && !row.hoverBound) {
           var tickerEl = document.getElementById(row.barId);
@@ -9671,6 +9879,7 @@
             row.hoverBound = true;
             tickerEl.onmouseenter = function() { row.paused = true; };
             tickerEl.onmouseleave = function() { row.paused = false; };
+            bindScrollTickerSwipe(row, tickerEl);
           }
         }
         if (!_scrollTickerRafId) _scrollTickerRafId = requestAnimationFrame(_scrollTickerFrame);
@@ -9684,7 +9893,7 @@
       }
 
       function scrollTickerItemHtml(slide) {
-        var html = '<span class="scrolling-ticker-item">';
+        var html = '<span class="scrolling-ticker-item"' + (slide.newsIdx !== undefined ? ' data-news-idx="' + slide.newsIdx + '"' : '') + '>';
         html += '<span class="ticker-item-icon">' + escapeHtml(slide.icon) + '</span>';
         html += '<span class="ticker-item-label">' + escapeHtml(slide.label) + '</span>';
         html += '<span class="ticker-item-value">' + escapeHtml(slide.value) + '</span>';
@@ -9737,7 +9946,7 @@
         var count = lastNewsData.items.length < config.newsTickerCount ? lastNewsData.items.length : config.newsTickerCount;
         for (var i = 0; i < count; i++) {
           var item = lastNewsData.items[i];
-          slides.push({ icon: '\uD83D\uDCF0', label: item.source || 'News', value: item.title || '', changeClass: '', changeText: item.publishedAt ? warningRelativeTime(item.publishedAt) : '' });
+          slides.push({ icon: '\uD83D\uDCF0', label: item.source || 'News', value: item.title || '', changeClass: '', changeText: item.publishedAt ? warningRelativeTime(item.publishedAt) : '', newsIdx: i });
         }
         return slides;
       }

@@ -20,7 +20,8 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Queensland fuel prices, when a FPD Direct API token is configured
 - Optional Polymarket event card
 - Touch-friendly card ordering, collapsible cards, schedules, keyboard-accessible settings, import/export settings, and dark/light themes
-- Static conditions strip, moving data ticker, optional dedicated headline row, and on-demand Worker feed diagnostics
+- Static conditions strip, moving data ticker (swipe to scrub or fling it), optional dedicated headline row, and on-demand Worker feed diagnostics
+- Tap any headline in the News card or on a ticker row to open a story overlay with the summary and a read-more link; it auto-closes after a minute on wall screens
 - Needs Attention coverage for ticker-only weather warnings, serious nearby bushfires, unacknowledged birthdays, tomorrow's extreme heat or rain, and data feeds that have been down for an hour; items are dismissable per device until they change or the day ends
 
 Private/person-specific integrations have been removed from this public fork. Do not commit local `.dev.vars`, API tokens, proxy URLs, or device-specific settings.

@@ -1965,10 +1965,21 @@ async function handleRequest(request, env, ctx) {
             if (!title || fluffPattern.test(title)) continue;
             const publishedMatch = chunk.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
             const timestamp = publishedMatch ? Date.parse(publishedMatch[1]) : NaN;
+            // Story detail for the tap-to-expand overlay: the description with
+            // any inline HTML stripped, and the article URL (http(s) only —
+            // the client puts it in an href).
+            const descriptionMatch = chunk.match(/<description>([\s\S]*?)<\/description>/);
+            const summary = descriptionMatch
+              ? decodeXmlEntities(descriptionMatch[1]).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 600)
+              : '';
+            const linkMatch = chunk.match(/<link>([\s\S]*?)<\/link>/);
+            const link = linkMatch ? decodeXmlEntities(linkMatch[1]).trim() : '';
             items.push({
               title: title,
               source: source.name,
               publishedAt: Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null,
+              summary: summary,
+              link: /^https?:\/\/\S+$/.test(link) ? link.slice(0, 500) : '',
               _timestamp: Number.isFinite(timestamp) ? timestamp : 0
             });
           }
@@ -1993,7 +2004,7 @@ async function handleRequest(request, env, ctx) {
       for (const items of successful) merged.push(...items);
       merged.sort(function(a, b) { return b._timestamp - a._timestamp; });
       const top = merged.slice(0, 10).map(function(item) {
-        return { title: item.title, source: item.source, publishedAt: item.publishedAt };
+        return { title: item.title, source: item.source, publishedAt: item.publishedAt, summary: item.summary, link: item.link };
       });
       const newsJson = JSON.stringify({ items: top, fetchedAt: newsNow });
       _newsCache = newsJson;
