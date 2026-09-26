@@ -139,6 +139,20 @@ function checkDisplayModeTickerParity(frontend) {
     }
   }
   if (missing.length) throwFail('display-mode selects with no ticker slide in buildTickerSlides: ' + missing.join(', '));
+
+  // Every slide must name its card so a ticker tap can lift it as a popup.
+  // News is the one exception: a headline tap opens the story instead.
+  var pushRe = /slides\.push\(\{/g;
+  var untagged = 0;
+  var total = 0;
+  while ((match = pushRe.exec(body))) {
+    total++;
+    var close = body.indexOf('});', match.index);
+    var chunk = body.slice(match.index, close === -1 ? match.index + 400 : close);
+    if (chunk.indexOf('cardId:') === -1 && chunk.indexOf('newsIdx:') === -1) untagged++;
+  }
+  if (total < 15) throwFail('expected buildTickerSlides to push many slides, found ' + total);
+  if (untagged) throwFail(untagged + ' ticker slide(s) in buildTickerSlides have no cardId (needed for the tap-to-popup)');
   console.log('Display-mode / ticker-slide parity passed');
 }
 

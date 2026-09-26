@@ -66,6 +66,11 @@ let _fuelBrands = null;
 let _fuelBrandsTime = 0;
 let _fuelResultCache = {};
 let _fuelResultTime = {};
+// The QLD fuel API only serves current prices, so the ticker sparkline is a
+// rolling 30-day record of the cheapest price per grade kept in KV: one point
+// per 6h per station set (4 puts/day), appended on a module-cache MISS only.
+const FUEL_HISTORY_STEP_MS = 6 * 3600 * 1000;
+const FUEL_HISTORY_KEEP_MS = 30 * 86400 * 1000;
 // Keyed by sorted symbol set: screens with different custom tickers must not
 // evict each other (a single slot made every request a Yahoo miss).
 const _financeCache = {};
@@ -169,6 +174,15 @@ function dashboardStatusFingerprint(status) {
 
 const ELECTRICITY_DISPATCH_DIR_URL = 'https://www.nemweb.com.au/REPORTS/CURRENT/DispatchIS_Reports/';
 const ELECTRICITY_DATA_TTL = 60 * 1000;
+// Price history + pre-dispatch forecast for the card graph. aemo.com.au itself
+// sits behind a Cloudflare challenge, but the host the AEMO NEM dashboard reads
+// from answers plainly: one POST returns ~24h of 5-min actuals and ~32h of
+// 30-min forecast for every region (~430 KB), so QLD1 is trimmed out here.
+// Unmetered public feed on a 5-min cadence — a module cache is enough.
+const ELECTRICITY_HISTORY_URL = 'https://visualisations.aemo.com.au/aemo/apps/api/report/5MIN';
+const ELECTRICITY_HISTORY_TTL = 5 * 60 * 1000;
+let _electricityHistoryCache = null;
+let _electricityHistoryTime = 0;
 
 function splitCsvLine(line) {
   var parts = [];
@@ -295,6 +309,77 @@ async function unzipFirstFileText(arrayBuffer) {
 
   var stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
   return await new Response(stream).text();
+}
+
+// SETTLEMENTDATE strings are NEM market time (AEST, no DST), so pin the
+// offset rather than letting the client's zone decide.
+function nemTimeToMs(str) {
+  var ms = Date.parse(String(str || '') + '+10:00');
+  return isNaN(ms) ? null : ms;
+}
+
+function compactElectricityHistory(raw, region) {
+  var rows = (raw && raw['5MIN']) || [];
+  var actual = [];
+  var forecast = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r || r.REGIONID !== region) continue;
+    var t = nemTimeToMs(r.SETTLEMENTDATE);
+    var p = parseFloat(r.RRP);
+    if (t === null || isNaN(p)) continue;
+    var d = parseFloat(r.TOTALDEMAND);
+    var point = [t, Math.round(p * 100) / 100, isNaN(d) ? null : Math.round(d)];
+    if (r.PERIODTYPE === 'FORECAST') forecast.push(point); else actual.push(point);
+  }
+  var byTime = function(a, b) { return a[0] - b[0]; };
+  actual.sort(byTime);
+  forecast.sort(byTime);
+  if (!actual.length) throw new Error(region + ' actuals not found in AEMO 5MIN report');
+  return { region: region, actual: actual, forecast: forecast };
+}
+
+function fuelHistoryKey(cacheKey) {
+  // Station names make the cache key arbitrarily long; KV keys are capped.
+  let h = 5381;
+  for (let i = 0; i < cacheKey.length; i++) h = ((h * 33) ^ cacheKey.charCodeAt(i)) >>> 0;
+  return 'fuel_hist_' + h.toString(16);
+}
+
+function fuelCheapestByGrade(stationsArray) {
+  const out = {};
+  for (let i = 0; i < stationsArray.length; i++) {
+    const grades = stationsArray[i].grades || {};
+    for (const g in grades) {
+      const price = grades[g] && grades[g].price;
+      if (typeof price !== 'number' || !(price > 0)) continue;
+      if (out[g] === undefined || price < out[g]) out[g] = price;
+    }
+  }
+  return out;
+}
+
+// Without a KV binding the feed simply carries no history.
+async function updateFuelHistory(kv, cacheKey, stationsArray, now) {
+  if (!kv) return null;
+  const key = fuelHistoryKey(cacheKey);
+  let rec = null;
+  try { rec = await kv.get(key, 'json'); } catch (e) {}
+  if (!rec || typeof rec !== 'object') rec = {};
+  const cheapest = fuelCheapestByGrade(stationsArray);
+  let changed = false;
+  for (const g in cheapest) {
+    const series = Array.isArray(rec[g]) ? rec[g] : [];
+    const last = series.length ? series[series.length - 1] : null;
+    if (last && now - last[0] < FUEL_HISTORY_STEP_MS) { rec[g] = series; continue; }
+    series.push([now, cheapest[g]]);
+    rec[g] = series.filter(pt => now - pt[0] <= FUEL_HISTORY_KEEP_MS);
+    changed = true;
+  }
+  if (changed) {
+    try { await kv.put(key, JSON.stringify(rec)); } catch (e) {}
+  }
+  return rec;
 }
 
 function parseElectricityDispatchCsv(csvText) {
@@ -723,6 +808,48 @@ async function handleRequest(request, env, ctx) {
           });
         }
         return new Response(JSON.stringify({ error: 'Electricity API error: ' + err.message }), {
+          status: 502,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+    }
+
+    // QLD price history + forecast for the electricity card graph
+    if (path === '/api/electricity/history') {
+      var ehNow = Date.now();
+      if (_electricityHistoryCache && (ehNow - _electricityHistoryTime) < ELECTRICITY_HISTORY_TTL) {
+        return new Response(_electricityHistoryCache, {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'HIT' }, corsHeaders)
+        });
+      }
+      try {
+        var ehResp = await fetch(ELECTRICITY_HISTORY_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'city-dashboard/1.0'
+          },
+          body: JSON.stringify({ timeScale: ['30MIN'] })
+        });
+        if (!ehResp.ok) {
+          throw new Error('AEMO 5MIN report error: ' + ehResp.status);
+        }
+        var ehData = compactElectricityHistory(await ehResp.json(), 'QLD1');
+        ehData.fetchedAt = ehNow;
+        var ehJson = JSON.stringify(ehData);
+        _electricityHistoryCache = ehJson;
+        _electricityHistoryTime = ehNow;
+        return new Response(ehJson, {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'MISS' }, corsHeaders)
+        });
+      } catch (err) {
+        if (_electricityHistoryCache) {
+          return new Response(_electricityHistoryCache, {
+            headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'STALE' }, corsHeaders)
+          });
+        }
+        return new Response(JSON.stringify({ error: 'Electricity history error: ' + err.message }), {
           status: 502,
           headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
         });
@@ -1542,8 +1669,12 @@ async function handleRequest(request, env, ctx) {
         var stationsArray = [];
         for (var sk in stationMap) stationsArray.push(stationMap[sk]);
 
+        var fuelHistory = null;
+        try { fuelHistory = await updateFuelHistory(env.STATUS_KV || env.SETTINGS_KV, fuelCacheKey, stationsArray, fuel_now); } catch (e) {}
+
         var fuelResult = JSON.stringify({
           stations: stationsArray,
+          history: fuelHistory,
           fetchedAt: new Date().toISOString()
         });
 
@@ -1676,7 +1807,13 @@ async function handleRequest(request, env, ctx) {
       const finResult = {};
       const finFetches = symbols.map(async function(sym) {
         try {
-          const chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?range=2d&interval=1d&includePrePost=false';
+          // A month of daily bars in the same single request: the last bar is
+          // today's (partial) close, the one before it is the day-change
+          // reference, and the whole run feeds the ticker sparkline. The old
+          // range=2d call used meta.chartPreviousClose, which is the close
+          // *before the first bar* — two sessions back on a weekend, or the
+          // bar itself for a one-bar futures response (0% change all day).
+          const chartUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?range=1mo&interval=1d&includePrePost=false';
           const resp = await fetch(chartUrl, { headers: yahooHeaders });
           if (!resp.ok) { finResult[sym] = null; return; }
           const data = await resp.json();
@@ -1685,16 +1822,23 @@ async function handleRequest(request, env, ctx) {
           if (!meta) { finResult[sym] = null; return; }
           // Prefer actual chart close price over meta.regularMarketPrice (unreliable for futures)
           let chartPrice = meta.regularMarketPrice;
+          let prevClose = meta.chartPreviousClose;
+          const history = [];
           const quotes = result.indicators && result.indicators.quote && result.indicators.quote[0];
+          const stamps = result.timestamp || [];
           if (quotes && quotes.close && quotes.close.length > 0) {
-            const lastClose = quotes.close[quotes.close.length - 1];
-            if (lastClose != null) {
-              chartPrice = lastClose;
+            for (let ci = 0; ci < quotes.close.length; ci++) {
+              const c = quotes.close[ci];
+              if (c == null || !isFinite(c)) continue;
+              history.push([stamps[ci] || 0, Math.round(c * 10000) / 10000]);
             }
+            if (history.length) chartPrice = history[history.length - 1][1];
+            if (history.length > 1) prevClose = history[history.length - 2][1];
           }
           finResult[sym] = {
             price: chartPrice,
-            previousClose: meta.chartPreviousClose,
+            previousClose: prevClose,
+            history: history,
             currency: meta.currency || '',
             marketState: meta.currentTradingPeriod && meta.currentTradingPeriod.regular ? 'regular' : '',
             dayHigh: meta.regularMarketDayHigh || null,

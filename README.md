@@ -10,18 +10,18 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Nearby Queensland bushfire incidents with local dismissal, plus ABC/Brisbane Times headlines
 - Optional pollen forecasts through the Google Pollen API
 - Optional locally configured birthday reminders with per-person timezones, acknowledgement, and birthday-only import/export (ships with an empty list)
-- Queensland electricity spot prices via AEMO NEMWEB
+- Queensland electricity spot prices via AEMO NEMWEB, with a 24h price graph plus the AEMO pre-dispatch forecast
 - Brisbane City Council bin collection lookup and recycling/garden alternation
 - TransLink bus arrivals through the Worker proxy
 - Overhead flight tracking via ADSB.lol, with route lookup fallbacks
 - Windy satellite map and BOM Brisbane weather radar
 - Sports fixtures and standings
-- Finance prices via Yahoo Finance, including user-defined symbols
-- Queensland fuel prices, when a FPD Direct API token is configured
+- Finance prices via Yahoo Finance, including user-defined symbols, with 30-day ticker sparklines
+- Queensland fuel prices, when a FPD Direct API token is configured (a 30-day cheapest-price sparkline needs a KV binding)
 - Optional Polymarket event card
 - Touch-friendly card ordering, collapsible cards, schedules, keyboard-accessible settings, import/export settings, and dark/light themes
 - Static conditions strip, moving data ticker (swipe to scrub or fling it), optional dedicated headline row, and on-demand Worker feed diagnostics
-- Tap any headline in the News card or on a ticker row to open a story overlay with the summary and a read-more link; it auto-closes after a minute on wall screens
+- Tap any headline in the News card or on a ticker row to open a story overlay with the summary and a read-more link; tap any other ticker or conditions-strip reading to pop up its card. Both auto-close after a minute on wall screens
 - Needs Attention coverage for ticker-only weather warnings, serious nearby bushfires, unacknowledged birthdays, tomorrow's extreme heat or rain, and data feeds that have been down for an hour; items are dismissable per device until they change or the day ends
 
 Private/person-specific integrations have been removed from this public fork. Do not commit local `.dev.vars`, API tokens, proxy URLs, or device-specific settings.
@@ -84,6 +84,7 @@ npm run validate
 | `GET /api/health` | Health check |
 | `GET /api/feed-health` | Per-Worker-instance feed success/stale/error diagnostics |
 | `GET /api/electricity` | Queensland electricity spot price proxy |
+| `GET /api/electricity/history` | QLD 24h price history + pre-dispatch forecast for the card graph |
 | `GET /api/warnings?lat=..&lon=..` | BoM weather warnings for a geohash area |
 | `GET /api/bushfires?lat=..&lon=..` | Queensland bushfire incidents with distance |
 | `GET /api/news` | Local headlines from public RSS feeds |
@@ -98,7 +99,7 @@ npm run validate
 | `GET /api/polymarket?limit=5` | Polymarket events |
 | `GET/PUT /api/dashboard-status` | Optional KV-backed bin dismissal/taken-out status sync |
 
-Electricity prices are read from the latest NEMWEB DispatchIS ZIP report. The old `GRAPH_5QLD1.csv` feed is no longer available.
+Electricity prices are read from the latest NEMWEB DispatchIS ZIP report. The old `GRAPH_5QLD1.csv` feed is no longer available. The card graph comes from `visualisations.aemo.com.au/aemo/apps/api/report/5MIN` (the host behind the AEMO NEM dashboard; `aemo.com.au` itself is Cloudflare-challenged), trimmed to QLD1 and module-cached for 5 minutes.
 
 ## Adapting For Another City
 

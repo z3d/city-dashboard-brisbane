@@ -65,7 +65,9 @@ Keep `.dev.vars`, `.env`, `.Codex/settings.local.json`, `.codex/settings.local.j
 - Module-level Worker caches are load reducers, not cross-isolate rate limiters. Quota-limited upstreams must use a shared KV cache.
 - `DASHBOARD_TOKEN` is mandatory for every API route except `/api/health`, and authentication must keep using `timingSafeEqual()`.
 - Open-Meteo timestamps should use `timeformat=unixtime` and parse with `new Date(timestamp * 1000)`.
-- Electricity prices use the Worker `/api/electricity` route. NEMWEB removed the old `GRAPH_5QLD1.csv` feed; parse the latest `DispatchIS_Reports/PUBLIC_DISPATCHIS_*.zip` and QLD1 `DISPATCH,PRICE` RRP instead.
+- Electricity prices use the Worker `/api/electricity` route. NEMWEB removed the old `GRAPH_5QLD1.csv` feed; parse the latest `DispatchIS_Reports/PUBLIC_DISPATCHIS_*.zip` and QLD1 `DISPATCH,PRICE` RRP instead. The card graph reads `/api/electricity/history` (AEMO 5MIN report, module cache only — a 5-min KV key would cost 288 puts/day), fetched at most every 5 minutes by `fetchElectricityHistory()`.
+- Every ticker slide in `buildTickerSlides()` must carry a `cardId` (or `newsIdx` for headlines): tapping a ticker/status-strip reading clones that card's `.card-inner` into `#cardPopupOverlay` (`showCardPopup`), finance opens its spotlight. `validate-project.js` fails on an untagged slide.
+- Ticker sparklines: a slide's optional `spark` (plain numbers) and `sparkClass` render through `tickerSparkHtml()`. Finance uses `/api/finance` `history` (a month of daily closes, which also supplies the day-change reference); fuel uses the Worker's `fuel_hist_*` KV record (one point per 6h per station set, ~4 puts/day, skipped without a KV binding).
 
 ## Adapting Another City
 

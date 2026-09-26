@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.63.0">
+  <meta name="app-version" content="1.64.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -735,6 +735,21 @@
       font-size: 0.8em;
       color: #888;
     }
+
+    /* Electricity price graph: 24h of 5-min actuals plus the AEMO pre-dispatch
+       forecast, drawn as inline SVG so it clones cleanly into the card popup. */
+    .elec-chart { display: block; width: 100%; height: auto; margin-top: 4px; }
+    .elec-chart-grid { stroke: rgba(255,255,255,0.08); stroke-width: 1; }
+    .elec-chart-label { fill: #888; font-size: 11px; }
+    .elec-chart-area { fill: rgba(251,191,36,0.14); }
+    .elec-chart-line { fill: none; stroke: #fbbf24; stroke-width: 2; stroke-linejoin: round; }
+    .elec-chart-forecast { fill: none; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .elec-chart-now { stroke: rgba(255,255,255,0.35); stroke-width: 1; stroke-dasharray: 2 3; }
+    .elec-chart-guide { stroke: rgba(248,113,113,0.5); stroke-width: 1; stroke-dasharray: 4 3; }
+    .elec-chart-spike { fill: #f87171; }
+    .elec-stats { font-size: 0.8em; color: #888; margin-top: 4px; }
+    .elec-stats b { color: #aaa; font-weight: 600; }
+    .card.banner-card .elec-chart, .card.banner-card .elec-stats { display: none; }
 
     /* Finance Card */
     .finance-grid {
@@ -1578,6 +1593,19 @@
     .scrolling-ticker-item .ticker-item-change {
       font-size: 0.9em;
     }
+    /* Inline sparkline (numeric-only slide data, rendered by tickerSparkHtml) */
+    .scrolling-ticker-item .ticker-spark { vertical-align: middle; margin-left: 6px; overflow: visible; }
+    .scrolling-ticker-item .ticker-spark polyline { fill: none; stroke: #fbbf24; stroke-width: 1.5; stroke-linejoin: round; }
+    .scrolling-ticker-item .ticker-spark .spark-zero { stroke: rgba(255,255,255,0.25); stroke-width: 1; }
+    .scrolling-ticker-item .ticker-spark circle { fill: #fbbf24; }
+    .scrolling-ticker-item .ticker-spark.spark-fuel polyline { stroke: #fb923c; }
+    .scrolling-ticker-item .ticker-spark.spark-fuel circle { fill: #fb923c; }
+    .scrolling-ticker-item .ticker-spark.spark-up polyline { stroke: #22c55e; }
+    .scrolling-ticker-item .ticker-spark.spark-up circle { fill: #22c55e; }
+    .scrolling-ticker-item .ticker-spark.spark-down polyline { stroke: #ef4444; }
+    .scrolling-ticker-item .ticker-spark.spark-down circle { fill: #ef4444; }
+    .scrolling-ticker-item .ticker-spark.spark-flat polyline { stroke: #888; }
+    .scrolling-ticker-item .ticker-spark.spark-flat circle { fill: #888; }
     .scrolling-ticker-item .ticker-item-change.positive { color: #4caf50; }
     .scrolling-ticker-item .ticker-item-change.negative { color: #f44336; }
     .scrolling-ticker-sep {
@@ -1755,6 +1783,16 @@
     .news-story-meta { font-size: 0.85em; color: #888; margin-bottom: 8px; }
     .news-story-headline { font-size: 1.35em; font-weight: 600; color: #fff; line-height: 1.3; margin-bottom: 14px; }
     .news-story-summary { font-size: 1em; color: #c8c8d0; line-height: 1.5; white-space: pre-line; }
+
+    /* Card popup: tapping any ticker or status-strip reading lifts a snapshot
+       of that card over the dashboard. One tap anywhere dismisses it; it also
+       auto-closes so a wall screen never stays parked on one card. */
+    .scrolling-ticker-item[data-card-id], .status-strip-item[data-card-id] { cursor: pointer; }
+    .card-popup-panel { padding: 0; background: transparent; -webkit-box-shadow: none; box-shadow: none; }
+    .card-popup-panel .card-inner { background: #1e1e2e; }
+    .card-popup-panel .card-header.collapsible { cursor: default; }
+    .card-popup-panel .card-header.collapsible .card-title:after { display: none; }
+    .card-popup-hint { text-align: center; color: rgba(255,255,255,0.3); font-size: 0.8em; margin-top: 10px; }
     .news-story-link {
       display: inline-block;
       margin-top: 18px;
@@ -1870,6 +1908,12 @@
     body.light-theme .elec-price .unit {
       color: #777;
     }
+    body.light-theme .elec-chart-grid { stroke: rgba(26,26,46,0.1); }
+    body.light-theme .elec-chart-label { fill: #777; }
+    body.light-theme .elec-chart-now { stroke: rgba(26,26,46,0.35); }
+    body.light-theme .elec-chart-forecast { stroke: #64748b; }
+    body.light-theme .elec-stats { color: #777; }
+    body.light-theme .elec-stats b { color: #444; }
     /* Finance */
     body.light-theme .finance-item {
       background: rgba(0,0,0,0.03);
@@ -2013,6 +2057,13 @@
     body.light-theme .spotlight-detail-label {
       color: #777;
     }
+    body.light-theme .card-popup-panel { background: transparent; -webkit-box-shadow: none; box-shadow: none; }
+    body.light-theme .card-popup-panel .card-inner {
+      background: #fff;
+      -webkit-box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    body.light-theme .card-popup-hint { color: rgba(26,26,46,0.4); }
     /* Generic text overrides */
     body.light-theme .settings-btn-row .btn {
       background: rgba(0,0,0,0.06);
@@ -3290,6 +3341,11 @@
     </div>
   </div>
 
+  <!-- Card Popup Overlay (ticker tap -> card snapshot) -->
+  <div class="spotlight-overlay" id="cardPopupOverlay">
+    <div class="spotlight-panel card-popup-panel" id="cardPopupPanel"></div>
+  </div>
+
   <script>
     (function() {
       'use strict';
@@ -3567,6 +3623,9 @@
       var lastUvIndexData = null;
       var lastPollenData = null;
       var lastElecPrice = null;
+      var lastElecHistory = null;
+      var lastElecHistoryAt = 0; // last attempt, so a failing feed retries on the same 5-min cadence
+      var ELEC_HISTORY_REFRESH_MS = 5 * 60 * 1000;
       var lastBusData = null;
       var lastFuelData = null;
       var lastFlightsData = null;
@@ -5756,6 +5815,184 @@
           showElectricityError('Electricity price network error');
         };
         xhr.send();
+        fetchElectricityHistory(proxyUrl + '/history');
+      }
+
+      // Rides on the 1-min price poll but only asks every 5 min — the AEMO
+      // report itself moves on that cadence. Absence just leaves the card
+      // price-only; the chart is never load-bearing.
+      function fetchElectricityHistory(url) {
+        if (Date.now() - lastElecHistoryAt < ELEC_HISTORY_REFRESH_MS) return;
+        lastElecHistoryAt = Date.now();
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        if (config.dashboardToken) {
+          xhr.setRequestHeader('X-Dashboard-Token', config.dashboardToken);
+        }
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4 || xhr.status !== 200) return;
+          var data;
+          try { data = JSON.parse(xhr.responseText); } catch (e) { return; }
+          if (!data || !data.actual || data.actual.length < 2) return;
+          lastElecHistory = data;
+          if (lastElecPrice !== null && !isNaN(lastElecPrice)) renderElectricity(lastElecPrice);
+        };
+        xhr.send();
+      }
+
+      function elecHourLabel(h, m) {
+        var mm = m ? ':' + (m < 10 ? '0' : '') + m : '';
+        if (h === 0) return '12' + mm + 'am';
+        if (h < 12) return h + mm + 'am';
+        if (h === 12) return '12' + mm + 'pm';
+        return (h - 12) + mm + 'pm';
+      }
+
+      function elecNiceStep(range) {
+        var steps = [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+        for (var i = 0; i < steps.length; i++) {
+          if (range / steps[i] <= 5) return steps[i];
+        }
+        return 20000;
+      }
+
+      function elecMoney(v) {
+        var neg = v < 0;
+        var n = Math.round(Math.abs(v));
+        var str = String(n);
+        if (n >= 1000) str = str.substring(0, str.length - 3) + ',' + str.substring(str.length - 3);
+        return (neg ? '-$' : '$') + str;
+      }
+
+      // Last 24h of 5-min actuals as an area line, the next 12h of AEMO
+      // pre-dispatch as a dashed continuation. Spot spikes ($17,500 caps
+      // happen) would flatten the trace, so the axis tops out at 1.5x the 90th
+      // percentile and anything above it is clipped and flagged with a marker;
+      // the stats line still quotes the true high.
+      function buildElectricityChart(hist) {
+        if (!hist || !hist.actual || hist.actual.length < 2) return '';
+        var now = Date.now();
+        var from = now - 24 * 3600 * 1000;
+        var to = now + 12 * 3600 * 1000;
+        var actual = [];
+        var i;
+        for (i = 0; i < hist.actual.length; i++) {
+          if (hist.actual[i][0] >= from && hist.actual[i][0] <= now + 15 * 60 * 1000) actual.push(hist.actual[i]);
+        }
+        if (actual.length < 2) return '';
+        var lastActual = actual[actual.length - 1];
+        var forecast = [];
+        for (i = 0; i < (hist.forecast || []).length; i++) {
+          if (hist.forecast[i][0] > lastActual[0] && hist.forecast[i][0] <= to) forecast.push(hist.forecast[i]);
+        }
+
+        var vals = [];
+        var sum = 0;
+        for (i = 0; i < actual.length; i++) { vals.push(actual[i][1]); sum += actual[i][1]; }
+        var avg = sum / actual.length;
+        var sorted = vals.slice().sort(function(a, b) { return a - b; });
+        var lo = sorted[0];
+        var hi = sorted[sorted.length - 1];
+        var p90 = sorted[Math.floor(0.9 * (sorted.length - 1))];
+        var scaleVals = vals.slice();
+        for (i = 0; i < forecast.length; i++) scaleVals.push(forecast[i][1]);
+        var maxAll = hi, minAll = lo;
+        for (i = 0; i < scaleVals.length; i++) {
+          if (scaleVals[i] > maxAll) maxAll = scaleVals[i];
+          if (scaleVals[i] < minAll) minAll = scaleVals[i];
+        }
+        var cap = Math.max(100, p90 * 1.5);
+        var yTop = maxAll > cap ? cap : maxAll;
+        var yMin = minAll < 0 ? minAll : 0;
+        var step = elecNiceStep(yTop - yMin);
+        yTop = Math.ceil(yTop / step) * step;
+        yMin = Math.floor(yMin / step) * step;
+        if (yTop <= yMin) yTop = yMin + step;
+
+        var W = 600, H = 170, padL = 48, padR = 8, padT = 10, padB = 22;
+        var plotW = W - padL - padR, plotH = H - padT - padB;
+        function x(t) { return padL + (t - from) / (to - from) * plotW; }
+        function y(p) {
+          if (p > yTop) p = yTop;
+          if (p < yMin) p = yMin;
+          return padT + (1 - (p - yMin) / (yTop - yMin)) * plotH;
+        }
+        function r1(v) { return Math.round(v * 10) / 10; }
+
+        var svg = '<svg class="elec-chart" viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">';
+        // Horizontal grid + $ labels
+        for (var gv = yMin; gv <= yTop; gv += step) {
+          var gy = r1(y(gv));
+          svg += '<line class="elec-chart-grid" x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '"/>';
+          svg += '<text class="elec-chart-label" x="' + (padL - 6) + '" y="' + (gy + 4) + '" text-anchor="end">' + elecMoney(gv) + '</text>';
+        }
+        // Time ticks every 6 local hours
+        var tick = new Date(from);
+        tick.setMinutes(0, 0, 0);
+        tick.setHours(Math.ceil(tick.getHours() / 6) * 6);
+        while (tick.getTime() <= to) {
+          var tx = r1(x(tick.getTime()));
+          if (tick.getTime() >= from) {
+            svg += '<line class="elec-chart-grid" x1="' + tx + '" y1="' + padT + '" x2="' + tx + '" y2="' + (padT + plotH) + '"/>';
+            svg += '<text class="elec-chart-label" x="' + tx + '" y="' + (H - 6) + '" text-anchor="middle">' + elecHourLabel(tick.getHours()) + '</text>';
+          }
+          tick.setTime(tick.getTime() + 6 * 3600 * 1000);
+        }
+        // "Expensive" guide once the axis reaches it
+        if (yTop >= 300 && yMin < 300) {
+          svg += '<line class="elec-chart-guide" x1="' + padL + '" y1="' + r1(y(300)) + '" x2="' + (W - padR) + '" y2="' + r1(y(300)) + '"/>';
+        }
+        // Actual: area + line
+        var baseY = r1(y(0));
+        var linePts = '';
+        for (i = 0; i < actual.length; i++) {
+          linePts += (i === 0 ? 'M' : 'L') + r1(x(actual[i][0])) + ' ' + r1(y(actual[i][1]));
+        }
+        svg += '<path class="elec-chart-area" d="' + linePts + 'L' + r1(x(lastActual[0])) + ' ' + baseY + 'L' + r1(x(actual[0][0])) + ' ' + baseY + 'Z"/>';
+        svg += '<path class="elec-chart-line" d="' + linePts + '"/>';
+        // Forecast continues from the last actual point
+        if (forecast.length) {
+          var fPts = 'M' + r1(x(lastActual[0])) + ' ' + r1(y(lastActual[1]));
+          for (i = 0; i < forecast.length; i++) fPts += 'L' + r1(x(forecast[i][0])) + ' ' + r1(y(forecast[i][1]));
+          svg += '<path class="elec-chart-forecast" d="' + fPts + '"/>';
+        }
+        // Clipped spikes
+        var all = actual.concat(forecast);
+        for (i = 0; i < all.length; i++) {
+          if (all[i][1] > yTop) {
+            var sx = r1(x(all[i][0]));
+            svg += '<path class="elec-chart-spike" d="M' + sx + ' ' + padT + 'l-4 6h8z"/>';
+          }
+        }
+        // Now marker
+        var nx = r1(x(now));
+        svg += '<line class="elec-chart-now" x1="' + nx + '" y1="' + padT + '" x2="' + nx + '" y2="' + (padT + plotH) + '"/>';
+        svg += '<text class="elec-chart-label" x="' + (nx + 4) + '" y="' + (padT + 11) + '">now</text>';
+        svg += '</svg>';
+
+        var stats = '<div class="elec-stats">24h avg <b>' + elecMoney(avg) + '</b> \u00B7 low <b>' + elecMoney(lo) + '</b> \u00B7 high <b>' + elecMoney(hi) + '</b>';
+        if (forecast.length) {
+          var fPeak = forecast[0];
+          for (i = 1; i < forecast.length; i++) if (forecast[i][1] > fPeak[1]) fPeak = forecast[i];
+          var fd = new Date(fPeak[0]);
+          stats += ' \u00B7 next 12h peak <b>' + elecMoney(fPeak[1]) + '</b> ' + elecHourLabel(fd.getHours(), fd.getMinutes());
+        }
+        stats += '</div>';
+        return svg + stats;
+      }
+
+      // Last 24h of actuals thinned to one point per 30 min for the ticker
+      // sparkline — numbers only, so the slide carries no markup.
+      function elecSparkValues(hist) {
+        if (!hist || !hist.actual || hist.actual.length < 6) return null;
+        var from = Date.now() - 24 * 3600 * 1000;
+        var out = [];
+        for (var i = 0; i < hist.actual.length; i += 6) {
+          if (hist.actual[i][0] >= from) out.push(hist.actual[i][1]);
+        }
+        var last = hist.actual[hist.actual.length - 1][1];
+        if (out.length && out[out.length - 1] !== last) out.push(last);
+        return out.length >= 3 ? out : null;
       }
 
       function renderElectricity(qldPrice) {
@@ -5777,6 +6014,7 @@
         var html = '<div class="elec-price ' + priceClass + '">' +
           '$' + qldPrice.toFixed(2) + '<span class="unit"> /MWh</span>' +
           '</div>';
+        html += buildElectricityChart(lastElecHistory);
 
         elements.elecContent.innerHTML = html;
         scheduleMasonry();
@@ -7312,8 +7550,8 @@
           };
         }
 
-        // News story overlay: headline taps on the card + ticker rows
-        bindNewsStoryTaps();
+        // Ticker taps: headlines open the story, any other reading lifts its card
+        bindTickerTaps();
 
         // Spotlight overlay click-to-dismiss (on background, not panel)
         var spotlightOverlay = document.getElementById('spotlightOverlay');
@@ -8009,29 +8247,75 @@
         document.getElementById('newsStoryOverlay').className = 'spotlight-overlay';
       }
 
-      // Walk up from a tap target to the nearest element carrying data-news-idx.
-      function newsIdxFromEvent(e, stopEl) {
+      // Walk up from a tap target to the nearest element carrying `attr`.
+      function tapAttrFromEvent(e, stopEl, attr) {
         var el = e.target;
         while (el && el !== stopEl) {
-          if (el.getAttribute && el.getAttribute('data-news-idx') !== null) {
-            return parseInt(el.getAttribute('data-news-idx'), 10);
-          }
+          if (el.getAttribute && el.getAttribute(attr) !== null) return el.getAttribute(attr);
           el = el.parentNode;
         }
-        return -1;
+        return null;
       }
 
-      function bindNewsStoryTaps() {
-        var ids = ['newsContent', 'scrollingTickerContent', 'newsTickerContent'];
+      function newsIdxFromEvent(e, stopEl) {
+        var v = tapAttrFromEvent(e, stopEl, 'data-news-idx');
+        return v === null ? -1 : parseInt(v, 10);
+      }
+
+      // --- Card popup: a ticker/status-strip reading lifts its card over the
+      // dashboard. The card's `.card-inner` is cloned as-is (render functions
+      // keep every card's DOM current even in ticker-only mode), ids are
+      // stripped so the live card keeps ownership of them, and inline
+      // onclick actions (bin Done, bushfire Dismiss) still reach their window
+      // globals before the tap bubbles up and closes the popup.
+
+      var _cardPopupTimer = null;
+
+      function showCardPopup(cardId) {
+        if (cardId === 'finance') { showFinanceSpotlight(); return; }
+        var card = document.querySelector('.card[data-card-id="' + cardId + '"]');
+        var inner = card ? card.querySelector('.card-inner') : null;
+        var panel = document.getElementById('cardPopupPanel');
+        if (!inner || !panel) return;
+        var clone = inner.cloneNode(true);
+        var withIds = clone.querySelectorAll('[id]');
+        for (var i = 0; i < withIds.length; i++) withIds[i].removeAttribute('id');
+        panel.innerHTML = '';
+        panel.appendChild(clone);
+        var hint = document.createElement('div');
+        hint.className = 'card-popup-hint';
+        hint.textContent = 'Tap anywhere to close';
+        panel.appendChild(hint);
+        document.getElementById('cardPopupOverlay').className = 'spotlight-overlay active';
+        if (_cardPopupTimer) clearTimeout(_cardPopupTimer);
+        _cardPopupTimer = setTimeout(hideCardPopup, 60000);
+      }
+
+      function hideCardPopup() {
+        if (_cardPopupTimer) { clearTimeout(_cardPopupTimer); _cardPopupTimer = null; }
+        var overlay = document.getElementById('cardPopupOverlay');
+        if (overlay) overlay.className = 'spotlight-overlay';
+        var panel = document.getElementById('cardPopupPanel');
+        if (panel) panel.innerHTML = '';
+      }
+
+      function bindTickerTaps() {
+        var ids = ['newsContent', 'scrollingTickerContent', 'newsTickerContent', 'statusStrip'];
         for (var i = 0; i < ids.length; i++) {
           (function(el) {
             if (!el) return;
             el.onclick = function(e) {
               if (Date.now() < _tickerClickSuppressUntil) return; // release after a swipe
               var idx = newsIdxFromEvent(e, el);
-              if (idx < 0) return;
+              if (idx >= 0) {
+                e.stopPropagation();
+                showNewsStory(idx);
+                return;
+              }
+              var cardId = tapAttrFromEvent(e, el, 'data-card-id');
+              if (!cardId) return;
               e.stopPropagation();
-              showNewsStory(idx);
+              showCardPopup(cardId);
             };
           })(document.getElementById(ids[i]));
         }
@@ -8041,6 +8325,8 @@
         }
         var closeBtn = document.getElementById('newsStoryClose');
         if (closeBtn) closeBtn.onclick = hideNewsStory;
+        var cardOverlay = document.getElementById('cardPopupOverlay');
+        if (cardOverlay) cardOverlay.onclick = hideCardPopup; // one tap anywhere dismisses
       }
 
       function feedHealthAge(now, timestamp) {
@@ -9153,6 +9439,66 @@
         return '';
       }
 
+      // Month of daily closes from the worker ([[ts, close], ...]) → plain
+      // numbers for the ticker sparkline. Null unless there's a real run.
+      function financeSparkValues(history) {
+        if (!history || history.length < 3) return null;
+        var out = [];
+        for (var i = 0; i < history.length; i++) {
+          var c = history[i] && history[i][1];
+          if (typeof c === 'number' && isFinite(c)) out.push(c);
+        }
+        return out.length >= 3 ? out : null;
+      }
+
+      // Gold-in-AUD has no series of its own: divide the two histories on the
+      // calendar days they share (futures and forex keep different sessions).
+      function financeHistoryRatio(numHist, denHist) {
+        if (!numHist || !denHist) return null;
+        var byDay = {};
+        var i, key;
+        for (i = 0; i < denHist.length; i++) {
+          key = Math.floor(denHist[i][0] / 86400);
+          if (denHist[i][1]) byDay[key] = denHist[i][1];
+        }
+        var out = [];
+        for (i = 0; i < numHist.length; i++) {
+          key = Math.floor(numHist[i][0] / 86400);
+          if (byDay[key]) out.push([numHist[i][0], numHist[i][1] / byDay[key]]);
+        }
+        return out;
+      }
+
+      // Colour the sparkline by its own first-to-last move so the line and its
+      // colour describe the same window (the day-change arrow keeps its own
+      // colour). `invert` flips the sense for "lower is better" instruments.
+      function financeSparkClass(vals, invert) {
+        if (!vals || vals.length < 2) return 'spark-flat';
+        var d = vals[vals.length - 1] - vals[0];
+        if (invert) d = -d;
+        return d > 0 ? 'spark-up' : (d < 0 ? 'spark-down' : 'spark-flat');
+      }
+
+      // Neutral per-instrument ticker icon: the old \uD83D\uDCC8 chart-going-up
+      // glyph read as a trend signal once a real sparkline sat beside it.
+      function financeIcon(format) {
+        if (format === 'forex') return '\uD83D\uDCB1';            // currency exchange
+        if (format === 'commodity_aud') return '\uD83E\uDD47';    // gold medal
+        if (format === 'commodity') return '\uD83D\uDEE2\uFE0F'; // oil drum
+        if (format === 'crypto') return '\uD83D\uDCB0';           // money bag
+        return '\uD83C\uDFE6';                                     // bank (index/stock)
+      }
+
+      // Custom tickers carry no format, so infer one from the Yahoo symbol
+      // (only used to pick the neutral ticker icon).
+      function detectCustomFinanceFormat(symbol) {
+        if (symbol.charAt(0) === '^') return 'index';
+        if (/=X$/.test(symbol)) return 'forex';
+        if (/=F$/.test(symbol)) return 'commodity';
+        if (/-[A-Z]{2,4}$/.test(symbol)) return 'crypto';
+        return 'stock';
+      }
+
       function customFinanceView(item, quote) {
         if (!quote || quote.price === null || quote.price === undefined) return null;
         var previous = quote.previousClose;
@@ -9371,6 +9717,7 @@
           var fcTomorrow = forecastDay(lastForecastData, 1);
           if (fcTomorrow) {
             slides.push({
+              cardId: 'forecast',
               icon: getWeatherEmoji(fcTomorrow.code),
               label: 'Tomorrow',
               value: (fcTomorrow.hi != null ? Math.round(fcTomorrow.hi) + '\u00B0' : '--') + ' / ' + (fcTomorrow.lo != null ? Math.round(fcTomorrow.lo) + '\u00B0' : '--'),
@@ -9384,6 +9731,7 @@
           var wTemp = Math.round(lastWeatherData.current.temperature_2m);
           var wCode = lastWeatherData.current.weather_code;
           slides.push({
+            cardId: 'weather',
             icon: getWeatherEmoji(wCode),
             label: 'Weather',
             value: wTemp + '\u00B0C',
@@ -9398,6 +9746,7 @@
           var activeWarnings = getActiveWeatherWarnings();
           if (activeWarnings.length) {
             slides.push({
+              cardId: 'weatherWarnings',
               icon: '\u26A0\uFE0F',
               label: 'Weather Warning',
               value: activeWarnings[0].shortTitle || activeWarnings[0].title || 'Active',
@@ -9411,6 +9760,7 @@
           var nearbyBushfires = getNearbyBushfires();
           if (nearbyBushfires.length) {
             slides.push({
+              cardId: 'bushfires',
               icon: '\uD83D\uDD25',
               label: nearbyBushfires[0].level || 'Bushfire',
               value: bushfireAreaTitle(nearbyBushfires[0]),
@@ -9437,6 +9787,7 @@
           if (birthdayItems.length) {
             var nextBirthday = birthdayItems[0];
             slides.push({
+              cardId: 'birthdays',
               icon: '\uD83C\uDF82',
               label: nextBirthday.daysUntil === 0 ? 'Birthday today' : 'Next birthday',
               value: nextBirthday.name,
@@ -9451,6 +9802,7 @@
           var aqVal = Math.round(lastAirQualityData.current.us_aqi);
           var aqCat = getAqiCategory(aqVal);
           slides.push({
+            cardId: 'airQuality',
             icon: '\uD83C\uDF2C\uFE0F',
             label: 'Air Quality',
             value: '' + aqVal,
@@ -9467,6 +9819,7 @@
           if (uvVal !== null) {
             var uvCat = getUvIndexCategory(uvVal);
             slides.push({
+              cardId: 'uvIndex',
               icon: '\u2600\uFE0F',
               label: 'UV Index',
               value: formatUvIndexValue(uvVal),
@@ -9489,18 +9842,20 @@
             }
           }
           if (highestPollen) {
-            slides.push({ icon: '\uD83C\uDF31', label: highestPollen.name + ' pollen', value: String(highestPollen.value), changeClass: '', changeText: highestPollen.category, kind: 'status', statusOrder: 30 });
+            slides.push({ cardId: 'pollen', icon: '\uD83C\uDF31', label: highestPollen.name + ' pollen', value: String(highestPollen.value), changeClass: '', changeText: highestPollen.category, kind: 'status', statusOrder: 30 });
           }
         }
 
         // Electricity
         if (config.showElectricity && isTickerDisplayMode(config.electricityDisplayMode) && lastElecPrice !== null && !isNaN(lastElecPrice)) {
           slides.push({
+            cardId: 'electricity',
             icon: '\u26A1',
             label: 'Electricity',
             value: '$' + lastElecPrice.toFixed(2),
             changeClass: '',
-            changeText: '/MWh'
+            changeText: '/MWh',
+            spark: elecSparkValues(lastElecHistory)
           });
         }
 
@@ -9535,6 +9890,7 @@
           }
           if (nextBusMins !== null) {
             slides.push({
+              cardId: config.showBus1 ? 'bus1' : 'bus2',
               icon: '\uD83D\uDE8C',
               label: 'Next Bus (' + nextBusRoute + ')',
               value: nextBusMins <= 0 ? 'Due' : nextBusMins + ' min',
@@ -9561,6 +9917,7 @@
               var bLabel = bDiff === 0 ? 'Today' : (bDiff === 1 ? 'Tomorrow' : 'in ' + bDiff + ' days');
               var bIsRecycling = isBinRecyclingForDate(new Date(bToday.getTime() + bDiff * 86400000));
               slides.push({
+                cardId: 'bin',
                 icon: '\uD83D\uDDD1\uFE0F',
                 label: 'Bin Collection',
                 value: binDay + ' \u2014 ' + bLabel,
@@ -9582,6 +9939,7 @@
           var flCallsign = (flLowest[1] || '').trim() || 'N/A';
           var flSide = getFlightEastWestSide(flLowest[5]);
           slides.push({
+            cardId: 'flights',
             icon: '\u2708\uFE0F',
             label: 'Flights Overhead',
             value: flCount + ' aircraft',
@@ -9606,12 +9964,23 @@
           }
           if (cheapest) {
             var fuelCents = cheapest.price / 10;
+            // 30-day cheapest-price record for this grade (worker-kept, one
+            // point per 6h) — needs ~18h of history before it draws.
+            var fuelSpark = null;
+            var fuelHist = lastFuelData.history && lastFuelData.history[cheapest.grade];
+            if (fuelHist && fuelHist.length >= 3) {
+              fuelSpark = [];
+              for (var fhi = 0; fhi < fuelHist.length; fhi++) fuelSpark.push(fuelHist[fhi][1] / 10);
+            }
             slides.push({
+              cardId: 'fuel',
               icon: '\u26FD',
               label: 'Fuel (' + cheapest.grade + ')',
               value: fuelCents.toFixed(1) + 'c',
               changeClass: '',
-              changeText: cheapest.station
+              changeText: cheapest.station,
+              spark: fuelSpark,
+              sparkClass: 'spark-fuel'
             });
           }
         }
@@ -9655,6 +10024,7 @@
               }
               if (spVal.length > 30) spVal = spHome + ' v ' + spAway;
               slides.push({
+                cardId: sp.key,
                 icon: sec.title.substring(0, 2),
                 label: sec.title.substring(2).trim(),
                 value: spVal,
@@ -9683,12 +10053,16 @@
               var gCls = gChg > 0 ? 'finance-up' : (gChg < 0 ? 'finance-down' : 'finance-flat');
               var gArrow = gChg > 0 ? '\u25B2' : (gChg < 0 ? '\u25BC' : '');
               var gSign = gChg > 0 ? '+' : '';
+              var gSpark = financeSparkValues(financeHistoryRatio(gq.history, aq.history));
               slides.push({
-                icon: '\uD83D\uDCC8',
+                cardId: 'finance',
+                icon: financeIcon(finfo.format),
                 label: finfo.name,
                 value: 'A$' + gPrice.toFixed(0),
                 changeClass: gCls,
-                changeText: gArrow + ' ' + gSign + gPct.toFixed(2) + '%'
+                changeText: gArrow + ' ' + gSign + gPct.toFixed(2) + '%',
+                spark: gSpark,
+                sparkClass: financeSparkClass(gSpark)
               });
               continue;
             }
@@ -9710,24 +10084,32 @@
             else if (finfo.format === 'crypto') fPriceStr = '$' + fq.price.toLocaleString(undefined, {maximumFractionDigits: 0});
             else fPriceStr = fq.price.toLocaleString(undefined, {maximumFractionDigits: 2});
 
+            var fSpark = financeSparkValues(fq.history);
             slides.push({
-              icon: '\uD83D\uDCC8',
+              cardId: 'finance',
+              icon: financeIcon(finfo.format),
               label: finfo.name,
               value: fPriceStr,
               changeClass: fCls,
-              changeText: fArrow + ' ' + fSignStr + fPct.toFixed(2) + '%'
+              changeText: fArrow + ' ' + fSignStr + fPct.toFixed(2) + '%',
+              spark: fSpark,
+              sparkClass: financeSparkClass(fSpark, finfo.invert)
             });
           }
           var tickerCustom = getCustomFinanceList();
           for (var tci = 0; tci < tickerCustom.length; tci++) {
             var tickerView = customFinanceView(tickerCustom[tci], lastFinanceData[tickerCustom[tci].symbol]);
             if (!tickerView) continue;
+            var tcSpark = financeSparkValues((lastFinanceData[tickerCustom[tci].symbol] || {}).history);
             slides.push({
-              icon: '\uD83D\uDCC8',
+              cardId: 'finance',
+              icon: financeIcon(detectCustomFinanceFormat(tickerCustom[tci].symbol)),
               label: tickerCustom[tci].name,
               value: tickerView.price,
               changeClass: tickerView.cls,
-              changeText: (tickerView.change > 0 ? '\u25B2 +' : (tickerView.change < 0 ? '\u25BC ' : '')) + tickerView.pct.toFixed(2) + '%'
+              changeText: (tickerView.change > 0 ? '\u25B2 +' : (tickerView.change < 0 ? '\u25BC ' : '')) + tickerView.pct.toFixed(2) + '%',
+              spark: tcSpark,
+              sparkClass: financeSparkClass(tcSpark)
             });
           }
         }
@@ -9739,6 +10121,7 @@
           var pmTitle = pmTop.title || 'Market';
           if (pmTitle.length > 30) pmTitle = pmTitle.substring(0, 27) + '...';
           slides.push({
+            cardId: 'polymarket',
             icon: '\uD83D\uDCCA',
             label: pmTitle,
             value: pmPct + '% Yes',
@@ -9751,8 +10134,8 @@
       }
 
       var _scrollTickerRows = [
-        { barId: 'scrollingTicker', contentId: 'scrollingTickerContent', speed: 60, lastHtml: '', pos: 0, halfWidth: 0, paused: false, hoverBound: false, dragging: false, dragSeenAt: 0, fling: 0 },
-        { barId: 'newsTicker', contentId: 'newsTickerContent', speed: 45, lastHtml: '', pos: 0, halfWidth: 0, paused: false, hoverBound: false, dragging: false, dragSeenAt: 0, fling: 0 }
+        { barId: 'scrollingTicker', contentId: 'scrollingTickerContent', speed: 60, lastHtml: '', pos: 0, halfWidth: 0, paused: false, hoverBound: false, dragging: false, dragSeenAt: 0, touchedAt: 0, fling: 0 },
+        { barId: 'newsTicker', contentId: 'newsTickerContent', speed: 45, lastHtml: '', pos: 0, halfWidth: 0, paused: false, hoverBound: false, dragging: false, dragSeenAt: 0, touchedAt: 0, fling: 0 }
       ];
       // Swipe-to-scrub: a finger on a row drags it directly; letting go flings
       // it in the swipe direction (left = faster, right = rewind) with the
@@ -9766,6 +10149,11 @@
       // window) would otherwise leave row.dragging set and freeze that row for
       // good. Treat a drag with no input event for this long as released.
       var TICKER_DRAG_STALE_MS = 3000;
+      // iOS synthesises mouseenter after a tap and withholds mouseleave until
+      // some other element is tapped, so the desktop hover-pause would stick
+      // and leave the row frozen once any fling decayed. A mouseenter this
+      // soon after a touch is that synthetic one — ignore it.
+      var TICKER_TOUCH_HOVER_IGNORE_MS = 1500;
       var _tickerClickSuppressUntil = 0;
       var _scrollTickerRafId = null;
 
@@ -9852,6 +10240,11 @@
           // A second finger, or a new touch after a swallowed release, ends
           // the drag in progress before anything else.
           if (row.dragging) end();
+          // A finger on the row means nobody is hovering it — clear any pause
+          // a synthetic mouseenter left behind, and remember the touch so the
+          // one that follows this tap is ignored too.
+          row.touchedAt = Date.now();
+          row.paused = false;
           if (e.touches.length !== 1) return;
           begin(e.touches[0].clientX);
         }, false);
@@ -9860,8 +10253,8 @@
           move(e.touches[0].clientX);
           if (e.cancelable) e.preventDefault();
         }, false);
-        tickerEl.addEventListener('touchend', end, false);
-        tickerEl.addEventListener('touchcancel', end, false);
+        tickerEl.addEventListener('touchend', function() { row.touchedAt = Date.now(); end(); }, false);
+        tickerEl.addEventListener('touchcancel', function() { row.touchedAt = Date.now(); end(); }, false);
         // Mouse drag for desktop testing — hover already pauses the row there.
         tickerEl.addEventListener('mousedown', function(e) {
           if (e.button !== 0) return;
@@ -9877,7 +10270,10 @@
           var tickerEl = document.getElementById(row.barId);
           if (tickerEl) {
             row.hoverBound = true;
-            tickerEl.onmouseenter = function() { row.paused = true; };
+            tickerEl.onmouseenter = function() {
+              if (Date.now() - row.touchedAt < TICKER_TOUCH_HOVER_IGNORE_MS) return;
+              row.paused = true;
+            };
             tickerEl.onmouseleave = function() { row.paused = false; };
             bindScrollTickerSwipe(row, tickerEl);
           }
@@ -9893,12 +10289,44 @@
       }
 
       function scrollTickerItemHtml(slide) {
-        var html = '<span class="scrolling-ticker-item"' + (slide.newsIdx !== undefined ? ' data-news-idx="' + slide.newsIdx + '"' : '') + '>';
+        var html = '<span class="scrolling-ticker-item"' + (slide.newsIdx !== undefined ? ' data-news-idx="' + slide.newsIdx + '"' : '') + (slide.cardId ? ' data-card-id="' + escapeHtml(slide.cardId) + '"' : '') + '>';
         html += '<span class="ticker-item-icon">' + escapeHtml(slide.icon) + '</span>';
         html += '<span class="ticker-item-label">' + escapeHtml(slide.label) + '</span>';
         html += '<span class="ticker-item-value">' + escapeHtml(slide.value) + '</span>';
         if (slide.changeText) html += '<span class="ticker-item-change' + (slide.changeClass ? ' ' + slide.changeClass : '') + '">' + escapeHtml(slide.changeText) + '</span>';
+        if (slide.spark) html += tickerSparkHtml(slide.spark, slide.sparkClass);
         return html + '</span>';
+      }
+
+      // 60x14 polyline from an array of numbers; anything non-numeric drops
+      // the sparkline rather than reaching the markup.
+      function tickerSparkHtml(vals, cls) {
+        var W = 60, H = 14, i;
+        var min = Infinity, max = -Infinity;
+        for (i = 0; i < vals.length; i++) {
+          var v = Number(vals[i]);
+          if (!isFinite(v)) return '';
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+        if (vals.length < 2) return '';
+        if (max === min) { max += 1; min -= 1; }
+        var pts = '';
+        for (i = 0; i < vals.length; i++) {
+          var x = Math.round(i / (vals.length - 1) * W * 10) / 10;
+          var y = Math.round((1 + (1 - (vals[i] - min) / (max - min)) * (H - 2)) * 10) / 10;
+          pts += (i ? ' ' : '') + x + ',' + y;
+        }
+        var h = '<svg class="ticker-spark' + (cls ? ' ' + escapeHtml(cls) : '') + '" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">';
+        if (min < 0 && max > 0) {
+          var zy = Math.round((1 + (1 - (0 - min) / (max - min)) * (H - 2)) * 10) / 10;
+          h += '<line class="spark-zero" x1="0" y1="' + zy + '" x2="' + W + '" y2="' + zy + '"/>';
+        }
+        h += '<polyline points="' + pts + '"/>';
+        var lastXY = pts.substring(pts.lastIndexOf(' ') + 1).split(',');
+        h += '<circle cx="' + lastXY[0] + '" cy="' + lastXY[1] + '" r="1.6"/>';
+        h += '</svg>';
+        return h;
       }
 
       function renderStatusStrip(slides) {
@@ -9908,7 +10336,7 @@
         for (var i = 0; i < slides.length; i++) {
           var slide = slides[i];
           var detail = slide.statusDetail !== undefined ? slide.statusDetail : slide.changeText;
-          html += '<div class="status-strip-item" role="listitem"><span class="status-strip-label">' + escapeHtml(slide.label) + '</span><span class="status-strip-reading"><span class="status-strip-value">' + escapeHtml(slide.value) + '</span>';
+          html += '<div class="status-strip-item" role="listitem"' + (slide.cardId ? ' data-card-id="' + escapeHtml(slide.cardId) + '"' : '') + '><span class="status-strip-label">' + escapeHtml(slide.label) + '</span><span class="status-strip-reading"><span class="status-strip-value">' + escapeHtml(slide.value) + '</span>';
           if (detail) html += '<span class="status-strip-detail' + (slide.changeClass ? ' ' + slide.changeClass : '') + '">' + escapeHtml(detail) + '</span>';
           html += '</span></div>';
         }
