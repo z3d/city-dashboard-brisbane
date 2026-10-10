@@ -241,7 +241,112 @@ function checkWorkerFetchDeadline(worker) {
 // stable under key order, so an identical re-PUT never costs a KV write. Bin
 // merge must keep the newer date per field.
 
+// Pollen: the worker cache can be up to 12h (or 3 days stale) old, so card
+// and ticker must pick the forecast day matching the local date, not days[0].
+// Google's AU TREE index is cypress only and is labelled as such.
+function checkPollenHelpers(frontend) {
+  var source = extractFunction(frontend, 'getLocalDateString') + '\n' +
+    extractBetween(frontend, 'var POLLEN_TYPE_LABELS', '\n      function pollenTypeLabel', 'pollen constants') + '\n' +
+    extractFunction(frontend, 'pollenTypeLabel') + '\n' +
+    extractFunction(frontend, 'pollenCoverageNote') + '\n' +
+    extractFunction(frontend, 'pollenDayForToday') + '\n' +
+    extractFunction(frontend, 'pollenReportedTypes');
+  var data = { days: [
+    { date: '2026-09-28', types: { TREE: { value: 1 }, GRASS: { value: 1 } } },
+    { date: '2026-09-29', types: { TREE: { value: 2 }, GRASS: { value: 2 } } },
+    { date: '2026-09-30', types: { GRASS: { value: 3 } } }
+  ] };
+  var context = { data: data, output: null };
+  vm.runInNewContext(
+    source + '\n' +
+      'function d(x) { var r = pollenDayForToday(data, x); return r ? r.date : null; }\n' +
+      'output = [' +
+      'd(new Date(2026, 8, 28, 20)),' +
+      'd(new Date(2026, 8, 29, 7)),' +     // cached overnight: must not show the 28th
+      'd(new Date(2026, 8, 27, 12)),' +    // clock behind the forecast: next future day
+      'd(new Date(2026, 9, 1, 9)),' +      // every day is past: no current forecast
+      'pollenReportedTypes(data.days[0]).join(","),' +
+      'pollenReportedTypes(null).length,' +
+      'pollenTypeLabel("TREE", { regionCode: "AU" }),' +
+      'pollenTypeLabel("TREE", { regionCode: "US" }),' +
+      'pollenTypeLabel("GRASS", { regionCode: "AU" }),' +
+      '!!pollenCoverageNote({ regionCode: "AU" }),' +
+      'pollenCoverageNote({})' +
+      '];',
+    context
+  );
+  var expected = ['2026-09-28', '2026-09-29', '2026-09-28', null, 'GRASS,TREE', 0, 'Cypress', 'Tree', 'Grass', true, ''];
+  if (JSON.stringify(context.output) !== JSON.stringify(expected)) {
+    throwFail('pollen helpers changed behaviour: ' + JSON.stringify(context.output));
+  }
+  if (frontend.indexOf('lastPollenData.days[0]') !== -1) {
+    throwFail('pollen card/ticker must use pollenDayForToday(), not days[0]');
+  }
+  console.log('Pollen helper tests passed');
+}
+
+// Weather feels-like (BOM apparent temperature with wind) for the top bar,
+// dew point for the scrolling/fullscreen ticker.
+function checkClimateHelpers(frontend) {
+  var source = [extractFunction(frontend, 'getDewpointComfort'),
+    extractFunction(frontend, 'apparentTempC'),
+    extractFunction(frontend, 'weatherConditions'),
+    extractFunction(frontend, 'climateStripDetail'),
+    extractFunction(frontend, 'climateDew')].join('\n');
+  var context = { out: null };
+  vm.runInNewContext(source + '\n' +
+    'out = {\n' +
+    '  windMs: weatherConditions({current:{temperature_2m:20,relative_humidity_2m:50,dew_point_2m:9,wind_speed_10m:36}}).windMs,\n' +
+    '  noWind: weatherConditions({current:{temperature_2m:20}}).windMs,\n' +
+    '  empty: weatherConditions(null).temp,\n' +
+    '  windChill: climateStripDetail({temp:20, humidity:50, windMs:10}),\n' +
+    '  calmMuggy: climateStripDetail({temp:30, humidity:70, windMs:0}),\n' +
+    '  neutral: climateStripDetail({temp:24, humidity:50, windMs:1}),\n' +
+    '  missingWind: climateStripDetail({temp:30, humidity:70, windMs:null}),\n' +
+    '  noTemp: climateStripDetail({temp:null, humidity:50, windMs:2}),\n' +
+    '  dew: climateDew(17.6),\n' +
+    '  dewNone: climateDew(null)\n' +
+    '};', context);
+  var expected = { windMs: 10, noWind: null, empty: null, windChill: 'feels 13°', calmMuggy: 'feels 36°',
+    neutral: '', missingWind: '', noTemp: '', dew: { text: 'dew 18°', cls: 'dewpoint-uncomfortable' }, dewNone: null };
+  if (JSON.stringify(context.out) !== JSON.stringify(expected)) {
+    throwFail('climate helpers changed behaviour: ' + JSON.stringify(context.out));
+  }
+  console.log('Climate helper tests passed');
+}
+
+// Top-bar cards: one picker value "mode:placement" round-trips through config.
+function checkStripPlacement(frontend) {
+  var source = [extractFunction(frontend, 'stripPlacement'),
+    extractFunction(frontend, 'stripModeValue'),
+    extractFunction(frontend, 'applyStripModeValue'),
+    extractFunction(frontend, 'isTickerDisplayMode')].join('\n');
+  var context = { out: null };
+  vm.runInNewContext('var config = { weatherDisplayMode: "both", weatherPlacement: "bar", pollenDisplayMode: "card", pollenPlacement: "junk" };\n' +
+    source + '\n' +
+    'var r = [stripModeValue("weather"), stripModeValue("pollen"), stripPlacement("pollen")];\n' +
+    'applyStripModeValue("weather", "ticker:both"); r.push(config.weatherDisplayMode, config.weatherPlacement);\n' +
+    'applyStripModeValue("weather", "banner"); r.push(config.weatherDisplayMode, config.weatherPlacement);\n' +
+    'out = r;', context);
+  var expected = ['both:bar', 'card', 'bar', 'ticker', 'both', 'banner', 'both'];
+  if (JSON.stringify(context.out) !== JSON.stringify(expected)) {
+    throwFail('strip placement helpers changed behaviour: ' + JSON.stringify(context.out));
+  }
+  var m = frontend.match(/var STRIP_PLACEMENT_CARDS = \[([^\]]*)\]/);
+  if (!m) throwFail('STRIP_PLACEMENT_CARDS missing');
+  var cards = m[1].replace(/['\s]/g, '').split(',');
+  for (var i = 0; i < cards.length; i++) {
+    if (frontend.indexOf('<select id="' + cards[i] + 'DisplayMode" class="display-mode-select display-mode-wide"><option value="card">Card</option><option value="ticker:bar">') === -1) {
+      throwFail(cards[i] + ' needs the combined display/placement picker');
+    }
+  }
+  console.log('Strip placement tests passed');
+}
+
 try { checkBinHelpers(html); } catch (e) { fail('bin helpers: ' + e.message); }
+try { checkPollenHelpers(html); } catch (e) { fail('pollen helpers: ' + e.message); }
+try { checkClimateHelpers(html); } catch (e) { fail('climate helpers: ' + e.message); }
+try { checkStripPlacement(html); } catch (e) { fail('strip placement: ' + e.message); }
 try { checkDisplayModeTickerParity(html); } catch (e) { fail('display-mode parity: ' + e.message); }
 try { checkCardOrderCompleteness(html); } catch (e) { fail('card order: ' + e.message); }
 try { checkNeedsAttentionDismissal(html); } catch (e) { fail('needs attention dismissal: ' + e.message); }

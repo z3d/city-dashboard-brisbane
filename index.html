@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.64.0">
+  <meta name="app-version" content="1.65.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -1524,6 +1524,7 @@
       appearance: none;
       cursor: pointer;
     }
+    .display-mode-wide { width: 168px; }
     .display-mode-select option {
       background: #202033;
       color: #fff;
@@ -1552,8 +1553,12 @@
       font-weight: 600; letter-spacing: 0.03em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap;
     }
     .status-strip-reading { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-align-items: baseline; align-items: baseline; min-width: 0; margin-top: 2px; }
-    .status-strip-value { overflow: hidden; color: rgba(255,255,255,0.92); font-size: 0.86em; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-    .status-strip-detail { -webkit-flex-shrink: 0; flex-shrink: 0; margin-left: 5px; color: rgba(255,255,255,0.48); font-size: 0.66em; white-space: nowrap; }
+    .status-strip-value { overflow: hidden; color: rgba(255,255,255,0.95); font-size: 1.05em; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .status-strip-detail { min-width: 0; overflow: hidden; -webkit-flex-shrink: 4; flex-shrink: 4; margin-left: 6px; color: rgba(255,255,255,0.72); font-size: 0.85em; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+    .status-strip-detail.ticker-alert { color: #ffb74d; }
+    .status-strip .status-strip-value.ticker-warn { color: #ffb74d; }
+    .status-strip .status-strip-value.ticker-urgent { color: #f44336; }
+    .scrolling-ticker-item .ticker-dew { margin-left: 6px; }
     .scrolling-ticker {
       overflow: hidden;
       background: rgba(0,0,0,0.4);
@@ -1984,7 +1989,8 @@
     body.light-theme .status-strip-item { border-right-color: rgba(0,0,0,0.07); }
     body.light-theme .status-strip-label { color: rgba(0,0,0,0.58); }
     body.light-theme .status-strip-value { color: #1a1a2e; }
-    body.light-theme .status-strip-detail { color: rgba(0,0,0,0.48); }
+    body.light-theme .status-strip-detail { color: rgba(26,26,46,0.72); }
+    body.light-theme .status-strip-detail.ticker-alert { color: #e65100; }
     /* Ticker Overlay */
     body.light-theme .ticker-overlay {
       background: #f0f2f5;
@@ -2535,7 +2541,7 @@
               <span class="card-setting-name">Pollen</span>
             </div>
             <div class="card-setting-checks">
-              <select id="pollenDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <select id="pollenDisplayMode" class="display-mode-select display-mode-wide"><option value="card">Card</option><option value="ticker:bar">Top bar</option><option value="ticker:ticker">Ticker</option><option value="ticker:both">Top bar + Ticker</option><option value="both:bar">Card + Top bar</option><option value="both:ticker">Card + Ticker</option><option value="both:both">Card + Top bar + Ticker</option><option value="banner">Banner</option></select>
               <label class="master-label"><input type="checkbox" id="showPollen"></label>
             </div>
           </div>
@@ -2553,7 +2559,7 @@
               <span class="card-setting-name">Air Quality</span>
             </div>
             <div class="card-setting-checks">
-              <select id="airQualityDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <select id="airQualityDisplayMode" class="display-mode-select display-mode-wide"><option value="card">Card</option><option value="ticker:bar">Top bar</option><option value="ticker:ticker">Ticker</option><option value="ticker:both">Top bar + Ticker</option><option value="both:bar">Card + Top bar</option><option value="both:ticker">Card + Ticker</option><option value="both:both">Card + Top bar + Ticker</option><option value="banner">Banner</option></select>
               <label class="master-label" id="showAirQualityMasterLabel"><input type="checkbox" id="showAirQuality"></label>
             </div>
           </div>
@@ -3083,7 +3089,7 @@
               <span class="card-setting-name">UV Index</span>
             </div>
             <div class="card-setting-checks">
-              <select id="uvIndexDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <select id="uvIndexDisplayMode" class="display-mode-select display-mode-wide"><option value="card">Card</option><option value="ticker:bar">Top bar</option><option value="ticker:ticker">Ticker</option><option value="ticker:both">Top bar + Ticker</option><option value="both:bar">Card + Top bar</option><option value="both:ticker">Card + Ticker</option><option value="both:both">Card + Top bar + Ticker</option><option value="banner">Banner</option></select>
               <label class="master-label" id="showUvIndexMasterLabel"><input type="checkbox" id="showUvIndex"></label>
             </div>
           </div>
@@ -3119,7 +3125,7 @@
               <span class="card-setting-name">Weather</span>
             </div>
             <div class="card-setting-checks">
-              <select id="weatherDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <select id="weatherDisplayMode" class="display-mode-select display-mode-wide"><option value="card">Card</option><option value="ticker:bar">Top bar</option><option value="ticker:ticker">Ticker</option><option value="ticker:both">Top bar + Ticker</option><option value="both:bar">Card + Top bar</option><option value="both:ticker">Card + Ticker</option><option value="both:both">Card + Top bar + Ticker</option><option value="banner">Banner</option></select>
               <label class="master-label" id="showWeatherMasterLabel"><input type="checkbox" id="showWeather" checked></label>
             </div>
           </div>
@@ -3451,6 +3457,10 @@
       var STORAGE_PREFIX = PROFILE ? 'brisbane_' + PROFILE + '_' : 'brisbane_';
       function storageKey(name) { return STORAGE_PREFIX + name; }
 
+      // Cards that emit steady status readings for the top bar (kind: 'status'
+      // ticker slides); each picks top bar, scrolling ticker, or both.
+      var STRIP_PLACEMENT_CARDS = ['weather', 'uvIndex', 'airQuality', 'pollen'];
+
       // Canonical card order; also the config default (single source of truth).
       var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'forecast', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'];
 
@@ -3591,6 +3601,10 @@
         airQualityDisplayMode: 'both',
         uvIndexDisplayMode: 'both',
         pollenDisplayMode: 'card',
+        weatherPlacement: 'bar',
+        uvIndexPlacement: 'bar',
+        airQualityPlacement: 'bar',
+        pollenPlacement: 'bar',
         electricityDisplayMode: 'both',
         busDisplayMode: 'both',
         fuelDisplayMode: 'both',
@@ -4082,6 +4096,10 @@
                 config[_dk] = _def;
               }
             }
+            for (var _spi = 0; _spi < STRIP_PLACEMENT_CARDS.length; _spi++) {
+              var _spk = STRIP_PLACEMENT_CARDS[_spi] + 'Placement';
+              config[_spk] = (parsed[_spk] === 'ticker' || parsed[_spk] === 'both') ? parsed[_spk] : 'bar';
+            }
             config.scrollingTicker = parsed.scrollingTicker !== undefined ? parsed.scrollingTicker : false;
             config.lightTheme = parsed.lightTheme !== undefined ? parsed.lightTheme : false;
           } else {
@@ -4328,6 +4346,24 @@
         if (cardId === 'finance') return config.financeDisplayMode;
         if (cardId === 'polymarket') return config.polymarketDisplayMode;
         return 'card';
+      }
+
+      // Cards whose ticker readings are steady status metrics: each chooses
+      // whether they sit on the static top bar, scroll in the ticker, or both.
+      function stripPlacement(cardId) {
+        var v = config[cardId + 'Placement'];
+        return (v === 'ticker' || v === 'both') ? v : 'bar';
+      }
+      // One picker per strip card combines display mode and placement:
+      // "both:bar" = Card + Top bar. Card and Banner carry no placement.
+      function stripModeValue(cardId) {
+        var mode = config[cardId + 'DisplayMode'];
+        return isTickerDisplayMode(mode) ? mode + ':' + stripPlacement(cardId) : mode;
+      }
+      function applyStripModeValue(cardId, value) {
+        var parts = String(value || 'card').split(':');
+        config[cardId + 'DisplayMode'] = parts[0];
+        if (parts[1]) config[cardId + 'Placement'] = parts[1];
       }
 
       function isTickerDisplayMode(mode) {
@@ -5226,7 +5262,7 @@
 
         var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + config.latitude +
                   '&longitude=' + config.longitude +
-                  '&current=temperature_2m,relative_humidity_2m,dew_point_2m,weather_code,uv_index,cloud_cover' +
+                  '&current=temperature_2m,relative_humidity_2m,dew_point_2m,weather_code,uv_index,cloud_cover,wind_speed_10m' +
                   '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
                   '&minutely_15=precipitation&forecast_minutely_15=10' +
                   '&timezone=auto&forecast_days=2&timeformat=unixtime';
@@ -5448,6 +5484,48 @@
         if (dewpoint < 21) return { class: 'dewpoint-uncomfortable', emoji: '😓', label: 'Uncomfortable' };
         if (dewpoint < 24) return { class: 'dewpoint-humid', emoji: '😰', label: 'Very Humid' };
         return { class: 'dewpoint-oppressive', emoji: '🥵', label: 'Oppressive' };
+      }
+
+      // BOM apparent temperature (non-radiation version):
+      //   AT = Ta + 0.33e - 0.70ws - 4.00,  e = RH/100 * 6.105 * exp(17.27*Ta/(237.7+Ta))
+      // ws is the 10 m wind speed in m/s.
+      function apparentTempC(t, h, windMs) {
+        if (t === null || t === undefined || h === null || h === undefined) return null;
+        var e = (h / 100) * 6.105 * Math.exp((17.27 * t) / (237.7 + t));
+        return t + 0.33 * e - 0.70 * (windMs || 0) - 4.0;
+      }
+
+      // Current outdoor conditions from Open-Meteo. Wind arrives in km/h; the
+      // apparent-temperature formula wants m/s.
+      function weatherConditions(data) {
+        var cur = data && data.current;
+        function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : null; }
+        var wind = cur ? num(cur.wind_speed_10m) : null;
+        return {
+          temp: cur ? num(cur.temperature_2m) : null,
+          humidity: cur ? num(cur.relative_humidity_2m) : null,
+          dewpoint: cur ? num(cur.dew_point_2m) : null,
+          windMs: wind !== null ? wind / 3.6 : null
+        };
+      }
+
+      // The status strip's detail for the weather reading: "feels X°" when the
+      // apparent temperature is 1° or more either side of the reading (wind
+      // can chill as well as humidity warm), otherwise nothing. Humidity and
+      // dew point stay in the scrolling ticker so the top bar never overflows.
+      function climateStripDetail(c) {
+        if (!c || c.temp === null || c.temp === undefined || typeof c.windMs !== 'number') return '';
+        var feels = apparentTempC(c.temp, c.humidity, c.windMs);
+        if (feels === null || Math.abs(feels - c.temp) < 1) return '';
+        return 'feels ' + feels.toFixed(0) + '\u00B0';
+      }
+
+      // Dew point for the scrolling ticker and fullscreen ticker, coloured on
+      // the Weather card's comfort scale (getDewpointComfort).
+      function climateDew(dewpoint) {
+        if (typeof dewpoint !== 'number' || !isFinite(dewpoint)) return null;
+        var d = Math.round(dewpoint);
+        return { text: 'dew ' + d + '\u00B0', cls: getDewpointComfort(d).class };
       }
 
       function renderWeather(data) {
@@ -7226,6 +7304,9 @@
         elements.financeDisplayMode.value = config.financeDisplayMode;
         elements.polymarketDisplayMode.value = config.polymarketDisplayMode;
         elements.scrollingTickerCheckbox.checked = config.scrollingTicker;
+        for (var spu = 0; spu < STRIP_PLACEMENT_CARDS.length; spu++) {
+          elements[STRIP_PLACEMENT_CARDS[spu] + 'DisplayMode'].value = stripModeValue(STRIP_PLACEMENT_CARDS[spu]);
+        }
         elements.settingsSaved.className = 'settings-saved';
         elements.settingsOverlay.className = 'settings-overlay active';
         elements.settingsOverlay.setAttribute('aria-hidden', 'false');
@@ -7427,6 +7508,10 @@
         config.financeDisplayMode = elements.financeDisplayMode.value;
         config.polymarketDisplayMode = elements.polymarketDisplayMode.value;
         config.scrollingTicker = elements.scrollingTickerCheckbox.checked;
+        // Strip cards' pickers hold "mode:placement"; split them back out.
+        for (var sps = 0; sps < STRIP_PLACEMENT_CARDS.length; sps++) {
+          applyStripModeValue(STRIP_PLACEMENT_CARDS[sps], elements[STRIP_PLACEMENT_CARDS[sps] + 'DisplayMode'].value);
+        }
 
         // Update title
         elements.dashboardTitle.textContent = config.dashboardTitle;
@@ -8710,6 +8795,47 @@
 
       // --- Pollen ---
 
+      var POLLEN_TYPE_LABELS = { GRASS: 'Grass', TREE: 'Tree', WEED: 'Weed' };
+      var POLLEN_TYPE_KEYS = ['GRASS', 'TREE', 'WEED'];
+      // Google's Australian model covers only grasses and cypress pine (see
+      // developers.google.com/maps/documentation/pollen/coverage), so its
+      // "TREE" index there is cypress alone. Label it honestly so a Very Low
+      // reading isn't read as an all-clear for eucalyptus or acacia.
+      var POLLEN_REGION_NOTES = {
+        AU: { labels: { TREE: 'Cypress' }, note: 'Google covers grass and cypress pine only here \u2014 not eucalyptus, acacia or weeds' }
+      };
+      function pollenTypeLabel(key, data) {
+        var region = POLLEN_REGION_NOTES[(data && data.regionCode) || ''];
+        return (region && region.labels[key]) || POLLEN_TYPE_LABELS[key];
+      }
+      function pollenCoverageNote(data) {
+        var region = POLLEN_REGION_NOTES[(data && data.regionCode) || ''];
+        return region ? region.note : '';
+      }
+
+      // The worker caches the forecast for up to 12h (3 days when stale), so
+      // days[0] is often yesterday. Card and ticker both show the day matching
+      // the local date, else the next future day; null when every day is past.
+      function pollenDayForToday(data, now) {
+        var days = (data && data.days) || [];
+        var todayStr = getLocalDateString(now || new Date());
+        for (var i = 0; i < days.length; i++) {
+          if (days[i] && days[i].date >= todayStr) return days[i];
+        }
+        return null;
+      }
+
+      // Google omits types it doesn't report for a region (WEED in AU), so only
+      // show types present in the forecast rather than a permanent '--' / 0.
+      function pollenReportedTypes(day) {
+        var types = (day && day.types) || {};
+        var keys = [];
+        for (var i = 0; i < POLLEN_TYPE_KEYS.length; i++) {
+          if (types[POLLEN_TYPE_KEYS[i]]) keys.push(POLLEN_TYPE_KEYS[i]);
+        }
+        return keys;
+      }
+
       function pollenCategoryColor(category) {
         if (category === 'None' || category === 'Very Low') return '#4CAF50';
         if (category === 'Low') return '#8BC34A';
@@ -8741,15 +8867,14 @@
       }
 
       function renderPollen() {
-        var days = lastPollenData && lastPollenData.days ? lastPollenData.days : [];
         if (!elements.pollenContent) return;
-        if (!days.length) {
-          elements.pollenContent.innerHTML = '<div class="card-error">No pollen data</div>';
+        var today = pollenDayForToday(lastPollenData);
+        var keys = pollenReportedTypes(today);
+        if (!today || !keys.length) {
+          elements.pollenContent.innerHTML = '<div class="card-error">No current pollen forecast</div>';
           return;
         }
-        var types = days[0].types || {};
-        var keys = ['GRASS', 'TREE', 'WEED'];
-        var labels = { GRASS: 'Grass', TREE: 'Tree', WEED: 'Weed' };
+        var types = today.types;
         var html = '<div style="display:-webkit-flex;display:flex;">';
         for (var i = 0; i < keys.length; i++) {
           var type = types[keys[i]];
@@ -8757,18 +8882,22 @@
           var category = type && type.category ? type.category : (value === 0 ? 'None' : '--');
           var color = pollenCategoryColor(category);
           html += '<div style="-webkit-flex:1;flex:1;text-align:center;padding:6px 0;">';
-          html += '<div style="font-size:0.8em;color:#999;">' + labels[keys[i]] + '</div>';
+          html += '<div style="font-size:0.8em;color:#999;">' + escapeHtml(pollenTypeLabel(keys[i], lastPollenData)) + '</div>';
           html += '<div style="font-size:1.5em;font-weight:700;color:' + color + ';">' + (value !== null ? value : '--') + '</div>';
           html += '<div style="font-size:0.75em;color:' + color + ';">' + escapeHtml(category) + '</div></div>';
         }
         html += '</div>';
-        if (days[0].plants && days[0].plants.length) {
+        if (today.plants && today.plants.length) {
           var plants = [];
-          for (var pi = 0; pi < days[0].plants.length && pi < 4; pi++) plants.push(escapeHtml(days[0].plants[pi].name));
+          for (var pi = 0; pi < today.plants.length && pi < 4; pi++) plants.push(escapeHtml(today.plants[pi].name));
           html += '<div style="font-size:0.8em;color:#999;text-align:center;margin-top:4px;">' + plants.join(' &middot; ') + '</div>';
         }
+        var pollenNote = pollenCoverageNote(lastPollenData);
+        if (pollenNote) {
+          html += '<div style="font-size:0.7em;color:#888;text-align:center;margin-top:4px;font-style:italic;">' + escapeHtml(pollenNote) + '</div>';
+        }
         elements.pollenContent.innerHTML = html;
-        elements.pollenUpdated.textContent = formatUpdatedTime(new Date());
+        elements.pollenUpdated.textContent = formatUpdatedTime(lastPollenData.fetchedAt ? new Date(lastPollenData.fetchedAt) : new Date());
         scheduleMasonry();
       }
 
@@ -9730,15 +9859,23 @@
         if (config.showWeather && isTickerDisplayMode(config.weatherDisplayMode) && lastWeatherData && lastWeatherData.current) {
           var wTemp = Math.round(lastWeatherData.current.temperature_2m);
           var wCode = lastWeatherData.current.weather_code;
+          var wCond = weatherConditions(lastWeatherData);
+          var wDetail = climateStripDetail(wCond);
+          var wChange = [];
+          if (wDetail) wChange.push(wDetail);
+          if (wCond.humidity !== null) wChange.push(Math.round(wCond.humidity) + '%');
           slides.push({
             cardId: 'weather',
             icon: getWeatherEmoji(wCode),
             label: 'Weather',
             value: wTemp + '\u00B0C',
             changeClass: '',
-            changeText: '',
+            changeText: wChange.join(' \u00B7 '),
             kind: 'status',
-            statusOrder: 10
+            statusOrder: 10,
+            // Top bar shows feels-like only; humidity and dew scroll in the ticker.
+            statusDetail: wDetail,
+            dew: climateDew(wCond.dewpoint)
           });
         }
 
@@ -9831,14 +9968,15 @@
           }
         }
 
-        if (config.showPollen && isTickerDisplayMode(config.pollenDisplayMode) && lastPollenData && lastPollenData.days && lastPollenData.days.length) {
-          var pollenTypes = lastPollenData.days[0].types || {};
+        var pollenToday = (config.showPollen && isTickerDisplayMode(config.pollenDisplayMode)) ? pollenDayForToday(lastPollenData) : null;
+        if (pollenToday) {
+          var pollenTypes = pollenToday.types || {};
           var highestPollen = null;
-          var pollenKeys = ['GRASS', 'TREE', 'WEED'];
+          var pollenKeys = pollenReportedTypes(pollenToday);
           for (var pki = 0; pki < pollenKeys.length; pki++) {
             var pollenType = pollenTypes[pollenKeys[pki]];
             if (pollenType && pollenType.value !== null && (!highestPollen || pollenType.value > highestPollen.value)) {
-              highestPollen = { name: pollenKeys[pki], value: pollenType.value, category: pollenType.category || '' };
+              highestPollen = { name: pollenTypeLabel(pollenKeys[pki], lastPollenData), value: pollenType.value, category: pollenType.category || '' };
             }
           }
           if (highestPollen) {
@@ -10294,6 +10432,8 @@
         html += '<span class="ticker-item-label">' + escapeHtml(slide.label) + '</span>';
         html += '<span class="ticker-item-value">' + escapeHtml(slide.value) + '</span>';
         if (slide.changeText) html += '<span class="ticker-item-change' + (slide.changeClass ? ' ' + slide.changeClass : '') + '">' + escapeHtml(slide.changeText) + '</span>';
+        // Dew point rides the ticker only (the top bar stays compact).
+        if (slide.dew) html += '<span class="ticker-item-change ticker-dew ' + escapeHtml(slide.dew.cls) + '">' + escapeHtml(slide.dew.text) + '</span>';
         if (slide.spark) html += tickerSparkHtml(slide.spark, slide.sparkClass);
         return html + '</span>';
       }
@@ -10336,7 +10476,7 @@
         for (var i = 0; i < slides.length; i++) {
           var slide = slides[i];
           var detail = slide.statusDetail !== undefined ? slide.statusDetail : slide.changeText;
-          html += '<div class="status-strip-item" role="listitem"' + (slide.cardId ? ' data-card-id="' + escapeHtml(slide.cardId) + '"' : '') + '><span class="status-strip-label">' + escapeHtml(slide.label) + '</span><span class="status-strip-reading"><span class="status-strip-value">' + escapeHtml(slide.value) + '</span>';
+          html += '<div class="status-strip-item" role="listitem"' + (slide.cardId ? ' data-card-id="' + escapeHtml(slide.cardId) + '"' : '') + '><span class="status-strip-label">' + escapeHtml(slide.label) + '</span><span class="status-strip-reading"><span class="status-strip-value' + (slide.valueClass ? ' ' + escapeHtml(slide.valueClass) : '') + '">' + escapeHtml(slide.value) + '</span>';
           if (detail) html += '<span class="status-strip-detail' + (slide.changeClass ? ' ' + slide.changeClass : '') + '">' + escapeHtml(detail) + '</span>';
           html += '</span></div>';
         }
@@ -10397,8 +10537,15 @@
         var mainSlides = [];
         var statusSlides = [];
         for (var i = 0; i < tickerSlides.length; i++) {
-          if (config.scrollingTicker && tickerSlides[i].kind === 'status') statusSlides.push(tickerSlides[i]);
-          else if (config.scrollingTicker && !(config.newsOwnTickerRow && tickerSlides[i].kind === 'news')) mainSlides.push(tickerSlides[i]);
+          if (!config.scrollingTicker) break;
+          if (tickerSlides[i].kind === 'status') {
+            // Status readings go to the top bar, the scrolling row, or both.
+            var place = stripPlacement(tickerSlides[i].cardId);
+            if (place !== 'ticker') statusSlides.push(tickerSlides[i]);
+            if (place !== 'bar') mainSlides.push(tickerSlides[i]);
+          } else if (!(config.newsOwnTickerRow && tickerSlides[i].kind === 'news')) {
+            mainSlides.push(tickerSlides[i]);
+          }
         }
         statusSlides.sort(function(a, b) { return (a.statusOrder || 999) - (b.statusOrder || 999); });
         var newsSlides = config.newsOwnTickerRow ? buildNewsTickerSlides() : [];
@@ -10451,8 +10598,14 @@
         document.getElementById('tickerLabel').textContent = slide.label;
         document.getElementById('tickerValue').textContent = slide.value;
         var changeEl = document.getElementById('tickerChange');
-        changeEl.textContent = slide.changeText;
+        changeEl.textContent = slide.changeText || '';
         changeEl.className = 'ticker-change ' + (slide.changeClass || '');
+        if (slide.dew) {
+          var dewEl = document.createElement('span');
+          dewEl.className = 'ticker-dew ' + slide.dew.cls;
+          dewEl.textContent = (slide.changeText ? ' \u00B7 ' : '') + slide.dew.text;
+          changeEl.appendChild(dewEl);
+        }
         renderTickerDots();
       }
 

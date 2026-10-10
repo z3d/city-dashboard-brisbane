@@ -8,7 +8,7 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 
 - Weather, 7-day forecast, BoM warnings, rain-soon alerts, air quality, UV index, sunrise, and sunset
 - Nearby Queensland bushfire incidents with local dismissal, plus ABC/Brisbane Times headlines
-- Optional pollen forecasts through the Google Pollen API
+- Optional pollen forecasts through the Google Pollen API, showing today's forecast day. In Australia Google covers only grasses and cypress pine, so the tree index is labelled Cypress and the card notes the gap
 - Optional locally configured birthday reminders with per-person timezones, acknowledgement, and birthday-only import/export (ships with an empty list)
 - Queensland electricity spot prices via AEMO NEMWEB, with a 24h price graph plus the AEMO pre-dispatch forecast
 - Brisbane City Council bin collection lookup and recycling/garden alternation
@@ -20,7 +20,7 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Queensland fuel prices, when a FPD Direct API token is configured (a 30-day cheapest-price sparkline needs a KV binding)
 - Optional Polymarket event card
 - Touch-friendly card ordering, collapsible cards, schedules, keyboard-accessible settings, import/export settings, and dark/light themes
-- Static conditions strip, moving data ticker (swipe to scrub or fling it), optional dedicated headline row, and on-demand Worker feed diagnostics
+- Static conditions strip (weather shows a wind-aware feels-like when it differs; humidity and colour-coded dew point scroll in the ticker), moving data ticker (swipe to scrub or fling it), optional dedicated headline row, and on-demand Worker feed diagnostics
 - Tap any headline in the News card or on a ticker row to open a story overlay with the summary and a read-more link; tap any other ticker or conditions-strip reading to pop up its card. Both auto-close after a minute on wall screens
 - Needs Attention coverage for ticker-only weather warnings, serious nearby bushfires, unacknowledged birthdays, tomorrow's extreme heat or rain, and data feeds that have been down for an hour; items are dismissable per device until they change or the day ends
 

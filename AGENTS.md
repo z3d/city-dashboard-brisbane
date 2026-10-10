@@ -55,6 +55,7 @@ Keep `.dev.vars`, `.env`, `.Codex/settings.local.json`, `.codex/settings.local.j
 - DOM elements are cached in `elements` from `initElements()`.
 - New cards must be added to `DEFAULT_CARD_ORDER`.
 - Card display modes use `xxxDisplayMode` with `card`, `ticker`, `banner`, or `both`.
+- Cards in `STRIP_PLACEMENT_CARDS` (weather, UV, air quality, pollen) emit `kind: 'status'` slides and also store `xxxPlacement` (`bar`, `ticker`, `both`): top bar, scrolling row, or both. Their settings select combines the two as `mode:placement` (e.g. `both:bar`); `openSettings()` fills it via `stripModeValue()` and `saveSettings()` splits it with `applyStripModeValue()`. A new status card must join the list and use the wide combined select.
 - Escape all third-party API text at the HTML sink with `escapeHtml()`; use `safeDomId()` for API-derived element IDs.
 - Frontend XHRs inherit a 30-second timeout and same-URL GET deduplication. Worker upstream requests inherit a 20-second deadline. Preserve both wrappers.
 - Needs Attention is a global smart strip controlled by `showNeedsAttention` and `needsAttentionMaxItems`. It renders in `#needsAttention`, uses enabled feature toggles as eligibility, and builds alerts from cached `last*Data`/config without extra API fetches. It currently excludes bin and sports alerts, and only treats electricity as attention-worthy when prices are high.
