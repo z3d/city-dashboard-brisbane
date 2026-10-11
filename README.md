@@ -19,7 +19,7 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Finance prices via Yahoo Finance, including user-defined symbols, with 30-day ticker sparklines
 - Queensland fuel prices, when a FPD Direct API token is configured (a 30-day cheapest-price sparkline needs a KV binding)
 - Optional Polymarket event card
-- Touch-friendly card ordering, collapsible cards, schedules, keyboard-accessible settings, import/export settings, and dark/light themes
+- Touch-friendly card ordering, collapsible cards, schedules, keyboard-accessible settings, import/export settings, and dark/light themes with an optional auto mode (light after sunrise, dark before sunset, offset configurable)
 - Static conditions strip (weather shows a wind-aware feels-like when it differs; humidity and colour-coded dew point scroll in the ticker), moving data ticker (swipe to scrub or fling it), optional dedicated headline row, and on-demand Worker feed diagnostics
 - Tap any headline in the News card or on a ticker row to open a story overlay with the summary and a read-more link; tap any other ticker or conditions-strip reading to pop up its card. Both auto-close after a minute on wall screens
 - Needs Attention coverage for ticker-only weather warnings, serious nearby bushfires, unacknowledged birthdays, tomorrow's extreme heat or rain, and data feeds that have been down for an hour; items are dismissable per device until they change or the day ends

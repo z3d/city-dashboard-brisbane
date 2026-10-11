@@ -126,7 +126,7 @@ function checkDisplayModeTickerParity(frontend) {
   var end = frontend.indexOf('\n      function ', start + 10);
   if (start === -1 || end === -1) throwFail('could not locate buildTickerSlides');
   var body = frontend.slice(start, end);
-  var re = /<select id="([A-Za-z0-9]+)DisplayMode"/g;
+  var re = /<(?:select|span) id="([A-Za-z0-9]+)DisplayMode"/g;
   var match;
   var missing = [];
   var seen = {};
@@ -318,17 +318,26 @@ function checkClimateHelpers(frontend) {
 // Top-bar cards: one picker value "mode:placement" round-trips through config.
 function checkStripPlacement(frontend) {
   var source = [extractFunction(frontend, 'stripPlacement'),
-    extractFunction(frontend, 'stripModeValue'),
-    extractFunction(frontend, 'applyStripModeValue'),
-    extractFunction(frontend, 'isTickerDisplayMode')].join('\n');
+    extractFunction(frontend, 'isTickerDisplayMode'),
+    extractFunction(frontend, 'stripChipInputs'),
+    extractFunction(frontend, 'paintStripChips'),
+    extractFunction(frontend, 'loadStripChips'),
+    extractFunction(frontend, 'saveStripChips')].join('\n');
   var context = { out: null };
-  vm.runInNewContext('var config = { weatherDisplayMode: "both", weatherPlacement: "bar", pollenDisplayMode: "card", pollenPlacement: "junk" };\n' +
+  // Fake chip groups: each "input" has value/checked and a parent label.
+  vm.runInNewContext('function group() { var ins = ["card", "bar", "ticker", "banner"].map(function (v) { return { value: v, checked: false, parentNode: { className: "" } }; }); return { getElementsByTagName: function () { return ins; }, ins: ins }; }\n' +
+    'var elements = { weatherDisplayMode: group(), pollenDisplayMode: group() };\n' +
+    'var config = { weatherDisplayMode: "both", weatherPlacement: "bar", pollenDisplayMode: "card", pollenPlacement: "junk" };\n' +
     source + '\n' +
-    'var r = [stripModeValue("weather"), stripModeValue("pollen"), stripPlacement("pollen")];\n' +
-    'applyStripModeValue("weather", "ticker:both"); r.push(config.weatherDisplayMode, config.weatherPlacement);\n' +
-    'applyStripModeValue("weather", "banner"); r.push(config.weatherDisplayMode, config.weatherPlacement);\n' +
+    'function state(id) { return elements[id + "DisplayMode"].ins.map(function (i) { return i.checked ? 1 : 0; }).join(""); }\n' +
+    'loadStripChips("weather"); loadStripChips("pollen");\n' +
+    'var r = [state("weather"), state("pollen"), stripPlacement("pollen"), elements.weatherDisplayMode.ins[0].parentNode.className];\n' +
+    'var w = elements.weatherDisplayMode.ins; w[0].checked = false; w[1].checked = true; w[2].checked = true; w[3].checked = false;\n' +
+    'saveStripChips("weather"); r.push(config.weatherDisplayMode, config.weatherPlacement);\n' +
+    'w[0].checked = true; w[1].checked = false; w[2].checked = false; saveStripChips("weather"); r.push(config.weatherDisplayMode, config.weatherPlacement);\n' +
+    'w[3].checked = true; saveStripChips("weather"); r.push(config.weatherDisplayMode, config.weatherPlacement);\n' +
     'out = r;', context);
-  var expected = ['both:bar', 'card', 'bar', 'ticker', 'both', 'banner', 'both'];
+  var expected = ['1100', '1000', 'bar', 'mode-chip on', 'ticker', 'both', 'card', 'both', 'banner', 'both'];
   if (JSON.stringify(context.out) !== JSON.stringify(expected)) {
     throwFail('strip placement helpers changed behaviour: ' + JSON.stringify(context.out));
   }
@@ -336,8 +345,8 @@ function checkStripPlacement(frontend) {
   if (!m) throwFail('STRIP_PLACEMENT_CARDS missing');
   var cards = m[1].replace(/['\s]/g, '').split(',');
   for (var i = 0; i < cards.length; i++) {
-    if (frontend.indexOf('<select id="' + cards[i] + 'DisplayMode" class="display-mode-select display-mode-wide"><option value="card">Card</option><option value="ticker:bar">') === -1) {
-      throwFail(cards[i] + ' needs the combined display/placement picker');
+    if (frontend.indexOf('<span class="display-mode-chips" id="' + cards[i] + 'DisplayMode" data-card="' + cards[i] + '" role="group">') === -1) {
+      throwFail(cards[i] + ' needs the Card/Bar/Ticker/Banner chip group');
     }
   }
   console.log('Strip placement tests passed');

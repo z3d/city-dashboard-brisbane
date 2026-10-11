@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.65.0">
+  <meta name="app-version" content="1.66.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -19,6 +19,25 @@
       padding: 0;
       box-sizing: border-box;
       -webkit-box-sizing: border-box;
+    }
+
+    /* Theme tokens. Dark values live on html, light values on body.light-theme;
+       inline styles in rendered HTML must use var(--x), never a raw dark grey. */
+    html {
+      /* text: t1 primary .. t6 faintest; s1/s2 inset surfaces; accents */
+      --t1: #e0e0e0; --t2: #ccc; --t3: #aaa; --t4: #888; --t5: #666; --t6: #555;
+      --s1: #1a1a2e; --s2: #23234a;
+      --ok: #4ade80; --ok2: #4CAF50; --warn: #fbbf24; --warn2: #fb923c; --orange: #FF9800; --bad: #f87171; --bad2: #f44336;
+      --purple: #c084fc; --info: #60a5fa; --info2: #2196F3; --cyan: #22d3ee; --lime: #a3e635; --indigo: #a5b4fc; --teal: #4ecdc4;
+      /* --wNN: translucent "ink" at 0.NN alpha (white on dark, near-black on light) */
+      --w03: rgba(255,255,255,0.03); --w04: rgba(255,255,255,0.04); --w05: rgba(255,255,255,0.05); --w06: rgba(255,255,255,0.06); --w07: rgba(255,255,255,0.07); --w08: rgba(255,255,255,0.08); --w09: rgba(255,255,255,0.09);
+      --w10: rgba(255,255,255,0.1); --w14: rgba(255,255,255,0.14); --w15: rgba(255,255,255,0.15); --w18: rgba(255,255,255,0.18); --w20: rgba(255,255,255,0.2); --w25: rgba(255,255,255,0.25); --w30: rgba(255,255,255,0.3);
+      --w35: rgba(255,255,255,0.35); --w45: rgba(255,255,255,0.45); --w50: rgba(255,255,255,0.5); --w55: rgba(255,255,255,0.55); --w60: rgba(255,255,255,0.6); --w72: rgba(255,255,255,0.72); --w75: rgba(255,255,255,0.75);
+      --w80: rgba(255,255,255,0.8); --w85: rgba(255,255,255,0.85); --w95: rgba(255,255,255,0.95);
+    }
+    html.light-theme {
+      background: #f0f2f5;
+      background: -webkit-linear-gradient(315deg, #f0f2f5 0%, #e8eaed 100%);
     }
 
     html, body {
@@ -60,7 +79,7 @@
       align-items: center;
       margin-bottom: 15px;
       padding-bottom: 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
+      border-bottom: 1px solid var(--w10);
     }
 
     .floating-settings-btn, .floating-ticker-btn {
@@ -70,8 +89,8 @@
       right: 10px;
       z-index: 999;
       background: rgba(30,30,30,0.85);
-      border: 1px solid rgba(255,255,255,0.15);
-      color: #aaa;
+      border: 1px solid var(--w15);
+      color: var(--t3);
       width: 36px;
       height: 36px;
       border-radius: 50%;
@@ -109,14 +128,14 @@
 
     .offline-indicator {
       display: none;
-      color: #ff6b6b;
+      color: var(--bad);
       font-size: 0.45em;
       margin-left: 8px;
       vertical-align: middle;
     }
 
     .btn {
-      background: rgba(255,255,255,0.1);
+      background: var(--w10);
       border: none;
       color: #fff;
       padding: 8px 12px;
@@ -129,7 +148,7 @@
     }
 
     .btn:active {
-      background: rgba(255,255,255,0.2);
+      background: var(--w20);
     }
 
     /* Cards Grid */
@@ -172,7 +191,7 @@
       background: linear-gradient(135deg, #14568f, #0b3457);
       color: #fff;
       box-shadow: 0 6px 20px rgba(0,0,0,0.45);
-      border: 1px solid rgba(255,255,255,0.18);
+      border: 1px solid var(--w18);
       -webkit-animation: alertPop 0.35s ease-out;
       animation: alertPop 0.35s ease-out;
     }
@@ -188,7 +207,7 @@
       padding: 0;
       border: none;
       background: transparent;
-      color: rgba(255,255,255,0.8);
+      color: var(--w80);
       font-size: 18px;
       line-height: 22px;
       cursor: pointer;
@@ -245,7 +264,7 @@
 
     .needs-attention-count {
       margin-left: 8px;
-      color: #9ca3af;
+      color: var(--t3);
       font-size: 0.9em;
       font-weight: 600;
       text-transform: none;
@@ -268,7 +287,7 @@
       min-width: 0;
       margin: 3px;
       padding: 8px 10px;
-      background: rgba(255,255,255,0.06);
+      background: var(--w06);
       border-left: 3px solid #f59e0b;
       border-radius: 7px;
       -webkit-border-radius: 7px;
@@ -286,7 +305,7 @@
     .needs-attention-item.action:focus { outline: 2px solid #60a5fa; outline-offset: 2px; }
 
     .needs-attention-label {
-      color: #9ca3af;
+      color: var(--t3);
       font-size: 0.72em;
       font-weight: 700;
       text-transform: uppercase;
@@ -323,7 +342,7 @@
       padding: 0;
       background: transparent;
       border: 0;
-      color: #9ca3af;
+      color: var(--t3);
       font-size: 15px;
       line-height: 40px;
       text-align: center;
@@ -371,8 +390,8 @@
     }
 
     .card.banner-card .card-inner {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.08);
+      background: var(--w08);
+      border: 1px solid var(--w08);
       border-radius: 10px;
       -webkit-border-radius: 10px;
       padding: 9px 12px;
@@ -390,12 +409,12 @@
     }
 
     .card.drag-over .card-inner {
-      outline: 2px dashed rgba(255,255,255,0.3);
+      outline: 2px dashed var(--w30);
       outline-offset: -2px;
     }
 
     .card-inner {
-      background: rgba(255,255,255,0.05);
+      background: var(--w05);
       border-radius: 16px;
       -webkit-border-radius: 16px;
       padding: 15px;
@@ -414,13 +433,13 @@
       align-items: center;
       margin-bottom: 12px;
       padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255,255,255,0.14);
+      border-bottom: 1px solid var(--w14);
     }
 
     .card-title {
       font-size: 0.9em;
       font-weight: 600;
-      color: #888;
+      color: var(--t4);
       display: -webkit-box;
       display: -webkit-flex;
       display: flex;
@@ -436,7 +455,7 @@
 
     .card-updated {
       font-size: 0.7em;
-      color: #555;
+      color: var(--t6);
     }
 
     .card-content {
@@ -575,7 +594,7 @@
       content: '\25BC';
       font-size: 0.6em;
       margin-left: 8px;
-      color: #666;
+      color: var(--t5);
       display: inline-block;
       -webkit-transition: -webkit-transform 0.2s;
       transition: transform 0.2s;
@@ -587,12 +606,12 @@
     }
 
     .card-error {
-      color: #f87171;
+      color: var(--bad);
       font-size: 0.85em;
     }
 
     .card-loading {
-      color: #888;
+      color: var(--t4);
       font-size: 0.85em;
     }
 
@@ -607,13 +626,13 @@
     .weather-title-temp {
       font-size: 1.4em;
       font-weight: 700;
-      color: #60a5fa;
+      color: var(--info);
       margin-left: 6px;
     }
 
     .weather-details {
       font-size: 1em;
-      color: #ccc;
+      color: var(--t2);
       display: -webkit-box;
       display: -webkit-flex;
       display: flex;
@@ -641,13 +660,13 @@
       border-radius: 6px;
       -webkit-border-radius: 6px;
     }
-    .forecast-today { background: rgba(255,255,255,0.05); }
-    .forecast-name { font-size: 0.72em; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.3px; }
+    .forecast-today { background: var(--w05); }
+    .forecast-name { font-size: 0.72em; color: var(--t3); text-transform: uppercase; letter-spacing: 0.3px; }
     .forecast-icon { font-size: 1.5em; line-height: 1.4; }
     .forecast-hi { font-weight: 700; color: #fff; }
-    .forecast-lo { color: #888; font-size: 0.9em; }
-    .forecast-rain { font-size: 0.75em; color: #9ca3af; min-height: 1.2em; margin-top: 2px; white-space: nowrap; }
-    .forecast-rain-likely, .forecast-mm { color: #60a5fa; }
+    .forecast-lo { color: var(--t4); font-size: 0.9em; }
+    .forecast-rain { font-size: 0.75em; color: var(--t3); min-height: 1.2em; margin-top: 2px; white-space: nowrap; }
+    .forecast-rain-likely, .forecast-mm { color: var(--info); }
     body.light-theme .forecast-today { background: rgba(0,0,0,0.05); }
     body.light-theme .forecast-hi { color: #1a1a2e; }
     body.light-theme .forecast-lo { color: #64748b; }
@@ -661,7 +680,7 @@
     }
 
     .weather-label {
-      color: #888;
+      color: var(--t4);
       margin-right: 6px;
     }
 
@@ -675,12 +694,12 @@
     }
 
     /* Dew point comfort levels */
-    .dewpoint-dry { color: #60a5fa; }
-    .dewpoint-comfortable { color: #4ade80; }
-    .dewpoint-ok { color: #a3e635; }
-    .dewpoint-sticky { color: #fbbf24; }
-    .dewpoint-uncomfortable { color: #fb923c; }
-    .dewpoint-humid { color: #f87171; }
+    .dewpoint-dry { color: var(--info); }
+    .dewpoint-comfortable { color: var(--ok); }
+    .dewpoint-ok { color: var(--lime); }
+    .dewpoint-sticky { color: var(--warn); }
+    .dewpoint-uncomfortable { color: var(--warn2); }
+    .dewpoint-humid { color: var(--bad); }
     .dewpoint-oppressive { color: #dc2626; }
 
     /* Air Quality / UV cards */
@@ -690,17 +709,17 @@
       font-weight: 700;
       margin-left: 6px;
     }
-    .aqi-good { color: #4ade80; }
-    .aqi-moderate { color: #fbbf24; }
-    .aqi-sensitive { color: #fb923c; }
-    .aqi-unhealthy { color: #f87171; }
-    .aqi-very-unhealthy { color: #c084fc; }
+    .aqi-good { color: var(--ok); }
+    .aqi-moderate { color: var(--warn); }
+    .aqi-sensitive { color: var(--warn2); }
+    .aqi-unhealthy { color: var(--bad); }
+    .aqi-very-unhealthy { color: var(--purple); }
     .aqi-hazardous { color: #b91c1c; }
-    .uv-low { color: #4ade80; }
-    .uv-moderate { color: #fbbf24; }
-    .uv-high { color: #fb923c; }
-    .uv-very-high { color: #f87171; }
-    .uv-extreme { color: #c084fc; }
+    .uv-low { color: var(--ok); }
+    .uv-moderate { color: var(--warn); }
+    .uv-high { color: var(--warn2); }
+    .uv-very-high { color: var(--bad); }
+    .uv-extreme { color: var(--purple); }
 
     /* Electricity Card */
     .elec-price {
@@ -711,44 +730,44 @@
 
     .elec-price .unit {
       font-size: 0.4em;
-      color: #888;
+      color: var(--t4);
       font-weight: 400;
     }
 
     .elec-price.cheap {
-      color: #4ade80;
+      color: var(--ok);
     }
 
     .elec-price.normal {
-      color: #fbbf24;
+      color: var(--warn);
     }
 
     .elec-price.expensive {
-      color: #f87171;
+      color: var(--bad);
     }
 
     .elec-price.negative {
-      color: #22d3ee;
+      color: var(--cyan);
     }
 
     .elec-note {
       font-size: 0.8em;
-      color: #888;
+      color: var(--t4);
     }
 
     /* Electricity price graph: 24h of 5-min actuals plus the AEMO pre-dispatch
        forecast, drawn as inline SVG so it clones cleanly into the card popup. */
     .elec-chart { display: block; width: 100%; height: auto; margin-top: 4px; }
-    .elec-chart-grid { stroke: rgba(255,255,255,0.08); stroke-width: 1; }
-    .elec-chart-label { fill: #888; font-size: 11px; }
+    .elec-chart-grid { stroke: var(--w08); stroke-width: 1; }
+    .elec-chart-label { fill: var(--t4); font-size: 11px; }
     .elec-chart-area { fill: rgba(251,191,36,0.14); }
-    .elec-chart-line { fill: none; stroke: #fbbf24; stroke-width: 2; stroke-linejoin: round; }
-    .elec-chart-forecast { fill: none; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 4 3; }
-    .elec-chart-now { stroke: rgba(255,255,255,0.35); stroke-width: 1; stroke-dasharray: 2 3; }
+    .elec-chart-line { fill: none; stroke: var(--warn); stroke-width: 2; stroke-linejoin: round; }
+    .elec-chart-forecast { fill: none; stroke: var(--t3); stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .elec-chart-now { stroke: var(--w35); stroke-width: 1; stroke-dasharray: 2 3; }
     .elec-chart-guide { stroke: rgba(248,113,113,0.5); stroke-width: 1; stroke-dasharray: 4 3; }
-    .elec-chart-spike { fill: #f87171; }
-    .elec-stats { font-size: 0.8em; color: #888; margin-top: 4px; }
-    .elec-stats b { color: #aaa; font-weight: 600; }
+    .elec-chart-spike { fill: var(--bad); }
+    .elec-stats { font-size: 0.8em; color: var(--t4); margin-top: 4px; }
+    .elec-stats b { color: var(--t3); font-weight: 600; }
     .card.banner-card .elec-chart, .card.banner-card .elec-stats { display: none; }
 
     /* Finance Card */
@@ -767,31 +786,31 @@
       min-width: 120px;
       margin: 6px;
       padding: 8px 10px;
-      background: rgba(255,255,255,0.04);
+      background: var(--w04);
       border-radius: 8px;
     }
     .finance-name {
       font-size: 0.8em;
-      color: #888;
+      color: var(--t4);
       margin-bottom: 2px;
     }
     .finance-value {
       font-size: 1.3em;
       font-weight: 600;
-      color: #e2e8f0;
+      color: var(--t1);
     }
     .finance-change {
       font-size: 0.85em;
       margin-top: 2px;
     }
     .finance-up {
-      color: #22c55e;
+      color: var(--ok);
     }
     .finance-down {
       color: #ef4444;
     }
     .finance-flat {
-      color: #888;
+      color: var(--t4);
     }
 
     /* Polymarket Card */
@@ -805,18 +824,18 @@
     .polymarket-item {
       padding: 8px 10px;
       margin-bottom: 10px;
-      background: rgba(255,255,255,0.04);
+      background: var(--w04);
       border-radius: 8px;
     }
     .polymarket-title {
       font-size: 0.9em;
-      color: #e2e8f0;
+      color: var(--t1);
       margin-bottom: 4px;
       line-height: 1.3;
     }
     .polymarket-bar-wrap {
       height: 20px;
-      background: rgba(255,255,255,0.08);
+      background: var(--w08);
       border-radius: 4px;
       overflow: hidden;
       position: relative;
@@ -839,12 +858,12 @@
     }
     .polymarket-outcome {
       font-size: 0.78em;
-      color: #a5b4fc;
+      color: var(--indigo);
       margin-bottom: 4px;
     }
     .polymarket-volume {
       font-size: 0.75em;
-      color: #888;
+      color: var(--t4);
       margin-top: 3px;
     }
 
@@ -857,25 +876,25 @@
     }
 
     .bin-next .bin-days {
-      color: #888;
+      color: var(--t4);
       font-weight: 400;
       font-size: 0.5em;
     }
 
     .bin-type {
       font-size: 1em;
-      color: #ccc;
+      color: var(--t2);
       margin-bottom: 4px;
     }
 
     .bin-recycling {
-      color: #fbbf24;
+      color: var(--warn);
       font-size: 1.5em;
       font-weight: 600;
     }
 
     .bin-garden {
-      color: #4ade80;
+      color: var(--ok);
       font-size: 1.5em;
       font-weight: 600;
     }
@@ -891,7 +910,7 @@
 
     .flight-item {
       padding: 6px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid var(--w05);
     }
 
     .flight-item:last-child {
@@ -900,12 +919,12 @@
 
     .flight-callsign {
       font-weight: 600;
-      color: #60a5fa;
+      color: var(--info);
       margin-right: 10px;
     }
 
     .flight-details {
-      color: #888;
+      color: var(--t4);
       font-size: 0.9em;
       margin-left: 4px;
     }
@@ -919,39 +938,39 @@
     }
 
     .flight-side-east {
-      color: #38bdf8;
+      color: var(--info);
     }
 
     .flight-side-west {
-      color: #fbbf24;
+      color: var(--warn);
     }
 
     .flight-low {
-      color: #f87171;
+      color: var(--bad);
     }
 
     .flight-medium {
-      color: #fbbf24;
+      color: var(--warn);
     }
 
     .flight-high {
-      color: #4ade80;
+      color: var(--ok);
     }
 
     .no-flights {
-      color: #888;
+      color: var(--t4);
       font-style: italic;
     }
 
     /* Fuel Prices Card */
     .fuel-station {
       padding: 6px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.07);
+      border-bottom: 1px solid var(--w07);
     }
     .fuel-station:last-child { border-bottom: none; }
     .fuel-station-name {
       font-weight: 600;
-      color: #60a5fa;
+      color: var(--info);
       font-size: 0.92em;
       margin-bottom: 4px;
     }
@@ -967,11 +986,11 @@
       align-items: baseline;
       padding: 5px 0;
     }
-    .fuel-grade-label { color: #aaa; font-size: 0.85em; min-width: 80px; }
-    .fuel-price { font-weight: 600; font-size: 1.05em; color: #94a3b8; }
-    .fuel-price-cheapest .fuel-price { color: #4ade80; text-shadow: 0 0 6px rgba(74,222,128,0.4); }
-    .fuel-price-cheapest .fuel-grade-label { color: #4ade80; }
-    .fuel-price-actual { font-size: 0.85em; color: #888; margin-left: 4px; }
+    .fuel-grade-label { color: var(--t3); font-size: 0.85em; min-width: 80px; }
+    .fuel-price { font-weight: 600; font-size: 1.05em; color: var(--t3); }
+    .fuel-price-cheapest .fuel-price { color: var(--ok); text-shadow: 0 0 6px rgba(74,222,128,0.4); }
+    .fuel-price-cheapest .fuel-grade-label { color: var(--ok); }
+    .fuel-price-actual { font-size: 0.85em; color: var(--t4); margin-left: 4px; }
     .fuel-station-row {
       display: -webkit-box;
       display: -webkit-flex;
@@ -989,7 +1008,7 @@
     .fuel-station-row .fuel-remove-btn {
       background: rgba(239,68,68,0.2);
       border: 1px solid rgba(239,68,68,0.4);
-      color: #f87171;
+      color: var(--bad);
       border-radius: 4px;
       padding: 2px 7px;
       cursor: pointer;
@@ -1020,7 +1039,7 @@
 
     .settings-panel {
       width: 100%;
-      background: #1e1e2e;
+      background: var(--s2);
       border-radius: 20px 20px 0 0;
       -webkit-border-radius: 20px 20px 0 0;
       max-height: 85vh;
@@ -1060,7 +1079,7 @@
     .settings-close {
       background: none;
       border: none;
-      color: #888;
+      color: var(--t4);
       font-size: 1.5em;
       cursor: pointer;
       padding: 5px;
@@ -1070,7 +1089,7 @@
 
     .settings-section-title {
       font-size: 0.85em;
-      color: #60a5fa;
+      color: var(--info);
       margin-bottom: 10px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -1083,15 +1102,15 @@
     .settings-group label {
       display: block;
       font-size: 0.85em;
-      color: #888;
+      color: var(--t4);
       margin-bottom: 6px;
     }
 
     .settings-group input {
       width: 100%;
       padding: 10px;
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: var(--w10);
+      border: 1px solid var(--w10);
       border-radius: 8px;
       -webkit-border-radius: 8px;
       color: #fff;
@@ -1138,7 +1157,7 @@
       -webkit-align-items: center;
       align-items: center;
       cursor: pointer;
-      color: #ccc;
+      color: var(--t2);
     }
     .settings-group .checkbox-label input[type="checkbox"] {
       -webkit-appearance: checkbox;
@@ -1156,7 +1175,7 @@
       padding: 12px;
       margin-bottom: 20px;
       font-size: 0.85em;
-      color: #60a5fa;
+      color: var(--info);
     }
 
     .settings-save {
@@ -1179,7 +1198,7 @@
 
     .settings-saved {
       text-align: center;
-      color: #4ade80;
+      color: var(--ok);
       font-size: 0.9em;
       margin-top: 10px;
       opacity: 0;
@@ -1195,11 +1214,11 @@
       width: 100%;
       margin-top: 10px;
       padding: 10px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: var(--w05);
+      border: 1px solid var(--w10);
       border-radius: 8px;
       -webkit-border-radius: 8px;
-      color: #888;
+      color: var(--t4);
       font-size: 0.85em;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
@@ -1207,13 +1226,13 @@
     }
 
     .settings-reload:active {
-      background: rgba(255,255,255,0.1);
+      background: var(--w10);
     }
 
     .settings-version {
       text-align: center;
       font-size: 0.7em;
-      color: #555;
+      color: var(--t6);
       margin-top: 15px;
     }
 
@@ -1225,7 +1244,7 @@
       -webkit-justify-content: center;
       justify-content: center;
       padding: 10px 20px;
-      background: #1e1e2e;
+      background: var(--s2);
       -webkit-flex-shrink: 0;
       flex-shrink: 0;
     }
@@ -1236,8 +1255,8 @@
       height: 48px;
       border-radius: 50%;
       -webkit-border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.3);
-      background: rgba(255,255,255,0.1);
+      border: 2px solid var(--w30);
+      background: var(--w10);
       color: #fff;
       font-size: 22px;
       line-height: 44px;
@@ -1247,15 +1266,15 @@
 
     .settings-scroll-btn:hover,
     .settings-scroll-btn:focus {
-      background: rgba(255,255,255,0.25);
-      border-color: rgba(255,255,255,0.6);
+      background: var(--w25);
+      border-color: var(--w60);
     }
 
     .settings-tabs {
       display: -webkit-box;
       display: -webkit-flex;
       display: flex;
-      background: rgba(255,255,255,0.07);
+      background: var(--w07);
       border-radius: 10px;
       -webkit-border-radius: 10px;
       padding: 3px;
@@ -1268,7 +1287,7 @@
       padding: 8px 4px;
       background: none;
       border: none;
-      color: #888;
+      color: var(--t4);
       font-size: 0.85em;
       border-radius: 8px;
       -webkit-border-radius: 8px;
@@ -1281,7 +1300,7 @@
       font-weight: 600;
     }
     .card-setting-row {
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--w08);
       border-radius: 10px;
       -webkit-border-radius: 10px;
       margin-bottom: 8px;
@@ -1295,7 +1314,7 @@
       -webkit-align-items: center;
       align-items: center;
       padding: 10px 12px;
-      background: rgba(255,255,255,0.03);
+      background: var(--w03);
     }
     .card-setting-icon {
       margin-right: 10px;
@@ -1306,7 +1325,7 @@
       -webkit-flex: 1;
       flex: 1;
       font-size: 0.9em;
-      color: #ccc;
+      color: var(--t2);
     }
     .card-setting-checks {
       display: -webkit-box;
@@ -1326,7 +1345,7 @@
       -webkit-align-items: center;
       align-items: center;
       font-size: 0.8em;
-      color: #aaa;
+      color: var(--t3);
       cursor: pointer;
       white-space: nowrap;
       margin-bottom: 0;
@@ -1376,7 +1395,7 @@
     .card-setting-arrow {
       display: inline-block;
       font-size: 0.65em;
-      color: #555;
+      color: var(--t6);
       margin-right: 8px;
       -webkit-transition: -webkit-transform 0.2s;
       transition: transform 0.2s;
@@ -1384,7 +1403,7 @@
     .card-setting-body {
       padding: 14px;
       background: rgba(0,0,0,0.2);
-      border-top: 1px solid rgba(255,255,255,0.05);
+      border-top: 1px solid var(--w05);
     }
     .card-setting-body .settings-group {
       margin-bottom: 12px;
@@ -1416,7 +1435,7 @@
     }
 
     .update-text {
-      color: #fbbf24;
+      color: var(--warn);
       font-size: 0.8em;
     }
 
@@ -1446,7 +1465,7 @@
     }
 
     .welcome-message p {
-      color: #888;
+      color: var(--t4);
       margin-bottom: 20px;
     }
 
@@ -1457,11 +1476,11 @@
       font-size: 0.65em;
       font-weight: 700;
       letter-spacing: 0.08em;
-      color: rgba(255,255,255,0.35);
+      color: var(--w35);
       text-transform: uppercase;
       margin-bottom: 6px;
       padding-bottom: 4px;
-      border-bottom: 1px solid rgba(255,255,255,0.07);
+      border-bottom: 1px solid var(--w07);
     }
     .sport-event-row {
       display: -webkit-flex;
@@ -1469,7 +1488,7 @@
       -webkit-flex-direction: column;
       flex-direction: column;
       padding: 5px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid var(--w05);
     }
     .sport-event-row:last-child { border-bottom: none; }
     .sport-event-teams {
@@ -1478,7 +1497,7 @@
       -webkit-align-items: center;
       align-items: center;
       font-size: 0.85em;
-      color: rgba(255,255,255,0.85);
+      color: var(--w85);
     }
     .sport-event-teams > * { margin-right: 6px; }
     .sport-event-teams > *:last-child { margin-right: 0; }
@@ -1493,28 +1512,28 @@
       -webkit-flex-shrink: 0;
       flex-shrink: 0;
     }
-    .sport-score.upcoming { color: rgba(255,255,255,0.3); font-weight: 400; }
+    .sport-score.upcoming { color: var(--w30); font-weight: 400; }
     .sport-event-meta {
       font-size: 0.72em;
-      color: rgba(255,255,255,0.35);
+      color: var(--w35);
       margin-top: 2px;
     }
-    .sport-event-past .sport-event-teams { color: rgba(255,255,255,0.6); }
-    .sport-event-past .sport-team { color: rgba(255,255,255,0.55); }
+    .sport-event-past .sport-event-teams { color: var(--w60); }
+    .sport-event-past .sport-team { color: var(--w55); }
     .soccer-league-row { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: space-between; justify-content: space-between; margin-top: 6px; }
     .soccer-league-row:first-child { margin-top: 0; }
-    .league-mode-select { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 2px 6px; font-size: 0.82em; }
+    .league-mode-select { background: var(--w08); color: #fff; border: 1px solid var(--w15); border-radius: 4px; padding: 2px 6px; font-size: 0.82em; }
     .display-mode-select {
       width: 116px;
       height: 28px;
       min-height: 28px;
-      background-color: rgba(255,255,255,0.08);
+      background-color: var(--w08);
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23ffffff' fill-opacity='0.72' d='M1 0l4 4 4-4 1 1-5 5-5-5z'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: right 8px center;
       background-size: 10px 6px;
       color: #fff;
-      border: 1px solid rgba(255,255,255,0.15);
+      border: 1px solid var(--w15);
       border-radius: 4px;
       padding: 0 24px 0 8px;
       font-size: 0.78em;
@@ -1524,45 +1543,85 @@
       appearance: none;
       cursor: pointer;
     }
-    .display-mode-wide { width: 168px; }
+    /* Strip cards: one chip per surface instead of an 8-way combo dropdown.
+       Card/Bar/Ticker toggle independently; Banner is exclusive. */
+    .display-mode-chips {
+      display: -webkit-inline-box; display: -webkit-inline-flex; display: inline-flex;
+      -webkit-box-align: center; -webkit-align-items: center; align-items: center;
+      margin-right: 6px;
+      border: 1px solid var(--w15);
+      border-radius: 4px;
+      overflow: hidden;
+      height: 28px;
+      background: var(--w04);
+    }
+    .card-setting-checks .mode-chip {
+      position: relative;
+      margin: 0;
+      height: 28px;
+      line-height: 28px;
+      padding: 0 8px;
+      font-size: 0.74em;
+      color: var(--w55);
+      border-right: 1px solid var(--w10);
+      cursor: pointer;
+      -webkit-user-select: none; user-select: none;
+    }
+    .card-setting-checks .mode-chip:last-child { border-right: none; }
+    .card-setting-checks .mode-chip input[type="checkbox"] {
+      position: absolute;
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .card-setting-checks .mode-chip input:checked + span {
+      color: #fff;
+      font-weight: 600;
+    }
+    .card-setting-checks .mode-chip.on {
+      background: rgba(79,142,247,0.35);
+    }
+    .card-setting-checks .mode-chip input:focus + span { text-decoration: underline; }
     .display-mode-select option {
       background: #202033;
       color: #fff;
     }
     .standings-table { width: 100%; border-collapse: collapse; font-size: 0.78em; margin-top: 8px; }
-    .standings-table th { text-align: left; color: rgba(255,255,255,0.45); font-weight: normal; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-    .standings-table td { padding: 3px 4px; color: rgba(255,255,255,0.75); }
+    .standings-table th { text-align: left; color: var(--w45); font-weight: normal; padding: 3px 4px; border-bottom: 1px solid var(--w10); }
+    .standings-table td { padding: 3px 4px; color: var(--w75); }
     .standings-table th.num, .standings-table td.num { text-align: center; }
-    .standings-table tr:nth-child(even) { background: rgba(255,255,255,0.03); }
-    .standings-title { font-size: 0.82em; color: rgba(255,255,255,0.5); font-weight: bold; margin-top: 10px; margin-bottom: 2px; }
+    .standings-table tr:nth-child(even) { background: var(--w03); }
+    .standings-title { font-size: 0.82em; color: var(--w50); font-weight: bold; margin-top: 10px; margin-bottom: 2px; }
 
     /* Scrolling Ticker Bar */
     .ticker-stack { margin-bottom: 15px; }
     .status-strip {
       display: -webkit-box; display: -webkit-flex; display: flex; overflow: hidden;
-      margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.09); border-radius: 10px;
+      margin-bottom: 8px; border: 1px solid var(--w09); border-radius: 10px;
       -webkit-border-radius: 10px; background: rgba(15,23,42,0.42);
     }
     .status-strip-item {
       -webkit-box-flex: 1; -webkit-flex: 1 1 0; flex: 1 1 0; min-width: 0;
-      padding: 9px 11px; border-right: 1px solid rgba(255,255,255,0.07);
+      padding: 9px 11px; border-right: 1px solid var(--w07);
     }
     .status-strip-item:last-child { border-right: none; }
     .status-strip-label {
-      display: block; overflow: hidden; color: rgba(255,255,255,0.72); font-size: 0.75em;
+      display: block; overflow: hidden; color: var(--w72); font-size: 0.75em;
       font-weight: 600; letter-spacing: 0.03em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap;
     }
     .status-strip-reading { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-align-items: baseline; align-items: baseline; min-width: 0; margin-top: 2px; }
-    .status-strip-value { overflow: hidden; color: rgba(255,255,255,0.95); font-size: 1.05em; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-    .status-strip-detail { min-width: 0; overflow: hidden; -webkit-flex-shrink: 4; flex-shrink: 4; margin-left: 6px; color: rgba(255,255,255,0.72); font-size: 0.85em; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-    .status-strip-detail.ticker-alert { color: #ffb74d; }
-    .status-strip .status-strip-value.ticker-warn { color: #ffb74d; }
-    .status-strip .status-strip-value.ticker-urgent { color: #f44336; }
+    .status-strip-value { overflow: hidden; color: var(--w95); font-size: 1.05em; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .status-strip-detail { min-width: 0; overflow: hidden; -webkit-flex-shrink: 4; flex-shrink: 4; margin-left: 6px; color: var(--w72); font-size: 0.85em; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+    .status-strip-detail.ticker-alert { color: var(--warn2); }
+    .status-strip .status-strip-value.ticker-warn { color: var(--warn2); }
+    .status-strip .status-strip-value.ticker-urgent { color: var(--bad2); }
     .scrolling-ticker-item .ticker-dew { margin-left: 6px; }
     .scrolling-ticker {
       overflow: hidden;
       background: rgba(0,0,0,0.4);
-      border-bottom: 1px solid rgba(255,255,255,0.1);
+      border-bottom: 1px solid var(--w10);
       padding: 8px 0;
       white-space: nowrap;
       position: relative;
@@ -1581,13 +1640,13 @@
       display: inline-block;
       margin-right: 20px;
       font-size: 0.9em;
-      color: #ccc;
+      color: var(--t2);
     }
     .scrolling-ticker-item .ticker-item-icon {
       margin-right: 3px;
     }
     .scrolling-ticker-item .ticker-item-label {
-      color: #888;
+      color: var(--t4);
       margin-right: 5px;
     }
     .scrolling-ticker-item .ticker-item-value {
@@ -1600,28 +1659,28 @@
     }
     /* Inline sparkline (numeric-only slide data, rendered by tickerSparkHtml) */
     .scrolling-ticker-item .ticker-spark { vertical-align: middle; margin-left: 6px; overflow: visible; }
-    .scrolling-ticker-item .ticker-spark polyline { fill: none; stroke: #fbbf24; stroke-width: 1.5; stroke-linejoin: round; }
-    .scrolling-ticker-item .ticker-spark .spark-zero { stroke: rgba(255,255,255,0.25); stroke-width: 1; }
-    .scrolling-ticker-item .ticker-spark circle { fill: #fbbf24; }
-    .scrolling-ticker-item .ticker-spark.spark-fuel polyline { stroke: #fb923c; }
-    .scrolling-ticker-item .ticker-spark.spark-fuel circle { fill: #fb923c; }
-    .scrolling-ticker-item .ticker-spark.spark-up polyline { stroke: #22c55e; }
-    .scrolling-ticker-item .ticker-spark.spark-up circle { fill: #22c55e; }
+    .scrolling-ticker-item .ticker-spark polyline { fill: none; stroke: var(--warn); stroke-width: 1.5; stroke-linejoin: round; }
+    .scrolling-ticker-item .ticker-spark .spark-zero { stroke: var(--w25); stroke-width: 1; }
+    .scrolling-ticker-item .ticker-spark circle { fill: var(--warn); }
+    .scrolling-ticker-item .ticker-spark.spark-fuel polyline { stroke: var(--warn2); }
+    .scrolling-ticker-item .ticker-spark.spark-fuel circle { fill: var(--warn2); }
+    .scrolling-ticker-item .ticker-spark.spark-up polyline { stroke: var(--ok); }
+    .scrolling-ticker-item .ticker-spark.spark-up circle { fill: var(--ok); }
     .scrolling-ticker-item .ticker-spark.spark-down polyline { stroke: #ef4444; }
     .scrolling-ticker-item .ticker-spark.spark-down circle { fill: #ef4444; }
-    .scrolling-ticker-item .ticker-spark.spark-flat polyline { stroke: #888; }
-    .scrolling-ticker-item .ticker-spark.spark-flat circle { fill: #888; }
-    .scrolling-ticker-item .ticker-item-change.positive { color: #4caf50; }
-    .scrolling-ticker-item .ticker-item-change.negative { color: #f44336; }
+    .scrolling-ticker-item .ticker-spark.spark-flat polyline { stroke: var(--t4); }
+    .scrolling-ticker-item .ticker-spark.spark-flat circle { fill: var(--t4); }
+    .scrolling-ticker-item .ticker-item-change.positive { color: var(--ok2); }
+    .scrolling-ticker-item .ticker-item-change.negative { color: var(--bad2); }
     .scrolling-ticker-sep {
       display: inline-block;
       margin-right: 20px;
-      color: rgba(255,255,255,0.2);
+      color: var(--w20);
     }
     .scrolling-ticker.news-ticker { background: rgba(0,0,0,0.25); padding: 6px 0; }
     .news-ticker .ticker-item-label { color: #64b5f6; text-transform: uppercase; font-size: 0.85em; }
     .news-ticker .ticker-item-value { color: #e8e8e8; font-weight: 500; }
-    .news-ticker .ticker-item-change { color: #888; }
+    .news-ticker .ticker-item-change { color: var(--t4); }
 
     /* Ticker Mode */
     /* The floating buttons sit at z-index 999, above the overlay (200): hide
@@ -1665,7 +1724,7 @@
     .ticker-icon { font-size: 3em; margin-bottom: 10px; }
     .ticker-label {
       font-size: 1.5em;
-      color: #888;
+      color: var(--t4);
       margin-bottom: 15px;
       text-transform: uppercase;
       letter-spacing: 2px;
@@ -1691,13 +1750,13 @@
       width: 8px; height: 8px;
       margin: 0 4px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.2);
+      background: var(--w20);
     }
-    .ticker-dot.active { background: rgba(255,255,255,0.8); }
+    .ticker-dot.active { background: var(--w80); }
     .ticker-hint {
       position: absolute;
       bottom: 20px;
-      color: rgba(255,255,255,0.3);
+      color: var(--w30);
       font-size: 0.85em;
     }
 
@@ -1721,7 +1780,7 @@
       display: flex;
     }
     .spotlight-panel {
-      background: #1e1e2e;
+      background: var(--s2);
       border-radius: 16px;
       -webkit-border-radius: 16px;
       padding: 20px;
@@ -1743,13 +1802,13 @@
       align-items: center;
       margin-bottom: 20px;
       padding-bottom: 12px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
+      border-bottom: 1px solid var(--w10);
     }
     .spotlight-title { font-size: 1.2em; font-weight: 600; color: #fff; }
     .spotlight-close {
       background: none;
       border: none;
-      color: #888;
+      color: var(--t4);
       font-size: 1.5em;
       cursor: pointer;
       padding: 5px;
@@ -1757,14 +1816,14 @@
     }
     .spotlight-item {
       padding: 12px;
-      background: rgba(255,255,255,0.04);
+      background: var(--w04);
       border-radius: 10px;
       -webkit-border-radius: 10px;
       margin-bottom: 10px;
     }
     .spotlight-item:last-child { margin-bottom: 0; }
-    .spotlight-item-name { font-size: 0.85em; color: #888; margin-bottom: 4px; }
-    .spotlight-item-price { font-size: 1.8em; font-weight: 700; color: #e2e8f0; }
+    .spotlight-item-name { font-size: 0.85em; color: var(--t4); margin-bottom: 4px; }
+    .spotlight-item-price { font-size: 1.8em; font-weight: 700; color: var(--t1); }
     .spotlight-item-change { font-size: 1em; margin-top: 4px; }
     .spotlight-item-details {
       display: -webkit-box;
@@ -1774,18 +1833,18 @@
       flex-wrap: wrap;
       margin: 8px -6px 0 -6px;
       font-size: 0.85em;
-      color: #888;
+      color: var(--t4);
     }
     .spotlight-item-details > * { margin: 0 6px 6px 6px; }
-    .spotlight-detail-label { color: #666; margin-right: 4px; }
+    .spotlight-detail-label { color: var(--t5); margin-right: 4px; }
 
     /* News story overlay: reuses the spotlight chrome; opened by tapping a
        headline in the card or on a ticker row, auto-closes after a minute so
        a wall screen never stays parked on one story. */
     .news-item { cursor: pointer; }
-    .news-item:active { background: rgba(255,255,255,0.06); }
+    .news-item:active { background: var(--w06); }
     .scrolling-ticker-item[data-news-idx] { cursor: pointer; }
-    .news-story-meta { font-size: 0.85em; color: #888; margin-bottom: 8px; }
+    .news-story-meta { font-size: 0.85em; color: var(--t4); margin-bottom: 8px; }
     .news-story-headline { font-size: 1.35em; font-weight: 600; color: #fff; line-height: 1.3; margin-bottom: 14px; }
     .news-story-summary { font-size: 1em; color: #c8c8d0; line-height: 1.5; white-space: pre-line; }
 
@@ -1794,22 +1853,22 @@
        auto-closes so a wall screen never stays parked on one card. */
     .scrolling-ticker-item[data-card-id], .status-strip-item[data-card-id] { cursor: pointer; }
     .card-popup-panel { padding: 0; background: transparent; -webkit-box-shadow: none; box-shadow: none; }
-    .card-popup-panel .card-inner { background: #1e1e2e; }
+    .card-popup-panel .card-inner { background: var(--s2); }
     .card-popup-panel .card-header.collapsible { cursor: default; }
     .card-popup-panel .card-header.collapsible .card-title:after { display: none; }
-    .card-popup-hint { text-align: center; color: rgba(255,255,255,0.3); font-size: 0.8em; margin-top: 10px; }
+    .card-popup-hint { text-align: center; color: var(--w30); font-size: 0.8em; margin-top: 10px; }
     .news-story-link {
       display: inline-block;
       margin-top: 18px;
       padding: 10px 16px;
-      background: rgba(255,255,255,0.08);
-      color: #8ab4f8;
+      background: var(--w08);
+      color: var(--info);
       border-radius: 10px;
       -webkit-border-radius: 10px;
       text-decoration: none;
       font-size: 0.95em;
     }
-    .news-story-link:active { background: rgba(255,255,255,0.14); }
+    .news-story-link:active { background: var(--w14); }
     body.light-theme .news-story-headline { color: #1a1a2e; }
     body.light-theme .news-story-summary { color: #333; }
     body.light-theme .news-story-link { background: rgba(0,0,0,0.06); color: #1a56db; }
@@ -1820,6 +1879,16 @@
       background: #f0f2f5;
       background: -webkit-linear-gradient(315deg, #f0f2f5 0%, #e8eaed 100%);
       color: #1a1a2e;
+      /* text: t1 primary .. t6 faintest; s1/s2 inset surfaces; accents */
+      --t1: #1a1a2e; --t2: #334155; --t3: #475569; --t4: #64748b; --t5: #7c8698; --t6: #94a3b8;
+      --s1: #f1f3f7; --s2: #e9ecf2;
+      --ok: #15803d; --ok2: #2e7d32; --warn: #b45309; --warn2: #c2410c; --orange: #e65100; --bad: #dc2626; --bad2: #c62828;
+      --purple: #7e22ce; --info: #1d4ed8; --info2: #1565c0; --cyan: #0e7490; --lime: #4d7c0f; --indigo: #4338ca; --teal: #0f766e;
+      /* --wNN: translucent "ink" at 0.NN alpha (white on dark, near-black on light) */
+      --w03: rgba(26,26,46,0.03); --w04: rgba(26,26,46,0.04); --w05: rgba(26,26,46,0.05); --w06: rgba(26,26,46,0.06); --w07: rgba(26,26,46,0.07); --w08: rgba(26,26,46,0.08); --w09: rgba(26,26,46,0.09);
+      --w10: rgba(26,26,46,0.1); --w14: rgba(26,26,46,0.14); --w15: rgba(26,26,46,0.15); --w18: rgba(26,26,46,0.18); --w20: rgba(26,26,46,0.2); --w25: rgba(26,26,46,0.25); --w30: rgba(26,26,46,0.3);
+      --w35: rgba(26,26,46,0.35); --w45: rgba(26,26,46,0.45); --w50: rgba(26,26,46,0.5); --w55: rgba(26,26,46,0.55); --w60: rgba(26,26,46,0.6); --w72: rgba(26,26,46,0.72); --w75: rgba(26,26,46,0.75);
+      --w80: rgba(26,26,46,0.8); --w85: rgba(26,26,46,0.85); --w95: rgba(26,26,46,0.95);
     }
     body.light-theme .header {
       border-bottom-color: rgba(0,0,0,0.1);
@@ -2037,6 +2106,10 @@
       background: #fff;
       color: #1a1a2e;
     }
+    body.light-theme .display-mode-chips { background: #f5f5f7; border-color: #d0d0d0; }
+    body.light-theme .card-setting-checks .mode-chip { color: #666; border-right-color: #d0d0d0; }
+    body.light-theme .card-setting-checks .mode-chip input:checked + span { color: #1a1a2e; }
+    body.light-theme .card-setting-checks .mode-chip.on { background: rgba(79,142,247,0.22); }
     body.light-theme .settings-tab {
       color: #555;
       border-bottom-color: transparent;
@@ -2070,6 +2143,17 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.15);
     }
     body.light-theme .card-popup-hint { color: rgba(26,26,46,0.4); }
+    body.light-theme .ticker-value,
+    body.light-theme .sport-score,
+    body.light-theme .polymarket-pct,
+    body.light-theme .spotlight-title,
+    body.light-theme .league-mode-select,
+    body.light-theme .settings-scroll-btn,
+    body.light-theme .welcome-message h2,
+    body.light-theme .forecast-hi { color: #1a1a2e; }
+    body.light-theme .polymarket-bar { background: #4f46e5; }
+    body.light-theme .elec-chart-line { stroke: #d97706; }
+    body.light-theme .elec-chart-grid { stroke: rgba(26,26,46,0.1); }
     /* Generic text overrides */
     body.light-theme .settings-btn-row .btn {
       background: rgba(0,0,0,0.06);
@@ -2078,7 +2162,7 @@
 
     @media (max-width: 600px) {
       .status-strip { -webkit-flex-wrap: wrap; flex-wrap: wrap; }
-      .status-strip-item { -webkit-flex-basis: 50%; flex-basis: 50%; border-bottom: 1px solid rgba(255,255,255,0.07); }
+      .status-strip-item { -webkit-flex-basis: 50%; flex-basis: 50%; border-bottom: 1px solid var(--w07); }
       .card {
         width: 100%;
       }
@@ -2103,7 +2187,7 @@
     <div class="header" id="mainHeader">
       <div class="header-left">
         <h1 id="dashboardTitle">Brisbane Dashboard</h1>
-        <div id="headerWeather" style="margin-left: 15px; font-size: 1.1em; color: #888;"></div>
+        <div id="headerWeather" style="margin-left: 15px; font-size: 1.1em; color: var(--t4);"></div>
       </div>
       <div class="header-time" id="currentTime">--:--</div>
       <span class="offline-indicator" id="offlineIndicator">OFFLINE</span>
@@ -2411,7 +2495,7 @@
           <div class="card-header">
             <div class="card-title"><span class="card-icon">&#128200;</span> Finance</div>
             <div style="display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;">
-              <button class="btn" id="financeExpandBtn" style="padding:2px 8px;font-size:0.7em;background:rgba(255,255,255,0.08);margin-right:8px;">Detail</button>
+              <button class="btn" id="financeExpandBtn" style="padding:2px 8px;font-size:0.7em;background:var(--w08);margin-right:8px;">Detail</button>
               <div class="card-updated" id="financeUpdated">--</div>
             </div>
           </div>
@@ -2523,10 +2607,10 @@
           <div class="card-setting-body" style="display:block;">
             <label class="checkbox-label"><input type="checkbox" id="birthdaysConditionalHide"> Only show the card on a birthday</label>
             <div id="birthdaysList" style="margin-top:8px;"></div>
-            <button type="button" id="addBirthdayBtn" style="margin-top:8px;padding:6px 16px;border-radius:8px;border:1px solid #444;background:#23234a;color:#e0e0e0;cursor:pointer;">+ Add Birthday</button>
+            <button type="button" id="addBirthdayBtn" style="margin-top:8px;padding:6px 16px;border-radius:8px;border:1px solid #444;background:var(--s2);color:var(--t1);cursor:pointer;">+ Add Birthday</button>
             <div style="margin-top:8px;">
-              <button type="button" id="exportBirthdaysBtn" style="padding:6px 12px;border-radius:8px;border:1px solid #444;background:#23234a;color:#e0e0e0;cursor:pointer;margin-right:6px;">Export Birthdays</button>
-              <button type="button" id="importBirthdaysBtn" style="padding:6px 12px;border-radius:8px;border:1px solid #444;background:#23234a;color:#e0e0e0;cursor:pointer;">Import Birthdays</button>
+              <button type="button" id="exportBirthdaysBtn" style="padding:6px 12px;border-radius:8px;border:1px solid #444;background:var(--s2);color:var(--t1);cursor:pointer;margin-right:6px;">Export Birthdays</button>
+              <button type="button" id="importBirthdaysBtn" style="padding:6px 12px;border-radius:8px;border:1px solid #444;background:var(--s2);color:var(--t1);cursor:pointer;">Import Birthdays</button>
               <input type="file" id="importBirthdaysFile" accept=".json,application/json" style="display:none;">
             </div>
             <div class="settings-info">Starts empty. Names, dates, and timezones are stored only in this browser and in settings exports you create.</div>
@@ -2541,7 +2625,7 @@
               <span class="card-setting-name">Pollen</span>
             </div>
             <div class="card-setting-checks">
-              <select id="pollenDisplayMode" class="display-mode-select display-mode-wide"><option value="card">Card</option><option value="ticker:bar">Top bar</option><option value="ticker:ticker">Ticker</option><option value="ticker:both">Top bar + Ticker</option><option value="both:bar">Card + Top bar</option><option value="both:ticker">Card + Ticker</option><option value="both:both">Card + Top bar + Ticker</option><option value="banner">Banner</option></select>
+              <span class="display-mode-chips" id="pollenDisplayMode" data-card="pollen" role="group"><label class="mode-chip"><input type="checkbox" value="card"><span>Card</span></label><label class="mode-chip"><input type="checkbox" value="bar"><span>Bar</span></label><label class="mode-chip"><input type="checkbox" value="ticker"><span>Ticker</span></label><label class="mode-chip"><input type="checkbox" value="banner"><span>Banner</span></label></span>
               <label class="master-label"><input type="checkbox" id="showPollen"></label>
             </div>
           </div>
@@ -2559,7 +2643,7 @@
               <span class="card-setting-name">Air Quality</span>
             </div>
             <div class="card-setting-checks">
-              <select id="airQualityDisplayMode" class="display-mode-select display-mode-wide"><option value="card">Card</option><option value="ticker:bar">Top bar</option><option value="ticker:ticker">Ticker</option><option value="ticker:both">Top bar + Ticker</option><option value="both:bar">Card + Top bar</option><option value="both:ticker">Card + Ticker</option><option value="both:both">Card + Top bar + Ticker</option><option value="banner">Banner</option></select>
+              <span class="display-mode-chips" id="airQualityDisplayMode" data-card="airQuality" role="group"><label class="mode-chip"><input type="checkbox" value="card"><span>Card</span></label><label class="mode-chip"><input type="checkbox" value="bar"><span>Bar</span></label><label class="mode-chip"><input type="checkbox" value="ticker"><span>Ticker</span></label><label class="mode-chip"><input type="checkbox" value="banner"><span>Banner</span></label></span>
               <label class="master-label" id="showAirQualityMasterLabel"><input type="checkbox" id="showAirQuality"></label>
             </div>
           </div>
@@ -2659,7 +2743,7 @@
             <div class="settings-group">
               <label id="busStopsToggle" style="cursor:pointer;-webkit-user-select:none;user-select:none;">
                 <span id="busStopsArrow" style="display:inline-block;transition:transform 0.2s;-webkit-transition:-webkit-transform 0.2s;">&#9654;</span>
-                Bus Stops <span id="busStopsCount" style="color:#888;font-size:0.85em;"></span>
+                Bus Stops <span id="busStopsCount" style="color:var(--t4);font-size:0.85em;"></span>
               </label>
               <div id="busStopsCollapsible" style="display:none;">
                 <div id="busStopsContainer"></div>
@@ -2806,7 +2890,7 @@
               </div>
               <div class="settings-group"></div>
             </div>
-            <div style="font-size:0.85em;color:#aaa;margin:12px 0 8px 0;">Custom Yahoo Finance symbols, such as <code>AAPL</code>, <code>BHP.AX</code>, <code>^N225</code>, or <code>BTC-USD</code>.</div>
+            <div style="font-size:0.85em;color:var(--t3);margin:12px 0 8px 0;">Custom Yahoo Finance symbols, such as <code>AAPL</code>, <code>BHP.AX</code>, <code>^N225</code>, or <code>BTC-USD</code>.</div>
             <div id="financeCustomList"></div>
             <button type="button" id="addFinanceCustomBtn" class="btn">+ Add Ticker</button>
           </div>
@@ -2882,7 +2966,7 @@
           </div>
           <div class="card-setting-body" id="fuelSettingsCollapsible" style="display:none;">
             <div class="settings-group">
-              <div style="font-size:0.85em;color:#aaa;margin-bottom:6px;">Grades to show</div>
+              <div style="font-size:0.85em;color:var(--t3);margin-bottom:6px;">Grades to show</div>
               <div class="settings-row" style="-webkit-flex-wrap:wrap;flex-wrap:wrap;">
                 <label class="checkbox-label" style="margin:0 12px 8px 0;"><input type="checkbox" id="fuelGradeE10"> E10</label>
                 <label class="checkbox-label" style="margin:0 12px 8px 0;"><input type="checkbox" id="fuelGradeUnleaded"> Unleaded (91)</label>
@@ -2893,7 +2977,7 @@
               </div>
             </div>
             <div class="settings-group">
-              <div style="font-size:0.85em;color:#aaa;margin-bottom:4px;">Stations <span style="font-size:0.9em;color:#888;">(partial name match)</span></div>
+              <div style="font-size:0.85em;color:var(--t3);margin-bottom:4px;">Stations <span style="font-size:0.9em;color:var(--t4);">(partial name match)</span></div>
               <div id="fuelStationsList"></div>
               <button type="button" id="addFuelStation" style="margin-top:6px;padding:4px 10px;font-size:0.85em;cursor:pointer;">+ Add Station</button>
             </div>
@@ -3089,7 +3173,7 @@
               <span class="card-setting-name">UV Index</span>
             </div>
             <div class="card-setting-checks">
-              <select id="uvIndexDisplayMode" class="display-mode-select display-mode-wide"><option value="card">Card</option><option value="ticker:bar">Top bar</option><option value="ticker:ticker">Ticker</option><option value="ticker:both">Top bar + Ticker</option><option value="both:bar">Card + Top bar</option><option value="both:ticker">Card + Ticker</option><option value="both:both">Card + Top bar + Ticker</option><option value="banner">Banner</option></select>
+              <span class="display-mode-chips" id="uvIndexDisplayMode" data-card="uvIndex" role="group"><label class="mode-chip"><input type="checkbox" value="card"><span>Card</span></label><label class="mode-chip"><input type="checkbox" value="bar"><span>Bar</span></label><label class="mode-chip"><input type="checkbox" value="ticker"><span>Ticker</span></label><label class="mode-chip"><input type="checkbox" value="banner"><span>Banner</span></label></span>
               <label class="master-label" id="showUvIndexMasterLabel"><input type="checkbox" id="showUvIndex"></label>
             </div>
           </div>
@@ -3125,7 +3209,7 @@
               <span class="card-setting-name">Weather</span>
             </div>
             <div class="card-setting-checks">
-              <select id="weatherDisplayMode" class="display-mode-select display-mode-wide"><option value="card">Card</option><option value="ticker:bar">Top bar</option><option value="ticker:ticker">Ticker</option><option value="ticker:both">Top bar + Ticker</option><option value="both:bar">Card + Top bar</option><option value="both:ticker">Card + Ticker</option><option value="both:both">Card + Top bar + Ticker</option><option value="banner">Banner</option></select>
+              <span class="display-mode-chips" id="weatherDisplayMode" data-card="weather" role="group"><label class="mode-chip"><input type="checkbox" value="card"><span>Card</span></label><label class="mode-chip"><input type="checkbox" value="bar"><span>Bar</span></label><label class="mode-chip"><input type="checkbox" value="ticker"><span>Ticker</span></label><label class="mode-chip"><input type="checkbox" value="banner"><span>Banner</span></label></span>
               <label class="master-label" id="showWeatherMasterLabel"><input type="checkbox" id="showWeather" checked></label>
             </div>
           </div>
@@ -3227,6 +3311,14 @@
             <label class="checkbox-label">
               <input type="checkbox" id="lightTheme"> Light theme
             </label>
+          </div>
+          <div class="settings-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="themeAuto"> Auto theme by sun (light in daytime, dark at night)
+            </label>
+            <div class="settings-row" style="margin-top:4px;">
+              <div><label for="themeAutoOffset" style="display:inline;margin:0;">Switch</label> <input type="number" id="themeAutoOffset" value="60" min="0" max="240" step="5" style="width:64px;display:inline-block;margin:0 4px;"> min before sunset and after sunrise</div>
+            </div>
           </div>
         </div>
         <div class="settings-section">
@@ -3618,7 +3710,9 @@
         financeDisplayMode: 'both',
         polymarketDisplayMode: 'card',
         scrollingTicker: false,
-        lightTheme: false
+        lightTheme: false,
+        themeAuto: false,
+        themeAutoOffset: 60
       };
 
 
@@ -3806,6 +3900,8 @@
         elements.showHeader = document.getElementById('showHeader');
         elements.use24hClock = document.getElementById('use24hClock');
         elements.lightTheme = document.getElementById('lightTheme');
+        elements.themeAuto = document.getElementById('themeAuto');
+        elements.themeAutoOffset = document.getElementById('themeAutoOffset');
         elements.showNeedsAttention = document.getElementById('showNeedsAttention');
         elements.needsAttentionMaxItems = document.getElementById('needsAttentionMaxItems');
         elements.needsAttentionDismissable = document.getElementById('needsAttentionDismissable');
@@ -4102,6 +4198,8 @@
             }
             config.scrollingTicker = parsed.scrollingTicker !== undefined ? parsed.scrollingTicker : false;
             config.lightTheme = parsed.lightTheme !== undefined ? parsed.lightTheme : false;
+            config.themeAuto = parsed.themeAuto !== undefined ? parsed.themeAuto : false;
+            config.themeAutoOffset = typeof parsed.themeAutoOffset === 'number' ? parsed.themeAutoOffset : 60;
           } else {
             isFirstRun = true;
           }
@@ -4118,16 +4216,58 @@
         }
       }
 
+      // Local sunrise/sunset (NOAA-style approximation, accurate to a minute or
+      // two) so the auto theme works offline and before any feed has loaded.
+      function computeSunTimes(date, lat, lon) {
+        var rad = Math.PI / 180;
+        var noon = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+        var jNoon = noon.getTime() / 86400000 + 2440587.5;
+        var n = Math.round(jNoon - 2451545.0 + lon / 360);
+        var jStar = n + 0.0008 - lon / 360;
+        var M = (357.5291 + 0.98560028 * jStar) % 360;
+        var C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
+        var L = (M + C + 180 + 102.9372) % 360;
+        var jTransit = 2451545.0 + jStar + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * L * rad);
+        var dec = Math.asin(Math.sin(L * rad) * Math.sin(23.44 * rad));
+        var cosW = (Math.sin(-0.83 * rad) - Math.sin(lat * rad) * Math.sin(dec)) / (Math.cos(lat * rad) * Math.cos(dec));
+        if (isNaN(cosW) || cosW < -1 || cosW > 1) return null;
+        var w = Math.acos(cosW) / rad;
+        return {
+          sunrise: new Date((jTransit - w / 360 - 2440587.5) * 86400000),
+          sunset: new Date((jTransit + w / 360 - 2440587.5) * 86400000)
+        };
+      }
+
+      // Auto mode: light from (sunrise + offset) until (sunset - offset),
+      // dark otherwise. Falls back to the manual checkbox if the sun maths fails.
+      function themeWantsLight(now) {
+        if (!config.themeAuto) return !!config.lightTheme;
+        var lat = parseFloat(config.latitude);
+        var lon = parseFloat(config.longitude);
+        if (isNaN(lat) || isNaN(lon)) { lat = -27.4705; lon = 153.026; }
+        var sun = computeSunTimes(now, lat, lon);
+        if (!sun) return !!config.lightTheme;
+        var off = (parseInt(config.themeAutoOffset, 10) || 0) * 60000;
+        var t = now.getTime();
+        return t >= sun.sunrise.getTime() + off && t < sun.sunset.getTime() - off;
+      }
+
       function applyTheme() {
         var body = document.body;
-        if (config.lightTheme) {
+        var root = document.documentElement;
+        var light = themeWantsLight(new Date());
+        if (light) {
           if (body.className.indexOf('light-theme') === -1) {
             body.className = body.className ? body.className + ' light-theme' : 'light-theme';
+          }
+          if (root.className.indexOf('light-theme') === -1) {
+            root.className = root.className ? root.className + ' light-theme' : 'light-theme';
           }
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute('content', '#f0f2f5');
         } else {
           body.className = body.className.replace(/\s*light-theme/g, '');
+          root.className = root.className.replace(/\s*light-theme/g, '');
           var meta2 = document.querySelector('meta[name="theme-color"]');
           if (meta2) meta2.setAttribute('content', '#1a1a2e');
         }
@@ -4354,16 +4494,76 @@
         var v = config[cardId + 'Placement'];
         return (v === 'ticker' || v === 'both') ? v : 'bar';
       }
-      // One picker per strip card combines display mode and placement:
-      // "both:bar" = Card + Top bar. Card and Banner carry no placement.
-      function stripModeValue(cardId) {
-        var mode = config[cardId + 'DisplayMode'];
-        return isTickerDisplayMode(mode) ? mode + ':' + stripPlacement(cardId) : mode;
+      // Strip cards use four toggle chips (Card, Bar, Ticker, Banner) instead
+      // of one combo dropdown. Card/Bar/Ticker are independent; Banner is
+      // exclusive. They still map onto <card>DisplayMode + <card>Placement.
+      function stripChipInputs(cardId) {
+        var group = elements[cardId + 'DisplayMode'];
+        var inputs = group ? group.getElementsByTagName('input') : [];
+        var out = {};
+        for (var i = 0; i < inputs.length; i++) out[inputs[i].value] = inputs[i];
+        return out;
       }
-      function applyStripModeValue(cardId, value) {
-        var parts = String(value || 'card').split(':');
-        config[cardId + 'DisplayMode'] = parts[0];
-        if (parts[1]) config[cardId + 'Placement'] = parts[1];
+      function paintStripChips(cardId) {
+        var inputs = stripChipInputs(cardId);
+        for (var k in inputs) {
+          if (!inputs.hasOwnProperty(k)) continue;
+          var lbl = inputs[k].parentNode;
+          lbl.className = 'mode-chip' + (inputs[k].checked ? ' on' : '');
+        }
+      }
+      function loadStripChips(cardId) {
+        var mode = config[cardId + 'DisplayMode'];
+        var place = stripPlacement(cardId);
+        var onStrip = isTickerDisplayMode(mode);
+        var inputs = stripChipInputs(cardId);
+        if (inputs.card) inputs.card.checked = (mode === 'card' || mode === 'both');
+        if (inputs.bar) inputs.bar.checked = onStrip && (place === 'bar' || place === 'both');
+        if (inputs.ticker) inputs.ticker.checked = onStrip && (place === 'ticker' || place === 'both');
+        if (inputs.banner) inputs.banner.checked = (mode === 'banner');
+        paintStripChips(cardId);
+      }
+      function saveStripChips(cardId) {
+        var inputs = stripChipInputs(cardId);
+        var card = !!(inputs.card && inputs.card.checked);
+        var bar = !!(inputs.bar && inputs.bar.checked);
+        var tick = !!(inputs.ticker && inputs.ticker.checked);
+        var banner = !!(inputs.banner && inputs.banner.checked);
+        if (banner) {
+          config[cardId + 'DisplayMode'] = 'banner';
+          return;
+        }
+        var onStrip = bar || tick;
+        config[cardId + 'DisplayMode'] = onStrip ? (card ? 'both' : 'ticker') : 'card';
+        if (onStrip) config[cardId + 'Placement'] = (bar && tick) ? 'both' : (tick ? 'ticker' : 'bar');
+      }
+      // Banner clears the others and vice versa; the last chip can't be unticked.
+      function onStripChipChange(e) {
+        var input = e.target;
+        var group = input.parentNode.parentNode;
+        var cardId = group.getAttribute('data-card');
+        var inputs = stripChipInputs(cardId);
+        var k;
+        if (input.checked) {
+          if (input.value === 'banner') {
+            for (k in inputs) if (inputs.hasOwnProperty(k) && k !== 'banner') inputs[k].checked = false;
+          } else if (inputs.banner) {
+            inputs.banner.checked = false;
+          }
+        } else {
+          var any = false;
+          for (k in inputs) if (inputs.hasOwnProperty(k) && inputs[k].checked) any = true;
+          if (!any) input.checked = true;
+        }
+        paintStripChips(cardId);
+      }
+      function bindStripChips() {
+        for (var i = 0; i < STRIP_PLACEMENT_CARDS.length; i++) {
+          var inputs = stripChipInputs(STRIP_PLACEMENT_CARDS[i]);
+          for (var k in inputs) {
+            if (inputs.hasOwnProperty(k)) inputs[k].onchange = onStripChipChange;
+          }
+        }
       }
 
       function isTickerDisplayMode(mode) {
@@ -6149,7 +6349,7 @@
 
       function renderBinCollection() {
         if (!config.binDay) {
-          elements.binContent.innerHTML = '<div style="color:#888;text-align:center;padding:12px 0;">Configure bin collection in Settings.</div>';
+          elements.binContent.innerHTML = '<div style="color:var(--t4);text-align:center;padding:12px 0;">Configure bin collection in Settings.</div>';
           return;
         }
         var collectionDay = config.binDay || 'Not set';
@@ -6195,14 +6395,14 @@
         if (targetDayIndex !== -1) describedOffsetDays = inBringInWindow ? -daysSinceCollection : daysUntilNum;
         var isRecyclingWeek = isBinRecyclingForDate(new Date(today.getTime() + describedOffsetDays * 86400000));
         if (config.binConditionalHide && inBringInWindow) {
-          var html = '<div class="bin-next" style="color: #f0a040;">Bring bins in</div>';
+          var html = '<div class="bin-next" style="color: var(--warn2);">Bring bins in</div>';
           if (isRecyclingWeek) {
             html += '<div class="bin-type bin-recycling"><span class="bin-emoji">&#x1F7E1;</span> Recycling</div>';
           } else {
             html += '<div class="bin-type bin-garden"><span class="bin-emoji">&#x1F7E2;</span> Garden Waste</div>';
           }
           html += '<div class="bin-type"><span class="bin-emoji">&#x1F534;</span> General Waste</div>';
-          html += '<button onclick="dismissBinCard()" style="margin-top:10px;padding:6px 16px;background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);border-radius:8px;font-size:0.85em;cursor:pointer;">Done</button>';
+          html += '<button onclick="dismissBinCard()" style="margin-top:10px;padding:6px 16px;background:var(--w10);color:var(--t3);border:1px solid var(--w20);border-radius:8px;font-size:0.85em;cursor:pointer;">Done</button>';
           elements.binContent.innerHTML = html;
           return;
         }
@@ -6218,9 +6418,9 @@
           html += '<div class="bin-type bin-garden"><span class="bin-emoji">&#x1F7E2;</span> Garden Waste</div>';
         }
         html += '<div class="bin-type"><span class="bin-emoji">&#x1F534;</span> General Waste</div>';
-        html += '<div class="bin-type" style="color: #666; margin-top: 6px; font-size: 0.85em;">Zone ' + escapeHtml(zone) + '</div>';
+        html += '<div class="bin-type" style="color: var(--t5); margin-top: 6px; font-size: 0.85em;">Zone ' + escapeHtml(zone) + '</div>';
         if (config.binConditionalHide && targetDayIndex !== -1 && daysUntilNum >= 0 && daysUntilNum <= config.binShowDaysBefore) {
-          html += '<button onclick="dismissBinTakenOut()" style="margin-top:10px;padding:6px 16px;background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);border-radius:8px;font-size:0.85em;cursor:pointer;">Taken out</button>';
+          html += '<button onclick="dismissBinTakenOut()" style="margin-top:10px;padding:6px 16px;background:var(--w10);color:var(--t3);border:1px solid var(--w20);border-radius:8px;font-size:0.85em;cursor:pointer;">Taken out</button>';
         }
 
         elements.binContent.innerHTML = html;
@@ -6867,8 +7067,8 @@
           var sideHtml = sideLabel ? '<span class="flight-details flight-side ' + sideClass + '">' + sideLabel + '</span>' : '';
 
           html += '<div class="flight-item">' +
-            '<span class="flight-callsign">' + escapeHtml(displayName) + (flightNum ? ' <span style="color:#94a3b8;font-weight:normal;">' + escapeHtml(flightNum) + '</span>' : '') + '</span>' +
-            (acInfo ? '<span class="flight-details" style="color:#a5b4fc;">' + escapeHtml(acInfo) + '</span> ' : '') +
+            '<span class="flight-callsign">' + escapeHtml(displayName) + (flightNum ? ' <span style="color:var(--t3);font-weight:normal;">' + escapeHtml(flightNum) + '</span>' : '') + '</span>' +
+            (acInfo ? '<span class="flight-details" style="color:var(--indigo);">' + escapeHtml(acInfo) + '</span> ' : '') +
             '<span class="flight-details flight-route" id="flight-route-' + safeDomId(callsign) + '">' + escapeHtml(routeStr) + '</span>' +
             sideHtml +
             '<span class="flight-details ' + altClass + '">' + altStr + '</span>' +
@@ -6879,7 +7079,7 @@
         html += '</div>';
 
         if (flights.length > 5) {
-          html += '<div class="flight-details" style="margin-top: 8px; color: #666;">+ ' + (flights.length - 5) + ' more</div>';
+          html += '<div class="flight-details" style="margin-top: 8px; color: var(--t5);">+ ' + (flights.length - 5) + ' more</div>';
         }
 
         elements.flightsContent.innerHTML = html;
@@ -7094,7 +7294,7 @@
           row.className = 'bus-stop-row';
           row.innerHTML = '<div style="display:-webkit-box;display:-webkit-flex;display:flex;margin-bottom:6px;">' +
             '<input type="text" class="stop-id" placeholder="Stop ID" style="width:35%;margin-right:4px;margin-bottom:0;">' +
-            '<select class="stop-section" style="width:30%;padding:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.95em;-webkit-appearance:none;margin-bottom:0;">' +
+            '<select class="stop-section" style="width:30%;padding:10px;background:var(--w10);border:1px solid var(--w10);border-radius:8px;color:#fff;font-size:0.95em;-webkit-appearance:none;margin-bottom:0;">' +
             '<option value="1"' + (section === '1' ? ' selected' : '') + '>Section 1</option>' +
             '<option value="2"' + (section === '2' ? ' selected' : '') + '>Section 2</option>' +
             '</select>' +
@@ -7218,6 +7418,8 @@
         elements.showHeader.checked = config.showHeader;
         elements.use24hClock.checked = config.use24hClock;
         elements.lightTheme.checked = config.lightTheme;
+        elements.themeAuto.checked = config.themeAuto;
+        elements.themeAutoOffset.value = config.themeAutoOffset;
         elements.showFuel.checked = config.showFuel;
         setMasterClass('showFuelMasterLabel', config.showFuel, config.showFuel);
         var fuelActiveGrades = config.fuelGrades ? config.fuelGrades.split('|') : [];
@@ -7305,7 +7507,7 @@
         elements.polymarketDisplayMode.value = config.polymarketDisplayMode;
         elements.scrollingTickerCheckbox.checked = config.scrollingTicker;
         for (var spu = 0; spu < STRIP_PLACEMENT_CARDS.length; spu++) {
-          elements[STRIP_PLACEMENT_CARDS[spu] + 'DisplayMode'].value = stripModeValue(STRIP_PLACEMENT_CARDS[spu]);
+          loadStripChips(STRIP_PLACEMENT_CARDS[spu]);
         }
         elements.settingsSaved.className = 'settings-saved';
         elements.settingsOverlay.className = 'settings-overlay active';
@@ -7416,6 +7618,9 @@
         config.showHeader = elements.showHeader.checked;
         config.use24hClock = elements.use24hClock.checked;
         config.lightTheme = elements.lightTheme.checked;
+        config.themeAuto = elements.themeAuto.checked;
+        var themeOff = parseInt(elements.themeAutoOffset.value, 10);
+        config.themeAutoOffset = isNaN(themeOff) ? 60 : Math.max(0, Math.min(240, themeOff));
         config.showFuel = elements.showFuel.checked;
         var fuelGradeList = [];
         var fuelGradeMap = [
@@ -7510,7 +7715,7 @@
         config.scrollingTicker = elements.scrollingTickerCheckbox.checked;
         // Strip cards' pickers hold "mode:placement"; split them back out.
         for (var sps = 0; sps < STRIP_PLACEMENT_CARDS.length; sps++) {
-          applyStripModeValue(STRIP_PLACEMENT_CARDS[sps], elements[STRIP_PLACEMENT_CARDS[sps] + 'DisplayMode'].value);
+          saveStripChips(STRIP_PLACEMENT_CARDS[sps]);
         }
 
         // Update title
@@ -7710,6 +7915,7 @@
           var panel = document.getElementById(panelId);
           if (panel) panel.setAttribute('role', 'tabpanel');
         }
+        bindStripChips();
         var rows = document.querySelectorAll('#settingsTabContentCards .card-setting-row');
         for (var i = 0; i < rows.length; i++) {
           var nameEl = rows[i].querySelector('.card-setting-name');
@@ -7719,6 +7925,14 @@
           var expander = rows[i].querySelector('.card-setting-expander');
           if (checkbox && !checkbox.getAttribute('aria-label')) checkbox.setAttribute('aria-label', 'Enable ' + name);
           if (mode && !mode.getAttribute('aria-label')) mode.setAttribute('aria-label', 'Display mode for ' + name);
+          var chipGroup = rows[i].querySelector('.display-mode-chips');
+          if (chipGroup && !chipGroup.getAttribute('aria-label')) {
+            chipGroup.setAttribute('aria-label', 'Display mode for ' + name);
+            var chipInputs = chipGroup.getElementsByTagName('input');
+            for (var ci = 0; ci < chipInputs.length; ci++) {
+              chipInputs[ci].setAttribute('aria-label', name + ' on ' + chipInputs[ci].nextSibling.textContent);
+            }
+          }
           if (expander && expander.id) {
             var bodyId = expander.id.replace(/Expander$/, 'Collapsible');
             if (document.getElementById(bodyId)) {
@@ -8097,13 +8311,13 @@
         for (var i = 0; i < warnings.length; i++) {
           var warning = warnings[i];
           var headline = warning.shortTitle || warning.title || 'Warning';
-          var color = warning.group === 'warning' ? '#f44336' : '#FF9800';
-          html += '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">';
+          var color = warning.group === 'warning' ? 'var(--bad2)' : 'var(--orange)';
+          html += '<div style="padding:6px 0;border-bottom:1px solid var(--w06);">';
           html += '<div style="font-weight:600;color:' + color + ';">&#9888;&#65039; ' + escapeHtml(headline) + '</div>';
           if (warning.title && warning.title !== headline) {
-            html += '<div style="font-size:0.82em;color:#bbb;margin-top:1px;">&#128205; ' + escapeHtml(warning.title) + '</div>';
+            html += '<div style="font-size:0.82em;color:var(--t2);margin-top:1px;">&#128205; ' + escapeHtml(warning.title) + '</div>';
           }
-          if (warning.issuedAt) html += '<div style="font-size:0.8em;color:#999;">Issued ' + escapeHtml(warningRelativeTime(warning.issuedAt)) + '</div>';
+          if (warning.issuedAt) html += '<div style="font-size:0.8em;color:var(--t4);">Issued ' + escapeHtml(warningRelativeTime(warning.issuedAt)) + '</div>';
           html += '</div>';
         }
         if (!warnings.length) html = '<div class="sport-event-meta" style="padding:8px 0;text-align:center;">No active warnings</div>';
@@ -8215,10 +8429,10 @@
       }
 
       function bushfireLevelColor(severity) {
-        if (severity >= 3) return '#f44336';
-        if (severity >= 2) return '#FF9800';
-        if (severity >= 1) return '#FFC107';
-        return '#999';
+        if (severity >= 3) return 'var(--bad2)';
+        if (severity >= 2) return 'var(--orange)';
+        if (severity >= 1) return 'var(--warn)';
+        return 'var(--t4)';
       }
 
       function renderBushfires() {
@@ -8229,15 +8443,15 @@
         for (var i = 0; i < shown; i++) {
           var incident = nearby[i];
           var color = bushfireLevelColor(incident.severity);
-          html += '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">';
+          html += '<div style="padding:6px 0;border-bottom:1px solid var(--w06);">';
           html += '<div style="font-weight:600;color:' + color + ';">&#128293; ' + escapeHtml(incident.level || 'Incident') + '</div>';
-          html += '<div style="font-size:0.85em;color:#ccc;">' + escapeHtml(bushfireAreaTitle(incident)) + '</div>';
-          if (incident.content) html += '<div style="font-size:0.8em;color:#bbb;margin-top:1px;">' + escapeHtml(incident.content) + '</div>';
-          html += '<div style="font-size:0.8em;color:#999;">' + Math.round(incident.distanceKm) + ' km away' + (incident.updated ? ' &middot; updated ' + escapeHtml(warningRelativeTime(incident.updated)) : '') + '</div>';
+          html += '<div style="font-size:0.85em;color:var(--t2);">' + escapeHtml(bushfireAreaTitle(incident)) + '</div>';
+          if (incident.content) html += '<div style="font-size:0.8em;color:var(--t2);margin-top:1px;">' + escapeHtml(incident.content) + '</div>';
+          html += '<div style="font-size:0.8em;color:var(--t4);">' + Math.round(incident.distanceKm) + ' km away' + (incident.updated ? ' &middot; updated ' + escapeHtml(warningRelativeTime(incident.updated)) : '') + '</div>';
           html += '<button type="button" class="bushfire-dismiss-button" onclick="' + escapeHtml(bushfireDismissAction(inc)) + '">Dismiss warning</button>';
           html += '</div>';
         }
-        if (nearby.length > shown) html += '<div style="font-size:0.8em;color:#999;padding-top:4px;">+' + (nearby.length - shown) + ' more further out</div>';
+        if (nearby.length > shown) html += '<div style="font-size:0.8em;color:var(--t4);padding-top:4px;">+' + (nearby.length - shown) + ' more further out</div>';
         if (!nearby.length) {
           html = '<div class="sport-event-meta" style="padding:8px 0;text-align:center;">No bushfire incidents nearby</div>';
           var incidents = lastBushfiresData.incidents || [];
@@ -8249,7 +8463,7 @@
             if (!nearest || incidents[nearestIndex].distanceKm < nearest.distanceKm) nearest = incidents[nearestIndex];
           }
           if (nearest) {
-            html += '<div style="font-size:0.8em;color:#999;text-align:center;padding-bottom:4px;">Nearest: ' +
+            html += '<div style="font-size:0.8em;color:var(--t4);text-align:center;padding-bottom:4px;">Nearest: ' +
               escapeHtml((nearest.level || 'Incident') + ' - ' + bushfireAreaTitle(nearest)) +
               ' (' + Math.round(nearest.distanceKm) + ' km)</div>';
           }
@@ -8287,9 +8501,9 @@
         var shown = items.length < 6 ? items.length : 6;
         for (var i = 0; i < shown; i++) {
           var item = items[i];
-          html += '<div class="news-item" data-news-idx="' + i + '" style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">';
-          html += '<div style="font-size:0.9em;color:#e0e0e0;">' + escapeHtml(item.title || '') + '</div>';
-          html += '<div style="font-size:0.75em;color:#999;">' + escapeHtml(item.source || '') + (item.publishedAt ? ' &middot; ' + escapeHtml(warningRelativeTime(item.publishedAt)) : '') + '</div>';
+          html += '<div class="news-item" data-news-idx="' + i + '" style="padding:6px 0;border-bottom:1px solid var(--w06);">';
+          html += '<div style="font-size:0.9em;color:var(--t1);">' + escapeHtml(item.title || '') + '</div>';
+          html += '<div style="font-size:0.75em;color:var(--t4);">' + escapeHtml(item.source || '') + (item.publishedAt ? ' &middot; ' + escapeHtml(warningRelativeTime(item.publishedAt)) : '') + '</div>';
           html += '</div>';
         }
         if (!items.length) html = '<div class="sport-event-meta" style="padding:8px 0;text-align:center;">No headlines</div>';
@@ -8314,7 +8528,7 @@
         if (item.summary) {
           html += '<div class="news-story-summary">' + escapeHtml(item.summary) + '</div>';
         } else {
-          html += '<div class="news-story-summary" style="color:#888;">No summary available.</div>';
+          html += '<div class="news-story-summary" style="color:var(--t4);">No summary available.</div>';
         }
         // Worker only emits http(s) links, but re-check at the sink since the
         // value lands in an href.
@@ -8435,12 +8649,12 @@
         xhr.onreadystatechange = function() {
           if (xhr.readyState !== 4) return;
           if (xhr.status !== 200) {
-            result.innerHTML = '<span style="color:#f44336;">Failed to load (' + escapeHtml(String(xhr.status)) + ')</span>';
+            result.innerHTML = '<span style="color:var(--bad2);">Failed to load (' + escapeHtml(String(xhr.status)) + ')</span>';
             return;
           }
           var data;
           try { data = JSON.parse(xhr.responseText); } catch (e) {
-            result.innerHTML = '<span style="color:#f44336;">Invalid response</span>';
+            result.innerHTML = '<span style="color:var(--bad2);">Invalid response</span>';
             return;
           }
           var feeds = data.feeds || {};
@@ -8453,20 +8667,20 @@
             result.textContent = 'No feed activity yet on this Worker instance (up ' + uptime + '). Refresh the dashboard, then check again.';
             return;
           }
-          var html = '<div style="font-size:0.8em;color:#999;margin-bottom:6px;">Worker instance up ' + escapeHtml(uptime) + '</div>';
+          var html = '<div style="font-size:0.8em;color:var(--t4);margin-bottom:6px;">Worker instance up ' + escapeHtml(uptime) + '</div>';
           for (var i = 0; i < names.length; i++) {
             var health = feeds[names[i]] || {};
-            var color = '#4CAF50';
+            var color = 'var(--ok2)';
             var note = 'OK ' + feedHealthAge(data.now, health.ok);
             if (health.stale && (!health.ok || health.stale > health.ok)) {
-              color = '#FF9800';
+              color = 'var(--orange)';
               note = 'serving stale (last OK ' + feedHealthAge(data.now, health.ok) + ')';
             }
             if (health.err && (!health.ok || health.err > health.ok)) {
-              color = '#f44336';
+              color = 'var(--bad2)';
               note = 'error ' + feedHealthAge(data.now, health.err) + (health.errDetail ? ' - ' + health.errDetail : '') + ' (last OK ' + feedHealthAge(data.now, health.ok) + ')';
             }
-            html += '<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.06);"><span style="color:' + color + ';">&#9679;</span> <strong>' + escapeHtml(names[i]) + '</strong> <span style="color:#aaa;">' + escapeHtml(note) + '</span></div>';
+            html += '<div style="padding:3px 0;border-bottom:1px solid var(--w06);"><span style="color:' + color + ';">&#9679;</span> <strong>' + escapeHtml(names[i]) + '</strong> <span style="color:var(--t3);">' + escapeHtml(note) + '</span></div>';
           }
           result.innerHTML = html;
         };
@@ -8620,7 +8834,7 @@
         if (!elements.birthdaysContent) return;
         var items = getBirthdayDisplayItems();
         if (!items.length) {
-          elements.birthdaysContent.innerHTML = '<div style="color:#888;text-align:center;padding:12px 0;">No birthdays configured. Add them in Settings.</div>';
+          elements.birthdaysContent.innerHTML = '<div style="color:var(--t4);text-align:center;padding:12px 0;">No birthdays configured. Add them in Settings.</div>';
           elements.birthdaysUpdated.textContent = '--';
           return;
         }
@@ -8633,17 +8847,17 @@
           if (config.birthdaysConditionalHide && item.daysUntil !== 0) continue;
           var today = item.daysUntil === 0;
           if (today && !isBirthdayAcknowledgedToday(item)) hasToday = true;
-          html += '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between;">';
-          html += '<div><span style="font-weight:600;color:' + (today ? '#ffd700' : '#e0e0e0') + ';">' + escapeHtml(item.name + item.age) + '</span>';
-          if (today) html += '<div style="font-size:0.82em;color:#aaa;">Happy Birthday today!</div>';
-          html += '</div><div style="color:#888;font-size:0.82em;text-align:right;">' + monthNames[item.month - 1] + ' ' + item.day;
+          html += '<div style="padding:8px 0;border-bottom:1px solid var(--w06);display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between;">';
+          html += '<div><span style="font-weight:600;color:' + (today ? 'var(--warn)' : 'var(--t1)') + ';">' + escapeHtml(item.name + item.age) + '</span>';
+          if (today) html += '<div style="font-size:0.82em;color:var(--t3);">Happy Birthday today!</div>';
+          html += '</div><div style="color:var(--t4);font-size:0.82em;text-align:right;">' + monthNames[item.month - 1] + ' ' + item.day;
           if (!today) html += '<br>(' + item.daysUntil + 'd)';
           html += '</div></div>';
         }
         if (config.birthdaysConditionalHide && hasToday) {
-          html += '<div style="text-align:center;padding:8px 0;"><button type="button" onclick="acknowledgeBirthdays()" style="padding:6px 16px;border-radius:8px;border:1px solid #444;background:#23234a;color:#aaa;cursor:pointer;font-size:0.85em;">Acknowledge</button></div>';
+          html += '<div style="text-align:center;padding:8px 0;"><button type="button" onclick="acknowledgeBirthdays()" style="padding:6px 16px;border-radius:8px;border:1px solid #444;background:var(--s2);color:var(--t3);cursor:pointer;font-size:0.85em;">Acknowledge</button></div>';
         }
-        if (!html) html = '<div style="color:#888;text-align:center;padding:12px 0;">No birthdays today</div>';
+        if (!html) html = '<div style="color:var(--t4);text-align:center;padding:12px 0;">No birthdays today</div>';
         elements.birthdaysContent.innerHTML = html;
         elements.birthdaysUpdated.textContent = formatUpdatedTime(new Date());
         scheduleMasonry();
@@ -8694,7 +8908,7 @@
           input.placeholder = fields[i].placeholder;
           input.value = fields[i].value;
           input.setAttribute('aria-label', fields[i].label);
-          input.style.cssText = fields[i].width + 'padding:6px;margin-right:6px;border-radius:6px;border:1px solid #444;background:#1a1a3e;color:#e0e0e0;';
+          input.style.cssText = fields[i].width + 'padding:6px;margin-right:6px;border-radius:6px;border:1px solid #444;background:var(--s2);color:var(--t1);';
           if (fields[i].cls === 'birthday-day-input') { input.min = '1'; input.max = '31'; }
           if (fields[i].cls === 'birthday-month-input') { input.min = '1'; input.max = '12'; }
           if (fields[i].cls === 'birthday-year-input') { input.min = '1900'; input.max = String(new Date().getFullYear()); }
@@ -8703,7 +8917,7 @@
         var timezoneSelect = document.createElement('select');
         timezoneSelect.className = 'birthday-timezone-select';
         timezoneSelect.setAttribute('aria-label', 'Birthday timezone');
-        timezoneSelect.style.cssText = '-webkit-flex:1;flex:1;min-width:150px;padding:6px;margin-right:6px;border-radius:6px;border:1px solid #444;background:#1a1a3e;color:#e0e0e0;font-size:0.85em;';
+        timezoneSelect.style.cssText = '-webkit-flex:1;flex:1;min-width:150px;padding:6px;margin-right:6px;border-radius:6px;border:1px solid #444;background:var(--s2);color:var(--t1);font-size:0.85em;';
         for (var timezoneIndex = 0; timezoneIndex < COMMON_TIMEZONES.length; timezoneIndex++) {
           var option = document.createElement('option');
           option.value = COMMON_TIMEZONES[timezoneIndex];
@@ -8716,7 +8930,7 @@
         removeButton.type = 'button';
         removeButton.textContent = '\u00D7';
         removeButton.setAttribute('aria-label', 'Remove birthday');
-        removeButton.style.cssText = 'padding:4px 10px;border-radius:6px;border:1px solid #600;background:#400;color:#f88;cursor:pointer;font-size:1.1em;';
+        removeButton.style.cssText = 'padding:4px 10px;border-radius:6px;border:1px solid #600;background:#400;color:var(--bad);cursor:pointer;font-size:1.1em;';
         removeButton.onclick = function() { if (row.parentNode) row.parentNode.removeChild(row); };
         row.appendChild(removeButton);
         elements.birthdaysList.appendChild(row);
@@ -8837,12 +9051,12 @@
       }
 
       function pollenCategoryColor(category) {
-        if (category === 'None' || category === 'Very Low') return '#4CAF50';
-        if (category === 'Low') return '#8BC34A';
-        if (category === 'Moderate') return '#FFC107';
-        if (category === 'High') return '#FF9800';
-        if (category === 'Very High') return '#f44336';
-        return '#999';
+        if (category === 'None' || category === 'Very Low') return 'var(--ok2)';
+        if (category === 'Low') return 'var(--lime)';
+        if (category === 'Moderate') return 'var(--warn)';
+        if (category === 'High') return 'var(--orange)';
+        if (category === 'Very High') return 'var(--bad2)';
+        return 'var(--t4)';
       }
 
       function fetchPollen() {
@@ -8882,7 +9096,7 @@
           var category = type && type.category ? type.category : (value === 0 ? 'None' : '--');
           var color = pollenCategoryColor(category);
           html += '<div style="-webkit-flex:1;flex:1;text-align:center;padding:6px 0;">';
-          html += '<div style="font-size:0.8em;color:#999;">' + escapeHtml(pollenTypeLabel(keys[i], lastPollenData)) + '</div>';
+          html += '<div style="font-size:0.8em;color:var(--t4);">' + escapeHtml(pollenTypeLabel(keys[i], lastPollenData)) + '</div>';
           html += '<div style="font-size:1.5em;font-weight:700;color:' + color + ';">' + (value !== null ? value : '--') + '</div>';
           html += '<div style="font-size:0.75em;color:' + color + ';">' + escapeHtml(category) + '</div></div>';
         }
@@ -8890,11 +9104,11 @@
         if (today.plants && today.plants.length) {
           var plants = [];
           for (var pi = 0; pi < today.plants.length && pi < 4; pi++) plants.push(escapeHtml(today.plants[pi].name));
-          html += '<div style="font-size:0.8em;color:#999;text-align:center;margin-top:4px;">' + plants.join(' &middot; ') + '</div>';
+          html += '<div style="font-size:0.8em;color:var(--t4);text-align:center;margin-top:4px;">' + plants.join(' &middot; ') + '</div>';
         }
         var pollenNote = pollenCoverageNote(lastPollenData);
         if (pollenNote) {
-          html += '<div style="font-size:0.7em;color:#888;text-align:center;margin-top:4px;font-style:italic;">' + escapeHtml(pollenNote) + '</div>';
+          html += '<div style="font-size:0.7em;color:var(--t4);text-align:center;margin-top:4px;font-style:italic;">' + escapeHtml(pollenNote) + '</div>';
         }
         elements.pollenContent.innerHTML = html;
         elements.pollenUpdated.textContent = formatUpdatedTime(lastPollenData.fetchedAt ? new Date(lastPollenData.fetchedAt) : new Date());
@@ -10720,7 +10934,7 @@
         }
 
         if (!html) {
-          html = '<div style="color:#888;text-align:center;padding:20px;">No finance data available</div>';
+          html = '<div style="color:var(--t4);text-align:center;padding:20px;">No finance data available</div>';
         }
 
         document.getElementById('spotlightContent').innerHTML = html;
@@ -11069,6 +11283,7 @@
         updateClock();
         setInterval(updateClock, 1000);
         setInterval(updateCardVisibility, 60000);
+        setInterval(applyTheme, 60000);
         updateCardVisibility();
         applyCollapsibleMode();
         applyCardOrder();
