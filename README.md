@@ -10,6 +10,7 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Nearby Queensland bushfire incidents with local dismissal, plus ABC/Brisbane Times headlines
 - Optional pollen forecasts through the Google Pollen API, showing today's forecast day. In Australia Google covers only grasses and cypress pine, so the tree index is labelled Cypress and the card notes the gap
 - Optional locally configured birthday reminders with per-person timezones, acknowledgement, and birthday-only import/export (ships with an empty list)
+- Exercise checklist: morning / evening / any-time sessions with weekday schedules, Done and Skip buttons, 7-day dots and streaks, a Needs Attention nudge before a window closes, and a standalone phone page at `/exercise` (add to home screen) that shares the same token and synced log
 - Queensland electricity spot prices via AEMO NEMWEB, with a 24h price graph plus the AEMO pre-dispatch forecast
 - Brisbane City Council bin collection lookup and recycling/garden alternation
 - TransLink bus arrivals through the Worker proxy
@@ -57,7 +58,7 @@ npx wrangler secret put GOOGLE_POLLEN_API_KEY
 
 `DASHBOARD_TOKEN` protects API routes other than `/api/health`. Use the same value in Settings -> System -> Dashboard Token.
 
-A Worker KV binding named `STATUS_KV` or `SETTINGS_KV` enables optional bin dismissal sync and is required for shared cricket and pollen caches. Without one, bin state stays in local browser storage and quota-limited feeds fail closed instead of hitting their upstream on every isolate cold start.
+A Worker KV binding named `STATUS_KV` or `SETTINGS_KV` enables optional bin dismissal and exercise sync (list + done-log across screens and the `/exercise` phone page) and is required for shared cricket and pollen caches. Without one, bin state stays in local browser storage and quota-limited feeds fail closed instead of hitting their upstream on every isolate cold start.
 
 ## Project Structure
 
@@ -97,7 +98,7 @@ npm run validate
 | `GET /api/standings?leagues=eng.1` | Sports standings |
 | `GET /api/fuel?grades=e10\|Diesel&stations=Shell` | Queensland fuel prices |
 | `GET /api/polymarket?limit=5` | Polymarket events |
-| `GET/PUT /api/dashboard-status` | Optional KV-backed bin dismissal/taken-out status sync |
+| `GET/PUT /api/dashboard-status` | Optional KV-backed sync of bin dismissal/taken-out status, the exercise list and the exercise done-log (union-merged, idempotent PUT) |
 
 Electricity prices are read from the latest NEMWEB DispatchIS ZIP report. The old `GRAPH_5QLD1.csv` feed is no longer available. The card graph comes from `visualisations.aemo.com.au/aemo/apps/api/report/5MIN` (the host behind the AEMO NEM dashboard; `aemo.com.au` itself is Cloudflare-challenged), trimmed to QLD1 and module-cached for 5 minutes.
 

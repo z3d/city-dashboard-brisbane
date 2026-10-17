@@ -4,7 +4,10 @@ var fs = require('fs');
 var path = require('path');
 
 var rootDir = path.resolve(__dirname, '..');
-var indexPath = path.join(rootDir, 'index.html');
+// Default target is index.html; validate-project also runs this on the phone
+// app (public/exercise.html), which shares the card's JS block.
+var indexPath = process.argv[2] ? path.resolve(rootDir, process.argv[2]) : path.join(rootDir, 'index.html');
+var displayName = path.relative(rootDir, indexPath);
 var source = fs.readFileSync(indexPath, 'utf8');
 
 function countLines(text) {
@@ -194,12 +197,12 @@ for (var si = 0; si < scripts.length; si++) {
 }
 
 if (failures.length > 0) {
-  console.error('iOS 12 compatibility check failed for index.html:');
+  console.error('iOS 12 compatibility check failed for ' + displayName + ':');
   for (var fi = 0; fi < failures.length; fi++) {
     var failure = failures[fi];
-    console.error('  index.html:' + failure.line + ':' + failure.column + ' - ' + failure.message + ' [' + failure.snippet + ']');
+    console.error('  ' + displayName + ':' + failure.line + ':' + failure.column + ' - ' + failure.message + ' [' + failure.snippet + ']');
   }
   process.exit(1);
 }
 
-console.log('iOS 12 compatibility check passed for index.html.');
+console.log('iOS 12 compatibility check passed for ' + displayName + '.');

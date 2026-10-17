@@ -149,26 +149,119 @@ function isDashboardStatusDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+// MUST mirror the frontend sanitiseExerciseDoneLog exactly (30-day cutoff + newest
+// 500) or the client/server logs permanently diverge and every poll PUTs to KV.
+function sanitizeExerciseDoneLog(log) {
+  const result = {};
+  if (!log || typeof log !== 'object' || Array.isArray(log)) return result;
+
+  const keys = Object.keys(log);
+  const cutoff = Date.now() - (30 * 24 * 60 * 60 * 1000);
+  for (let i = 0; i < keys.length && i < 1000; i++) {
+    const key = keys[i];
+    if (typeof key !== 'string' || key.length > 200) continue;
+    const value = Number(log[key]);
+    if (Number.isFinite(value) && value > cutoff) {
+      result[key] = value;
+    }
+  }
+
+  const sortedKeys = Object.keys(result).sort((a, b) => result[b] - result[a]).slice(0, 500);
+  const trimmed = {};
+  for (let i = 0; i < sortedKeys.length; i++) {
+    trimmed[sortedKeys[i]] = result[sortedKeys[i]];
+  }
+  return trimmed;
+}
+
+function isIsoTimestamp(value) {
+  return typeof value === 'string' && value.length <= 40 && Number.isFinite(Date.parse(value));
+}
+
+function clampString(value, max) {
+  return typeof value === 'string' ? value.slice(0, max) : '';
+}
+
+
+
+const EXERCISE_PERIODS = ['morning', 'evening', 'both', 'anytime'];
+const EXERCISE_TYPES = ['cardio', 'strength', 'stretch', 'walk', 'balance'];
+
+// Exercise definitions are synced last-write-wins by their own updatedAt. `type`
+// 'other' and an every-day schedule stay absent, matching the frontend's
+// normaliseExercisesForCompare so a round trip never reads as a content change.
+function sanitizeExerciseDef(d) {
+  if (!d || typeof d !== 'object' || Array.isArray(d) || !isIsoTimestamp(d.updatedAt)) return null;
+  const exercises = [];
+  const list = Array.isArray(d.exercises) ? d.exercises : [];
+  for (let i = 0; i < list.length && exercises.length < 50; i++) {
+    const e = list[i];
+    if (!e || typeof e !== 'object') continue;
+    const name = clampString(e.name, 60).trim();
+    if (!name) continue;
+    const entry = { name: name, period: EXERCISE_PERIODS.indexOf(e.period) === -1 ? 'anytime' : e.period };
+    if (EXERCISE_TYPES.indexOf(e.type) !== -1) entry.type = e.type;
+    const target = clampString(e.target, 30).trim();
+    if (target) entry.target = target;
+    if (Array.isArray(e.days)) {
+      const days = [];
+      for (let j = 0; j < e.days.length && j < 14; j++) {
+        if (Number.isInteger(e.days[j]) && e.days[j] >= 0 && e.days[j] <= 6 && days.indexOf(e.days[j]) === -1) days.push(e.days[j]);
+      }
+      days.sort((a, b) => a - b);
+      if (days.length > 0 && days.length < 7) entry.days = days;
+    }
+    if (e.suspended === true) entry.suspended = true;
+    if (isIsoTimestamp(e.trackingStart)) entry.trackingStart = e.trackingStart;
+    exercises.push(entry);
+  }
+  const timeRe = /^\d{2}:\d{2}$/;
+  return {
+    exercises: exercises,
+    morningStart: timeRe.test(d.morningStart) ? d.morningStart : '05:00',
+    eveningStart: timeRe.test(d.eveningStart) ? d.eveningStart : '16:30',
+    updatedAt: d.updatedAt
+  };
+}
+
+// Last-write-wins between two already-sanitized defs (either may be null).
+// Returns null when neither exists so callers can omit the key.
+// Compare as instants, not strings: lexicographic comparison misorders
+// offset-format ISO timestamps ("...+10:00") against Z-suffixed ones.
+// Ties (and NaN) keep the existing def — write-storm-safe.
+function pickNewerDef(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  return Date.parse(b.updatedAt) > Date.parse(a.updatedAt) ? b : a;
+}
+
 function sanitizeDashboardStatus(data) {
   const input = data && typeof data === 'object' ? data : {};
   const bin = input.bin && typeof input.bin === 'object' && !Array.isArray(input.bin) ? input.bin : {};
   const status = {
     bin: {},
+    exerciseDone: sanitizeExerciseDoneLog(input.exerciseDone),
     updatedAt: typeof input.updatedAt === 'string' ? input.updatedAt : null
   };
   if (isDashboardStatusDate(bin.dismissedDate)) status.bin.dismissedDate = bin.dismissedDate;
   if (isDashboardStatusDate(bin.takenOutDate)) status.bin.takenOutDate = bin.takenOutDate;
+  const exerciseDef = sanitizeExerciseDef(input.exerciseDef);
+  if (exerciseDef) status.exerciseDef = exerciseDef;
   return status;
 }
 
 // Stable content fingerprint excluding the server-owned updatedAt timestamp.
 // Redundant status reconciliation must not consume the daily KV write budget.
 function dashboardStatusFingerprint(status) {
+  const exercise = {};
+  Object.keys(status.exerciseDone || {}).sort().forEach((k) => { exercise[k] = status.exerciseDone[k]; });
   return JSON.stringify({
     bin: {
       dismissedDate: (status.bin && status.bin.dismissedDate) || '',
       takenOutDate: (status.bin && status.bin.takenOutDate) || ''
-    }
+    },
+    exercise: exercise,
+    exerciseDef: status.exerciseDef || null
   });
 }
 
@@ -2337,8 +2430,22 @@ async function handleRequest(request, env, ctx) {
 
         const existing = sanitizeDashboardStatus(stored);
         const incoming = sanitizeDashboardStatus(body);
+        // Exercise done-log: union by newest timestamp, so a screen replaying an
+        // older snapshot can never roll back another device's tick. Partial
+        // payloads (e.g. the phone app sending only its own taps) are fine.
+        const exerciseDone = Object.assign({}, existing.exerciseDone);
+        const exKeys = Object.keys(incoming.exerciseDone);
+        for (let i = 0; i < exKeys.length; i++) {
+          const key = exKeys[i];
+          if (!exerciseDone[key] || incoming.exerciseDone[key] > exerciseDone[key]) {
+            exerciseDone[key] = incoming.exerciseDone[key];
+          }
+        }
+
         const next = sanitizeDashboardStatus({
           bin: Object.assign({}, existing.bin, incoming.bin),
+          exerciseDone: exerciseDone,
+          exerciseDef: pickNewerDef(existing.exerciseDef, incoming.exerciseDef),
           updatedAt: new Date().toISOString()
         });
 

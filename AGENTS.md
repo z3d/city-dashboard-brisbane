@@ -17,6 +17,8 @@ Single-file city dashboard focused on Brisbane, deployed optionally as a Cloudfl
 index.html              # Single-file dashboard, source of truth for frontend
 src/worker.js           # Cloudflare Worker API proxy routes
 public/index.html       # Symlink to ../index.html; do not replace with a copy
+public/exercise.html    # Standalone phone page for the Exercise card (same token, same synced log)
+scripts/sync-exercise-app.js  # Copies the Exercise card's shared JS block into exercise.html
 ```
 
 ## iOS 12 Safari Compatibility
@@ -58,6 +60,9 @@ Keep `.dev.vars`, `.env`, `.Codex/settings.local.json`, `.codex/settings.local.j
 - Cards in `STRIP_PLACEMENT_CARDS` (weather, UV, air quality, pollen) emit `kind: 'status'` slides and also store `xxxPlacement` (`bar`, `ticker`, `both`): top bar, scrolling row, or both. Their settings select combines the two as `mode:placement` (e.g. `both:bar`); `openSettings()` fills it via `stripModeValue()` and `saveSettings()` splits it with `applyStripModeValue()`. A new status card must join the list and use the wide combined select.
 - Theme colours are CSS variables, never raw dark greys: rendered HTML strings and `style.*` assignments use `var(--t1)`..`var(--t6)` for text, `var(--s1)`/`var(--s2)` for inset surfaces, `var(--ok)`/`var(--warn)`/`var(--bad)`/`var(--info)` etc. for accents and `var(--wNN)` for translucent lines. A literal `#e0e0e0`/`#aaa`/`rgba(255,255,255,…)` vanishes in light mode. Dark values are on `html`, light values on `body.light-theme`.
 - Escape all third-party API text at the HTML sink with `escapeHtml()`; use `safeDomId()` for API-derived element IDs.
+- Exercise card: `getExerciseRows()` is the one source for the card, visibility, ticker and Needs Attention; definitions sync as `exerciseDef` (last-write-wins by `updatedAt`), completions and skips as the `exerciseDone` log (`<name>_<period>_<YYYY-MM-DD>` and `..._skipped`, union-merged by newest timestamp). The client `sanitiseExerciseDoneLog` and Worker `sanitizeExerciseDoneLog` must stay byte-for-byte equivalent (30-day cutoff, newest 500) or every poll PUTs to KV; `validate-project` pins the pair and the idempotent-PUT fingerprint. Poll-path reconcile PUTs are throttled to one per 5 min; user actions save immediately.
+- `public/exercise.html` embeds the block between `// >>> shared-exercise-block` and `// <<< shared-exercise-block` verbatim from `index.html`; after changing the card's logic run `node scripts/sync-exercise-app.js` (validation fails on drift). The page PUTs only its own pending taps, never on a poll.
+- Porting from the private dashboard: its medicine-named helpers map to `sanitiseExerciseDoneLog`, `mergeExerciseDoneLogs`, `exerciseDoneLogsEqual`, `getLocalDateStr`, `parseClockTimeToMin`, `formatNameList` (worker: `sanitizeExerciseDoneLog`); the scale/weight line is not ported (no scale feed here).
 - Frontend XHRs inherit a 30-second timeout and same-URL GET deduplication. Worker upstream requests inherit a 20-second deadline. Preserve both wrappers.
 - Needs Attention is a global smart strip controlled by `showNeedsAttention` and `needsAttentionMaxItems`. It renders in `#needsAttention`, uses enabled feature toggles as eligibility, and builds alerts from cached `last*Data`/config without extra API fetches. It currently excludes bin and sports alerts, and only treats electricity as attention-worthy when prices are high.
 - Weather alert banners must never fire on the first feed snapshot. Re-baseline silently after a processing gap longer than 15 minutes so sleeping wall displays do not replay stale transitions when they wake.

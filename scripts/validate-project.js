@@ -352,7 +352,170 @@ function checkStripPlacement(frontend) {
   console.log('Strip placement tests passed');
 }
 
+
+// Client and Worker exercise done-log sanitisers must produce identical output,
+// or every poll would see a client/server diff and PUT to KV (write-storm).
+function checkExerciseSanitizerEquivalence(frontend, worker) {
+  var now = Date.UTC(2026, 9, 14, 0, 0, 0);
+  var day = 24 * 60 * 60 * 1000;
+  var overLimit = {};
+  for (var i = 0; i < 1005; i++) overLimit['s_' + i] = i < 1000 ? now - i : now + i;
+  var fixtures = [null, [], { a: now, numeric_string: String(now - 1000), garbage: '123oops', inf: Infinity, old: now - 31 * day, fresh: now - 29 * day, long: now }, overLimit];
+  fixtures[2][new Array(202).join('x')] = now;
+  var frontSrc = extractBetween(frontend, 'function sanitiseExerciseDoneLog(', '\n      function mergeExerciseDoneLogs(', 'frontend exercise sanitiser');
+  var workerSrc = extractBetween(worker, 'function sanitizeExerciseDoneLog(', '\nfunction isIsoTimestamp(', 'worker exercise sanitiser');
+  for (var k = 0; k < fixtures.length; k++) {
+    var fc = { input: fixtures[k], output: null, Date: { now: function() { return now; } } };
+    vm.runInNewContext(frontSrc + '\noutput = sanitiseExerciseDoneLog(input);', fc);
+    var wc = { input: fixtures[k], output: null, Date: { now: function() { return now; } } };
+    vm.runInNewContext(workerSrc + '\noutput = sanitizeExerciseDoneLog(input);', wc);
+    if (JSON.stringify(fc.output) !== JSON.stringify(wc.output)) throwFail('exercise sanitisers differ on fixture ' + k);
+    if (k === 2 && Object.keys(fc.output).sort().join() !== 'a,fresh,long,numeric_string') throwFail('exercise sanitiser kept the wrong keys: ' + Object.keys(fc.output).join());
+    if (k === 3 && Object.keys(fc.output).length !== 500) throwFail('exercise sanitiser must keep the newest 500');
+  }
+  console.log('Exercise sanitiser equivalence passed');
+}
+
+// Idempotent PUT: the fingerprint must cover the exercise log and definition.
+function checkDashboardStatusFingerprint(worker) {
+  var source = extractBetween(worker, 'const DASHBOARD_STATUS_KV_KEY', '\nconst ELECTRICITY_DISPATCH_DIR_URL', 'dashboard-status sanitiser + fingerprint');
+  var context = { output: null };
+  vm.runInNewContext(
+    source + '\n' +
+    'var a = sanitizeDashboardStatus({ updatedAt: "2026-09-01T00:00:00.000Z", bin: { dismissedDate: "2026-09-01" }, exerciseDone: { "B_evening_2026-09-01": Date.now() - 2000, "A_morning_2026-09-01": Date.now() - 1000 } });\n' +
+    'var b = sanitizeDashboardStatus({ updatedAt: "2026-09-02T00:00:00.000Z", exerciseDone: { "A_morning_2026-09-01": a.exerciseDone["A_morning_2026-09-01"], "B_evening_2026-09-01": a.exerciseDone["B_evening_2026-09-01"] }, bin: { dismissedDate: "2026-09-01" } });\n' +
+    'var c = sanitizeDashboardStatus({ bin: { dismissedDate: "2026-09-01" }, exerciseDone: a.exerciseDone, exerciseDef: { updatedAt: "2026-09-01T00:00:00.000Z", exercises: [{ name: "Walk", period: "anytime" }] } });\n' +
+    'output = { same: dashboardStatusFingerprint(a) === dashboardStatusFingerprint(b), defDiffers: dashboardStatusFingerprint(a) !== dashboardStatusFingerprint(c), kept: Object.keys(a.exerciseDone).length === 2,' +
+    ' newer: pickNewerDef({ updatedAt: "2026-09-01T00:00:00.000Z", x: 1 }, { updatedAt: "2026-09-02T00:00:00.000Z", x: 2 }).x };',
+    context
+  );
+  var out = context.output;
+  if (!out || out.same !== true || out.defDiffers !== true || out.kept !== true || out.newer !== 2) {
+    throwFail('dashboard-status fingerprint behaviour changed: ' + JSON.stringify(out));
+  }
+  console.log('Dashboard-status fingerprint tests passed');
+}
+
+// Exercise card: one row list (getExerciseRows) feeds the card, visibility,
+// ticker and Needs Attention, so pin the window/state rules and the streak here.
+function checkExerciseHelpers(frontend, worker) {
+  var helpers = extractBetween(frontend, 'var EXERCISE_PERIODS =', '\n      function renderExerciseRow(', 'exercise helpers');
+  var daysNorm = extractBetween(frontend, 'function normaliseExerciseDaysForCompare(', '\n      function normaliseExercisesForCompare(', 'exercise days normaliser');
+  var context = { config: { exerciseMorningStart: '05:00', exerciseEveningStart: '16:30', exercises: [], exerciseShowHistory: true }, output: null };
+  vm.runInNewContext(
+    'function parseClockTimeToMin(t, fb) { var p = t.split(":"); return parseInt(p[0], 10) * 60 + parseInt(p[1], 10); }\n' +
+      'function getLocalDateStr(d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }\n' +
+      daysNorm + '\n' + helpers + '\n' +
+      'var wed10 = new Date(2026, 9, 14, 10, 0, 0, 0);\n' + // Wednesday
+      'var wed17 = new Date(2026, 9, 14, 17, 0, 0, 0);\n' +
+      'var wed4 = new Date(2026, 9, 14, 4, 0, 0, 0);\n' +
+      'config.exercises = [' +
+      '{name: "Walk", period: "anytime", type: "walk"},' +
+      '{name: "Stretch", period: "both", type: "stretch"},' +
+      '{name: "Run", period: "morning", days: [1, 3, 5]},' +
+      '{name: "Swim", period: "morning", days: [1, 5]},' +
+      '{name: "Paused", period: "anytime", suspended: true},' +
+      '{name: "New", period: "morning", trackingStart: new Date(2026, 9, 14, 11, 0, 0, 0).toISOString()}' +
+      '];\n' +
+      'function states(rows) { return rows.map(function(r) { return r.ex.name + ":" + r.period + ":" + r.state + (r.state === "open" ? ":" + r.closesInMin : "") + (r.state === "rest" ? ":" + r.nextDay : ""); }); }\n' +
+      'var doneLog = {"Walk_anytime_2026-10-14": 1, "Walk_anytime_2026-10-13": 1, "Walk_anytime_2026-10-12": 1, "Walk_anytime_2026-10-11": 1,' +
+      ' "Run_morning_2026-10-12": 1, "Run_morning_2026-10-09": 1, "Stretch_morning_2026-10-13": 1, "Stretch_evening_2026-10-13": 1, "Stretch_morning_2026-10-12": 1,' +
+      ' "Stretch_evening_2026-10-14_skipped": 1, "Walk_anytime_2026-10-14_skipped": 2};\n' +
+      'output = {' +
+      'at10: states(getExerciseRows(wed10, {})),' +
+      'at17: states(getExerciseRows(wed17, {})),' +
+      'at4: states(getExerciseRows(wed4, {})),' +
+      'doneRow: getExerciseRows(wed17, doneLog)[0].state,' +
+      'skippedOpen: states([getExerciseRows(wed17, doneLog)[2]]).concat([getExerciseRows(wed17, doneLog)[2].closesInMin]),' + // skipped inside its window keeps closesInMin for the take-back Done
+      'skippedClosed: getExerciseRows(wed4, {"Stretch_morning_2026-10-14_skipped": 1})[1].state + ":" + getExerciseRows(wed4, {"Stretch_morning_2026-10-14_skipped": 1})[1].closesInMin,' +
+      'doneBeatsSkipped: getExerciseRows(wed17, doneLog)[0].state,' + // Walk is both done and skipped today: done wins
+      'skipBreaksStreak: getExerciseStreak(config.exercises[0], {"Walk_anytime_2026-10-14": 1, "Walk_anytime_2026-10-13_skipped": 1, "Walk_anytime_2026-10-12": 1}, wed10),' +
+      'skipTodayKeepsStreak: getExerciseStreak(config.exercises[0], {"Walk_anytime_2026-10-14_skipped": 1, "Walk_anytime_2026-10-13": 1, "Walk_anytime_2026-10-12": 1}, wed10),' +
+      'skipKey: getExerciseSkipKey("Walk", "anytime", "2026-10-14"),' +
+      'skipDot: /skipped/.test(buildExerciseHistoryStrip(config.exercises[1], "evening", doneLog, wed17)),' +
+      'walkStreak: getExerciseStreak(config.exercises[0], doneLog, wed10),' +
+      'walkStreakPendingToday: getExerciseStreak(config.exercises[0], {"Walk_anytime_2026-10-13": 1, "Walk_anytime_2026-10-12": 1}, wed10),' +
+      'runStreak: getExerciseStreak(config.exercises[2], doneLog, wed10),' +
+      'stretchStreak: getExerciseStreak(config.exercises[1], doneLog, wed10),' +
+      'pausedStreak: getExerciseStreak(config.exercises[4], doneLog, wed10),' +
+      'labels: [getExerciseDaysLabel({}), getExerciseDaysLabel({days: [1, 2, 3, 4, 5]}), getExerciseDaysLabel({days: [0, 6]}), getExerciseDaysLabel({days: [3, 1, 5]}), getExerciseDaysLabel({days: [0, 1, 2, 3, 4, 5, 6]})],' +
+      'strip: (buildExerciseHistoryStrip(config.exercises[2], "morning", doneLog, wed10).match(/<span/g) || []).length' +
+      '};',
+    context
+  );
+  var expected = {
+    at10: ['Walk:anytime:open:840', 'Stretch:morning:open:390', 'Stretch:evening:later', 'Run:morning:open:390', 'Swim:morning:rest:5', 'Paused:anytime:suspended', 'New:morning:untracked'],
+    at17: ['Walk:anytime:open:420', 'Stretch:morning:missed', 'Stretch:evening:open:420', 'Run:morning:missed', 'Swim:morning:rest:5', 'Paused:anytime:suspended', 'New:morning:untracked'],
+    at4: ['Walk:anytime:later', 'Stretch:morning:later', 'Stretch:evening:later', 'Run:morning:later', 'Swim:morning:rest:5', 'Paused:anytime:suspended', 'New:morning:untracked'],
+    doneRow: 'done',
+    skippedOpen: ['Stretch:evening:skipped', 420],
+    skippedClosed: 'skipped:0',
+    doneBeatsSkipped: 'done',
+    skipBreaksStreak: 1, // today done; yesterday skipped ends it
+    skipTodayKeepsStreak: 2, // today skipped is still "in progress" until tomorrow
+    skipKey: 'Walk_anytime_2026-10-14_skipped',
+    skipDot: true,
+    walkStreak: 4, // today + 3 days
+    walkStreakPendingToday: 2, // today still open does not break it
+    runStreak: 2, // Mon 12 + Fri 9; Wed 7 missed; non-scheduled days skipped
+    stretchStreak: 1, // Tue both done; Mon evening missing
+    pausedStreak: 0,
+    labels: ['Every day', 'Weekdays', 'Weekends', 'Mon Wed Fri', 'Every day'],
+    strip: 7
+  };
+  if (JSON.stringify(context.output) !== JSON.stringify(expected)) {
+    fail('exercise window/state or streak rules changed: ' + JSON.stringify(context.output));
+  }
+  if (frontend.indexOf("addExerciseSettingsRow({period: 'morning', trackingStart: new Date().toISOString()})") === -1) {
+    fail('new exercises do not start tracking from their creation time');
+  }
+  if (frontend.indexOf('window.skipExerciseAt = skipExerciseAt;') === -1) fail('skipExerciseAt is not exposed for the card button');
+
+  var workerSource = extractBetween(worker, 'function isIsoTimestamp(', '\nfunction pickNewerDef', 'Worker exercise definition sanitizer');
+  var workerContext = { output: null };
+  vm.runInNewContext(
+    workerSource + '\n' +
+      'output = sanitizeExerciseDef({updatedAt: "2026-10-14T00:00:00.000Z", morningStart: "06:00", eveningStart: "bad", exercises: [' +
+      '{name: "  Walk ", period: "anytime", type: "other", target: "  ", days: [0, 1, 2, 3, 4, 5, 6]},' +
+      '{name: "Run", period: "nope", type: "cardio", target: "20 min", days: [5, 1, 1, 9, "3", 3], suspended: true, trackingStart: "2026-10-14T01:00:00.000Z"},' +
+      '{name: "", period: "morning"}, null]});',
+    workerContext
+  );
+  var workerExpected = {
+    exercises: [
+      { name: 'Walk', period: 'anytime' },
+      { name: 'Run', period: 'anytime', type: 'cardio', target: '20 min', days: [1, 3, 5], suspended: true, trackingStart: '2026-10-14T01:00:00.000Z' }
+    ],
+    morningStart: '06:00',
+    eveningStart: '16:30',
+    updatedAt: '2026-10-14T00:00:00.000Z'
+  };
+  if (JSON.stringify(workerContext.output) !== JSON.stringify(workerExpected)) {
+    fail('Worker exercise definition sanitizer changed: ' + JSON.stringify(workerContext.output));
+  }
+  console.log('Exercise helper tests passed');
+}
+
+// The phone app (public/exercise.html) embeds the card's shared block verbatim;
+// scripts/sync-exercise-app.js --check (run below) catches drift. Here: syntax,
+// a semver version and the "PUT only pending taps" rule.
+function checkExercisePhoneApp() {
+  var app = fs.readFileSync(path.join(root, 'public', 'exercise.html'), 'utf8');
+  var scripts = app.match(/<script[^>]*>([\s\S]*?)<\/script>/gi) || [];
+  for (var s = 0; s < scripts.length; s++) {
+    var code = scripts[s].replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '');
+    try { new Function(code); } catch (e) { throwFail('public/exercise.html script ' + (s + 1) + ': ' + e.message); }
+  }
+  if (!/<meta name="app-version" content="\d+\.\d+\.\d+">/.test(app)) throwFail('public/exercise.html needs a semver app-version meta');
+  if (!/'\/api\/dashboard-status', \{ exerciseDone: pending \}/.test(app)) throwFail('the phone app must PUT only its pending exerciseDone entries');
+  console.log('Exercise phone app checks passed');
+}
+
 try { checkBinHelpers(html); } catch (e) { fail('bin helpers: ' + e.message); }
+try { checkExerciseSanitizerEquivalence(html, worker); } catch (e) { fail('exercise sanitisers: ' + e.message); }
+try { checkDashboardStatusFingerprint(worker); } catch (e) { fail('dashboard-status fingerprint: ' + e.message); }
+try { checkExerciseHelpers(html, worker); } catch (e) { fail('exercise helpers: ' + e.message); }
+try { checkExercisePhoneApp(); } catch (e) { fail('exercise phone app: ' + e.message); }
 try { checkPollenHelpers(html); } catch (e) { fail('pollen helpers: ' + e.message); }
 try { checkClimateHelpers(html); } catch (e) { fail('climate helpers: ' + e.message); }
 try { checkStripPlacement(html); } catch (e) { fail('strip placement: ' + e.message); }
@@ -361,6 +524,8 @@ try { checkCardOrderCompleteness(html); } catch (e) { fail('card order: ' + e.me
 try { checkNeedsAttentionDismissal(html); } catch (e) { fail('needs attention dismissal: ' + e.message); }
 
 run('iOS 12 compatibility', process.execPath, ['scripts/check-ios12-compat.js']);
+run('iOS 12 compatibility (phone app)', process.execPath, ['scripts/check-ios12-compat.js', 'public/exercise.html']);
+run('Exercise phone app shared block', process.execPath, ['scripts/sync-exercise-app.js', '--check']);
 run('Worker syntax', process.execPath, ['--check', 'src/worker.js']);
 
 checkWorkerFetchDeadline(worker).catch(function(e) { fail('worker fetch deadline: ' + e.message); }).then(function() {

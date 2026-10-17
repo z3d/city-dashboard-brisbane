@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.67.0">
+  <meta name="app-version" content="1.68.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -2325,6 +2325,17 @@
         </div>
       </div>
 
+      <!-- Exercise Card -->
+      <div class="card" id="exerciseCard" data-card-id="exercise">
+        <div class="card-inner">
+          <div class="card-header">
+            <div class="card-title"><span class="card-icon">&#127939;</span> Exercise</div>
+            <div class="card-updated" id="exerciseUpdated">--</div>
+          </div>
+          <div class="card-content" id="exerciseContent"><div class="card-loading">Configure exercise in Settings</div></div>
+        </div>
+      </div>
+
       <!-- Air Quality Card -->
       <div class="card" id="airQualityCard" data-card-id="airQuality">
         <div class="card-inner">
@@ -2814,6 +2825,39 @@
                 <div><label for="elecScheduleEnd">To</label> <input type="number" id="elecScheduleEnd" value="23" min="0" max="23" step="1" style="width:50px;"></div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Exercise -->
+        <div class="card-setting-row">
+          <div class="card-setting-main">
+            <div class="card-setting-expander" id="exerciseSettingsExpander">
+              <span class="card-setting-arrow" id="exerciseSettingsArrow">&#9654;</span>
+              <span class="card-setting-icon">&#127939;</span>
+              <span class="card-setting-name">Exercise</span>
+            </div>
+            <div class="card-setting-checks">
+              <select id="exerciseDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <label class="master-label" id="showExerciseMasterLabel"><input type="checkbox" id="showExercise"></label>
+            </div>
+          </div>
+          <div class="card-setting-body" id="exerciseSettingsCollapsible" style="display:none;">
+            <div class="settings-row" style="margin-bottom:8px;">
+              <div><label for="exerciseMorningStart">Morning starts</label> <input type="time" id="exerciseMorningStart" value="05:00"></div>
+              <div><label for="exerciseEveningStart">Evening starts</label> <input type="time" id="exerciseEveningStart" value="16:30"></div>
+            </div>
+            <div style="margin-bottom:8px;">
+              <label style="font-size:0.9em;color:var(--t2);"><input type="checkbox" id="exerciseConditionalHide"> Only show while something is still to do</label>
+            </div>
+            <div style="margin-bottom:8px;">
+              <label style="font-size:0.9em;color:var(--t2);"><input type="checkbox" id="exerciseReminders" checked> Needs Attention reminder in the last 3 hours of a window</label>
+            </div>
+            <div style="margin-bottom:8px;">
+              <label style="font-size:0.9em;color:var(--t2);"><input type="checkbox" id="exerciseShowHistory" checked> Show last-7-days dots and streaks</label>
+            </div>
+            <div id="exerciseList"></div>
+            <button type="button" id="addExerciseBtn" style="margin:8px 0 4px 0; padding:6px 16px; border-radius:8px; border:1px solid #444; background:var(--s2); color:var(--t1); cursor:pointer;">+ Add Exercise</button>
+            <div style="font-size:0.78em;color:var(--t4);margin-top:4px;">Morning items can be ticked off until the evening starts; evening and any-time items until midnight. Tick the days an exercise is scheduled (none ticked = every day). The target is a free note shown on the card, e.g. &ldquo;20 min&rdquo; or &ldquo;3 &times; 12&rdquo;. Suspending keeps the history; reactivating starts from the next session. Skip marks a session you chose not to do: it stops the reminders but counts against the streak. The list and done-log sync to every screen with the same token. Phone: open <code>/exercise</code> on this worker, paste the same token and add it to the home screen for a standalone checklist with the weight line.</div>
           </div>
         </div>
 
@@ -3546,12 +3590,36 @@
       var STORAGE_PREFIX = PROFILE ? 'brisbane_' + PROFILE + '_' : 'brisbane_';
       function storageKey(name) { return STORAGE_PREFIX + name; }
 
+      function getLocalDateStr(d) {
+        var yyyy = d.getFullYear();
+        var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+        var dd = ('0' + d.getDate()).slice(-2);
+        return yyyy + '-' + mm + '-' + dd;
+      }
+
+      function parseClockTimeToMin(t, fallbackMin) {
+        if (!t || typeof t !== 'string') return fallbackMin;
+        var parts = t.split(':');
+        var h = parseInt(parts[0], 10);
+        var m = parseInt(parts[1], 10);
+        if (isNaN(h) || isNaN(m)) return fallbackMin;
+        return h * 60 + m;
+      }
+
+      // "A, B, C +2 more" for Needs Attention / ticker name lists.
+      function formatNameList(names) {
+        var list = names || [];
+        var shown = list.slice(0, 3).join(', ');
+        if (list.length > 3) shown = shown + ' +' + (list.length - 3) + ' more';
+        return shown;
+      }
+
       // Cards that emit steady status readings for the top bar (kind: 'status'
       // ticker slides); each picks top bar, scrolling ticker, or both.
       var STRIP_PLACEMENT_CARDS = ['weather', 'uvIndex', 'airQuality', 'pollen'];
 
       // Canonical card order; also the config default (single source of truth).
-      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'forecast', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'];
+      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'forecast', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'exercise', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'];
 
       var config = {
         latitude: -27.4705,
@@ -3586,6 +3654,14 @@
         showBirthdays: false,
         birthdaysConditionalHide: false,
         birthdays: [],
+        showExercise: false,
+        exerciseConditionalHide: false,
+        exerciseReminders: true,
+        exerciseShowHistory: true,
+        exerciseMorningStart: '05:00',
+        exerciseEveningStart: '16:30',
+        exercises: [],
+        exerciseDefUpdatedAt: '',
         showAirQuality: false,
         airQualityShowWhenPoor: false,
         showUvIndex: false,
@@ -3687,6 +3763,7 @@
         newsOwnTickerRow: false,
         newsTickerCount: 6,
         birthdaysDisplayMode: 'card',
+        exerciseDisplayMode: 'card',
         airQualityDisplayMode: 'both',
         uvIndexDisplayMode: 'both',
         pollenDisplayMode: 'card',
@@ -3738,7 +3815,7 @@
       var lastPolymarketData = null;
       var elements = {};
       var isFirstRun = false;
-      var dashboardStatus = { bin: {} };
+      var dashboardStatus = { bin: {}, exerciseDone: {} };
       var dashboardStatusLoaded = false;
       var dashboardStatusLocalDirty = false;
 
@@ -3782,6 +3859,17 @@
         elements.birthdaysConditionalHide = document.getElementById('birthdaysConditionalHide');
         elements.birthdaysDisplayMode = document.getElementById('birthdaysDisplayMode');
         elements.birthdaysList = document.getElementById('birthdaysList');
+        elements.exerciseCard = document.getElementById('exerciseCard');
+        elements.exerciseContent = document.getElementById('exerciseContent');
+        elements.exerciseUpdated = document.getElementById('exerciseUpdated');
+        elements.showExercise = document.getElementById('showExercise');
+        elements.exerciseConditionalHide = document.getElementById('exerciseConditionalHide');
+        elements.exerciseReminders = document.getElementById('exerciseReminders');
+        elements.exerciseShowHistory = document.getElementById('exerciseShowHistory');
+        elements.exerciseMorningStart = document.getElementById('exerciseMorningStart');
+        elements.exerciseEveningStart = document.getElementById('exerciseEveningStart');
+        elements.exerciseDisplayMode = document.getElementById('exerciseDisplayMode');
+        elements.exerciseList = document.getElementById('exerciseList');
         elements.airQualityCard = document.getElementById('airQualityCard');
         elements.airQualityContent = document.getElementById('airQualityContent');
         elements.airQualityUpdated = document.getElementById('airQualityUpdated');
@@ -4049,6 +4137,14 @@
             config.showBirthdays = parsed.showBirthdays !== undefined ? parsed.showBirthdays : false;
             config.birthdaysConditionalHide = parsed.birthdaysConditionalHide !== undefined ? parsed.birthdaysConditionalHide : false;
             config.birthdays = sanitizeBirthdays(parsed.birthdays);
+            config.showExercise = parsed.showExercise !== undefined ? parsed.showExercise : false;
+            config.exerciseConditionalHide = parsed.exerciseConditionalHide !== undefined ? parsed.exerciseConditionalHide : false;
+            config.exerciseReminders = parsed.exerciseReminders !== undefined ? parsed.exerciseReminders : true;
+            config.exerciseShowHistory = parsed.exerciseShowHistory !== undefined ? parsed.exerciseShowHistory : true;
+            config.exerciseMorningStart = parsed.exerciseMorningStart !== undefined ? parsed.exerciseMorningStart : '05:00';
+            config.exerciseEveningStart = parsed.exerciseEveningStart !== undefined ? parsed.exerciseEveningStart : '16:30';
+            config.exercises = parsed.exercises !== undefined ? parsed.exercises : [];
+            config.exerciseDefUpdatedAt = parsed.exerciseDefUpdatedAt !== undefined ? parsed.exerciseDefUpdatedAt : '';
             config.showAirQuality = parsed.showAirQuality !== undefined ? parsed.showAirQuality : false;
             config.airQualityShowWhenPoor = parsed.airQualityShowWhenPoor !== undefined ? parsed.airQualityShowWhenPoor : false;
             config.showUvIndex = parsed.showUvIndex !== undefined ? parsed.showUvIndex : false;
@@ -4161,6 +4257,7 @@
               ['bushfires', null, 'card'],
               ['news', null, 'ticker'],
               ['birthdays', null, 'card'],
+              ['exercise', null, 'card'],
               ['airQuality', null, 'both'],
               ['uvIndex', null, 'both'],
               ['pollen', null, 'card'],
@@ -4515,6 +4612,7 @@
         if (cardId === 'bushfires') return config.bushfiresDisplayMode;
         if (cardId === 'news') return config.newsDisplayMode;
         if (cardId === 'birthdays') return config.birthdaysDisplayMode;
+        if (cardId === 'exercise') return config.exerciseDisplayMode;
         if (cardId === 'airQuality') return config.airQualityDisplayMode;
         if (cardId === 'uvIndex') return config.uvIndexDisplayMode;
         if (cardId === 'pollen') return config.pollenDisplayMode;
@@ -4740,7 +4838,7 @@
         add(proxyHost, '/api/sports', 'Sports', config.showSoccer || config.showRugby || config.showCricket || config.showTennis || config.showNFL);
         add(proxyHost, '/api/finance', 'Finance', config.showFinance);
         add(proxyHost, '/api/polymarket', 'Polymarket', config.showPolymarket);
-        add(proxyHost, '/api/dashboard-status', 'Dashboard sync', config.showBin);
+        add(proxyHost, '/api/dashboard-status', 'Dashboard sync', config.showBin || config.showExercise);
         add(proxyHost, '/api/warnings', 'Weather warnings', config.showWeatherWarnings);
         add(proxyHost, '/api/bushfires', 'Bushfires', config.showBushfires);
         add(proxyHost, '/api/news', 'News', config.showNews);
@@ -4956,6 +5054,27 @@
         }
       }
 
+      // Exercise: a nudge only while a window is about to close on something still
+      // to do (last EXERCISE_REMIND_BEFORE_MIN minutes). Built from the same row
+      // list as the card and ticker, so it never names an item the card shows no
+      // Done button for. Key = label|value, so a per-device dismissal lapses as
+      // soon as the set of named exercises changes.
+      function addExerciseNeedsAttention(items) {
+        if (!config.showExercise || !config.exerciseReminders || !config.exercises || config.exercises.length === 0) return;
+        var rows = getExerciseRows(new Date(), getExerciseDoneLog());
+        var names = [];
+        var count = 0;
+        var soonest = -1;
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].state !== 'open' || rows[i].closesInMin > EXERCISE_REMIND_BEFORE_MIN) continue;
+          count++;
+          if (names.indexOf(rows[i].ex.name) === -1) names.push(rows[i].ex.name);
+          if (soonest < 0 || rows[i].closesInMin < soonest) soonest = rows[i].closesInMin;
+        }
+        if (count === 0) return;
+        addNeedsAttentionItem(items, 45, 'warn', 'Exercise', formatNameList(names), count + ' still to do \u00B7 ' + formatShortMinutes(soonest) + ' left');
+      }
+
       function buildNeedsAttentionItems() {
         var items = [];
         addWeatherNeedsAttention(items);
@@ -4963,6 +5082,7 @@
         addWeatherWarningsNeedsAttention(items);
         addBushfiresNeedsAttention(items);
         addBirthdaysNeedsAttention(items);
+        addExerciseNeedsAttention(items);
         addAirQualityNeedsAttention(items);
         addUvNeedsAttention(items);
         addElectricityNeedsAttention(items);
@@ -5117,6 +5237,12 @@
         var showBirthdays = config.showBirthdays && isCardDisplayMode(config.birthdaysDisplayMode);
         if (showBirthdays && config.birthdaysConditionalHide && !hasBirthdayToday()) showBirthdays = false;
         elements.birthdaysCard.style.display = showBirthdays ? '' : 'none';
+        var showExercise = config.showExercise && isCardDisplayMode(config.exerciseDisplayMode);
+        if (showExercise && config.exerciseConditionalHide && config.exercises && config.exercises.length > 0) {
+          // Hide once every open session today is done or skipped (shared rule with the ticker).
+          if (countExerciseDue().remaining === 0) showExercise = false;
+        }
+        elements.exerciseCard.style.display = showExercise ? '' : 'none';
         var showAirQuality = config.showAirQuality && isCardDisplayMode(config.airQualityDisplayMode);
         // Override: show the card whenever AQI > 100, even if card is normally hidden/ticker-only
         if (config.airQualityShowWhenPoor && lastAirQualityData && lastAirQualityData.current &&
@@ -6581,8 +6707,150 @@
         }
       }
 
+      // Exercise done-log sanitiser. MUST mirror the Worker's sanitizeExerciseDoneLog
+      // exactly (30-day cutoff + newest 500): if the client kept entries the worker
+      // strips, the merged log would never equal the server's stored set and every
+      // poll would trigger another KV write (validate-project pins the pair).
+      function sanitiseExerciseDoneLog(log) {
+        var result = {};
+        if (!log || typeof log !== 'object' || Object.prototype.toString.call(log) === '[object Array]') {
+          return result;
+        }
+        var cutoff = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        var kept = {};
+        var keys = [];
+        var scanned = 0;
+        for (var key in log) {
+          if (!log.hasOwnProperty(key)) continue;
+          if (scanned >= 1000) break;
+          scanned++;
+          if (typeof key === 'string' && key.length <= 200) {
+            // Number() + isFinite mirrors the worker's Number()/Number.isFinite.
+            var value = Number(log[key]);
+            if (isFinite(value) && value > cutoff) {
+              kept[key] = value;
+              keys.push(key);
+            }
+          }
+        }
+        keys.sort(function(a, b) { return kept[b] - kept[a]; });
+        for (var i = 0; i < keys.length && i < 500; i++) {
+          result[keys[i]] = kept[keys[i]];
+        }
+        return result;
+      }
+
+      function mergeExerciseDoneLogs(primary, secondary) {
+        var merged = sanitiseExerciseDoneLog(primary);
+        var other = sanitiseExerciseDoneLog(secondary);
+        for (var key in other) {
+          if (other.hasOwnProperty(key) && (!merged[key] || other[key] > merged[key])) {
+            merged[key] = other[key];
+          }
+        }
+        return merged;
+      }
+
+      function exerciseDoneLogsEqual(a, b) {
+        var aa = sanitiseExerciseDoneLog(a);
+        var bb = sanitiseExerciseDoneLog(b);
+        var countA = 0;
+        var countB = 0;
+        var key;
+        for (key in aa) {
+          if (aa.hasOwnProperty(key)) {
+            countA++;
+            if (aa[key] !== bb[key]) return false;
+          }
+        }
+        for (key in bb) {
+          if (bb.hasOwnProperty(key)) countB++;
+        }
+        return countA === countB;
+      }
+
+      // ---- Exercise: exerciseDef (definitions, last-write-wins by updatedAt) +
+      // exerciseDone (per-session keys, union-merged by max timestamp).
+      var EXERCISE_DEF_TYPES = ['cardio', 'strength', 'stretch', 'walk', 'balance'];
+
+      function normaliseExerciseDaysForCompare(days) {
+        var out = [];
+        var src = Object.prototype.toString.call(days) === '[object Array]' ? days : [];
+        for (var i = 0; i < src.length; i++) {
+          if (typeof src[i] === 'number' && src[i] >= 0 && src[i] <= 6 && src[i] === Math.floor(src[i]) && out.indexOf(src[i]) === -1) out.push(src[i]);
+        }
+        out.sort(function(a, b) { return a - b; });
+        return (out.length > 0 && out.length < 7) ? out : [];
+      }
+
+      function normaliseExercisesForCompare(list) {
+        var arr = [];
+        var src = (list && Object.prototype.toString.call(list) === '[object Array]') ? list : [];
+        for (var i = 0; i < src.length; i++) {
+          var e = src[i] || {};
+          arr.push({
+            name: typeof e.name === 'string' ? e.name : '',
+            period: typeof e.period === 'string' ? e.period : '',
+            type: (typeof e.type === 'string' && EXERCISE_DEF_TYPES.indexOf(e.type) !== -1) ? e.type : '',
+            target: typeof e.target === 'string' ? e.target : '',
+            days: normaliseExerciseDaysForCompare(e.days),
+            suspended: e.suspended === true,
+            trackingStart: (typeof e.trackingStart === 'string' && !isNaN(Date.parse(e.trackingStart))) ? e.trackingStart : ''
+          });
+        }
+        return arr;
+      }
+
+      function buildExerciseDef() {
+        if (!config.exerciseDefUpdatedAt) return null;
+        return {
+          exercises: config.exercises || [],
+          morningStart: config.exerciseMorningStart,
+          eveningStart: config.exerciseEveningStart,
+          updatedAt: config.exerciseDefUpdatedAt
+        };
+      }
+
+      function exerciseDefContentEqual(a, b) {
+        var aList = JSON.stringify(normaliseExercisesForCompare(a ? a.exercises : []));
+        var bList = JSON.stringify(normaliseExercisesForCompare(b ? b.exercises : []));
+        return aList === bList &&
+          (a ? a.morningStart : '') === (b ? b.morningStart : '') &&
+          (a ? a.eveningStart : '') === (b ? b.eveningStart : '');
+      }
+
+      function applyRemoteExerciseDef(def) {
+        config.exercises = (def.exercises && Object.prototype.toString.call(def.exercises) === '[object Array]') ? def.exercises : [];
+        if (typeof def.morningStart === 'string') config.exerciseMorningStart = def.morningStart;
+        if (typeof def.eveningStart === 'string') config.exerciseEveningStart = def.eveningStart;
+        config.exerciseDefUpdatedAt = def.updatedAt;
+        saveConfig();
+      }
+
+      function readLocalExerciseDoneLog() {
+        try {
+          var raw = localStorage.getItem(storageKey('exercise_done'));
+          if (raw) return sanitiseExerciseDoneLog(JSON.parse(raw));
+        } catch (e) {}
+        return {};
+      }
+
+      function writeLocalExerciseDoneLog(log) {
+        try {
+          localStorage.setItem(storageKey('exercise_done'), JSON.stringify(sanitiseExerciseDoneLog(log)));
+        } catch (e) {}
+      }
+
+      var inFlightDashboardSave = false;
+      var lastReconcilePut = 0;
+
       function applyDashboardStatus(data) {
         var incoming = data || {};
+        var firstLoad = !dashboardStatusLoaded;
+        var forcePush = dashboardStatusLocalDirty;
+        var prevBin = dashboardStatus.bin || {};
+        var prevExercise = dashboardStatus.exerciseDone || {};
+        var defAdopted = false;
         var remoteBin = incoming.bin && typeof incoming.bin === 'object' ? incoming.bin : {};
         var localDismissed = getLocalBinDismissedDate();
         var localTakenOut = getLocalBinTakenOutDate();
@@ -6601,13 +6869,47 @@
           nextBin.takenOutDate = localTakenOut;
         }
 
-        dashboardStatus = { bin: nextBin };
+        var remoteExercise = sanitiseExerciseDoneLog(incoming.exerciseDone);
+        var localExercise = readLocalExerciseDoneLog();
+        var mergedExercise = mergeExerciseDoneLogs(remoteExercise, localExercise);
+        if (!exerciseDoneLogsEqual(remoteExercise, mergedExercise)) shouldSave = true;
+
+        // Definition sync, last-write-wins by updatedAt. Skip adoption while the
+        // settings panel is open so a list being edited is never clobbered.
+        var remoteExerciseDef = incoming.exerciseDef && typeof incoming.exerciseDef === 'object' ? incoming.exerciseDef : null;
+        if (!(elements.settingsOverlay && elements.settingsOverlay.className.indexOf('active') !== -1)) {
+          var localExerciseTs = config.exerciseDefUpdatedAt || '';
+          var remoteExerciseTs = (remoteExerciseDef && typeof remoteExerciseDef.updatedAt === 'string') ? remoteExerciseDef.updatedAt : '';
+          if (remoteExerciseTs && (!localExerciseTs || remoteExerciseTs > localExerciseTs)) {
+            applyRemoteExerciseDef(remoteExerciseDef);
+            defAdopted = true;
+          } else if (localExerciseTs && (!remoteExerciseTs || localExerciseTs > remoteExerciseTs)) {
+            shouldSave = true;
+          }
+        }
+
+        var exerciseChanged = !exerciseDoneLogsEqual(prevExercise, mergedExercise);
+        var binChanged = (prevBin.dismissedDate !== nextBin.dismissedDate) || (prevBin.takenOutDate !== nextBin.takenOutDate);
+
+        dashboardStatus = { bin: nextBin, exerciseDone: mergedExercise };
         dashboardStatusLoaded = true;
         dashboardStatusLocalDirty = false;
         saveLocalBinStatus();
+        writeLocalExerciseDoneLog(mergedExercise);
 
-        if (shouldSave) saveDashboardStatus();
-        updateCardVisibility();
+        // Reconciliation pushes from the poll path are throttled to once every
+        // 5 min, a backstop so a never-converging diff can't storm KV writes.
+        // Explicit user actions (Done/Skip, bin dismissal, saving settings) call
+        // saveDashboardStatus directly or set the dirty flag, and stay instant.
+        if (shouldSave && !inFlightDashboardSave && (forcePush || Date.now() - lastReconcilePut > 300000)) {
+          lastReconcilePut = Date.now();
+          saveDashboardStatus();
+        }
+        if (firstLoad || exerciseChanged || defAdopted) renderExercise();
+        if (firstLoad || exerciseChanged || binChanged || defAdopted) {
+          updateCardVisibility();
+          renderNeedsAttention();
+        }
       }
 
       function loadDashboardStatus() {
@@ -6632,11 +6934,23 @@
         var baseUrl = getCloudBaseUrl();
         if (!baseUrl || !config.dashboardToken) return;
 
+        var payload = {
+          bin: dashboardStatus.bin || {},
+          exerciseDone: sanitiseExerciseDoneLog(dashboardStatus.exerciseDone)
+        };
+        var exerciseDef = buildExerciseDef();
+        if (exerciseDef) payload.exerciseDef = exerciseDef;
         var xhr = new XMLHttpRequest();
         xhr.open('PUT', baseUrl + '/api/dashboard-status', true);
         xhr.setRequestHeader('Content-Type', 'application/json');
         setWorkerAuth(xhr);
-        xhr.send(JSON.stringify({ bin: dashboardStatus.bin || {} }));
+        inFlightDashboardSave = true;
+        xhr.addEventListener('loadend', function() { inFlightDashboardSave = false; }, false);
+        try {
+          xhr.send(JSON.stringify(payload));
+        } catch (e) {
+          inFlightDashboardSave = false;
+        }
       }
 
       function setFlightsError(message) {
@@ -7416,6 +7730,14 @@
         elements.showBirthdays.checked = config.showBirthdays;
         elements.birthdaysConditionalHide.checked = config.birthdaysConditionalHide;
         renderBirthdaySettingsRows();
+        elements.showExercise.checked = config.showExercise;
+        setMasterClass('showExerciseMasterLabel', config.showExercise, config.showExercise);
+        elements.exerciseConditionalHide.checked = config.exerciseConditionalHide;
+        elements.exerciseReminders.checked = config.exerciseReminders;
+        elements.exerciseShowHistory.checked = config.exerciseShowHistory;
+        elements.exerciseMorningStart.value = config.exerciseMorningStart;
+        elements.exerciseEveningStart.value = config.exerciseEveningStart;
+        renderExerciseSettingsRows();
         elements.showAirQuality.checked = config.showAirQuality;
         setMasterClass('showAirQualityMasterLabel', config.showAirQuality, config.showAirQuality);
         elements.airQualityShowWhenPoor.checked = config.airQualityShowWhenPoor;
@@ -7534,6 +7856,7 @@
         elements.bushfiresDisplayMode.value = config.bushfiresDisplayMode;
         elements.newsDisplayMode.value = config.newsDisplayMode;
         elements.birthdaysDisplayMode.value = config.birthdaysDisplayMode;
+        elements.exerciseDisplayMode.value = config.exerciseDisplayMode;
         elements.airQualityDisplayMode.value = config.airQualityDisplayMode;
         elements.uvIndexDisplayMode.value = config.uvIndexDisplayMode;
         elements.pollenDisplayMode.value = config.pollenDisplayMode;
@@ -7584,6 +7907,7 @@
       });
 
       function saveSettings() {
+        var prevExerciseDef = { exercises: config.exercises, morningStart: config.exerciseMorningStart, eveningStart: config.exerciseEveningStart };
         config.latitude = parseFloat(elements.latitude.value) || -27.4705;
         config.longitude = parseFloat(elements.longitude.value) || 153.026;
         config.latMin = parseFloat(elements.latMin.value) || -27.4885;
@@ -7621,6 +7945,13 @@
         if (config.newsTickerCount < 1) config.newsTickerCount = 1;
         if (config.newsTickerCount > 12) config.newsTickerCount = 12;
         config.showBirthdays = elements.showBirthdays.checked;
+        config.showExercise = elements.showExercise.checked;
+        config.exerciseConditionalHide = elements.exerciseConditionalHide.checked;
+        config.exerciseReminders = elements.exerciseReminders.checked;
+        config.exerciseShowHistory = elements.exerciseShowHistory.checked;
+        config.exerciseMorningStart = elements.exerciseMorningStart.value || '05:00';
+        config.exerciseEveningStart = elements.exerciseEveningStart.value || '16:30';
+        config.exercises = readExerciseSettingsRows();
         config.birthdaysConditionalHide = elements.birthdaysConditionalHide.checked;
         config.birthdays = readBirthdaySettingsRows();
         config.showAirQuality = elements.showAirQuality.checked;
@@ -7740,6 +8071,7 @@
         config.bushfiresDisplayMode = elements.bushfiresDisplayMode.value;
         config.newsDisplayMode = elements.newsDisplayMode.value;
         config.birthdaysDisplayMode = elements.birthdaysDisplayMode.value;
+        config.exerciseDisplayMode = elements.exerciseDisplayMode.value;
         config.airQualityDisplayMode = elements.airQualityDisplayMode.value;
         config.uvIndexDisplayMode = elements.uvIndexDisplayMode.value;
         config.pollenDisplayMode = elements.pollenDisplayMode.value;
@@ -7763,6 +8095,13 @@
         // Update title
         elements.dashboardTitle.textContent = config.dashboardTitle;
         document.title = config.dashboardTitle;
+
+        // Bump the shared exercise definition only on real change; the next status
+        // load pushes it (last-write-wins by updatedAt) to every screen.
+        if (!exerciseDefContentEqual(prevExerciseDef, { exercises: config.exercises, morningStart: config.exerciseMorningStart, eveningStart: config.exerciseEveningStart })) {
+          config.exerciseDefUpdatedAt = new Date().toISOString();
+          dashboardStatusLocalDirty = true;
+        }
 
         saveConfig();
         dashboardStatusLoaded = false;
@@ -8089,6 +8428,8 @@
         document.getElementById('tennisSettingsExpander').onclick = makeSettingsToggle('tennisSettings');
         document.getElementById('nflSettingsExpander').onclick = makeSettingsToggle('nflSettings');
         document.getElementById('financeSettingsExpander').onclick = makeSettingsToggle('financeSettings');
+        document.getElementById('exerciseSettingsExpander').onclick = makeSettingsToggle('exerciseSettings');
+        document.getElementById('addExerciseBtn').onclick = function() { addExerciseSettingsRow({period: 'morning', trackingStart: new Date().toISOString()}); };
         document.getElementById('addFinanceCustomBtn').onclick = function() {
           addFinanceCustomSettingsRow(null);
           updateFinanceMaster();
@@ -8871,6 +9212,547 @@
         }
         items.sort(function(a, b) { return a.daysUntil - b.daysUntil; });
         return items;
+      }
+
+      // --- Exercise Card ---
+      // Definitions (config.exercises + the two window starts) live in the synced
+      // exerciseDef; completions in the exerciseDone log keyed
+      // '<name>_<period>_<YYYY-MM-DD>' (union-merged, 30-day retention). Every surface — card, conditional visibility,
+      // ticker, Needs Attention — derives from getExerciseRows(), so they agree on
+      // which windows are open. Windows: morning = morningStart..eveningStart,
+      // evening = eveningStart..midnight, any time = morningStart..midnight. There
+      // is no carry-over: yesterday's session can't be ticked off this morning.
+      var EXERCISE_PERIODS = ['morning', 'evening', 'both', 'anytime'];
+      // key, label, icon, colour token
+      var EXERCISE_TYPES = [
+        ['cardio', 'Cardio', '🏃', 'var(--orange)'],
+        ['strength', 'Strength', '💪', 'var(--purple)'],
+        ['stretch', 'Stretch', '🧘', 'var(--teal)'],
+        ['walk', 'Walk', '🚶', 'var(--ok)'],
+        ['balance', 'Balance', '🤸', 'var(--info)'],
+        ['other', 'Other', '✨', 'var(--t4)']
+      ];
+      var EXERCISE_DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      var EXERCISE_REMIND_BEFORE_MIN = 180;
+      var EXERCISE_STREAK_CAP = 30; // the done log is pruned at 30 days
+
+      function getExerciseType(ex) {
+        var key = ex && typeof ex.type === 'string' ? ex.type : 'other';
+        for (var i = 0; i < EXERCISE_TYPES.length; i++) {
+          if (EXERCISE_TYPES[i][0] === key) return EXERCISE_TYPES[i];
+        }
+        return EXERCISE_TYPES[EXERCISE_TYPES.length - 1];
+      }
+
+      function getExerciseDoneKey(name, period, date) {
+        return name + '_' + period + '_' + date;
+      }
+
+      // Skipped sessions live in the same union-merged done log under a suffixed
+      // key, so the shared client/worker sanitiser covers them unchanged (same
+      // 30-day retention). Done wins over skipped when both exist: a skip can be
+      // taken back by doing it.
+      function getExerciseSkipKey(name, period, date) {
+        return getExerciseDoneKey(name, period, date) + '_skipped';
+      }
+
+      // Periods an exercise asks for on one of its scheduled days.
+      function getExercisePeriods(ex) {
+        var p = ex && typeof ex.period === 'string' ? ex.period : 'anytime';
+        if (p === 'both') return ['morning', 'evening'];
+        if (p === 'morning' || p === 'evening') return [p];
+        return ['anytime'];
+      }
+
+      function getExerciseDays(ex) {
+        return (ex && Object.prototype.toString.call(ex.days) === '[object Array]') ? ex.days : [];
+      }
+
+      // days: 0=Sun..6=Sat; absent/empty = every day.
+      function isExerciseDay(ex, date) {
+        var days = getExerciseDays(ex);
+        if (days.length === 0) return true;
+        return days.indexOf(date.getDay()) !== -1;
+      }
+
+      function getNextExerciseDay(ex, date) {
+        for (var i = 1; i <= 7; i++) {
+          var d = new Date(date.getFullYear(), date.getMonth(), date.getDate() + i);
+          if (isExerciseDay(ex, d)) return d.getDay();
+        }
+        return date.getDay();
+      }
+
+      function getExerciseWindow(period) {
+        var morningStartMin = parseClockTimeToMin(config.exerciseMorningStart, 5 * 60);
+        var eveningStartMin = parseClockTimeToMin(config.exerciseEveningStart, 16 * 60 + 30);
+        if (period === 'morning') return {start: morningStartMin, end: eveningStartMin};
+        if (period === 'evening') return {start: eveningStartMin, end: 24 * 60};
+        return {start: morningStartMin, end: 24 * 60};
+      }
+
+      function getExerciseDueInstant(period, day) {
+        var w = getExerciseWindow(period);
+        return new Date(day.getFullYear(), day.getMonth(), day.getDate(), Math.floor(w.start / 60), w.start % 60, 0, 0);
+      }
+
+      // Suspended exercises track nothing; a (re)activated one ignores windows that
+      // opened before its trackingStart, so an evening item added at lunch doesn't
+      // show this morning's session as missed.
+      function isExercisePeriodTracked(ex, period, day) {
+        if (!ex || ex.suspended === true) return false;
+        if (typeof ex.trackingStart !== 'string' || isNaN(Date.parse(ex.trackingStart))) return true;
+        return getExerciseDueInstant(period, day).getTime() >= Date.parse(ex.trackingStart);
+      }
+
+      // One row per (exercise, period) for today. state:
+      //   suspended | rest (not a scheduled day) | untracked (before trackingStart)
+      //   | later (window not open yet) | open (Done/Skip buttons) | done
+      //   | skipped (chosen not to do; closesInMin > 0 while it could still be done)
+      //   | missed
+      function getExerciseRows(now, log) {
+        var list = config.exercises || [];
+        var rows = [];
+        var nowMin = now.getHours() * 60 + now.getMinutes();
+        var today = getLocalDateStr(now);
+        for (var i = 0; i < list.length; i++) {
+          var ex = list[i];
+          if (!ex || typeof ex.name !== 'string' || !ex.name) continue;
+          var periods = getExercisePeriods(ex);
+          for (var p = 0; p < periods.length; p++) {
+            var period = periods[p];
+            var w = getExerciseWindow(period);
+            var key = getExerciseDoneKey(ex.name, period, today);
+            var row = {ex: ex, index: i, period: period, date: today, key: key, doneTs: log[key] || 0, skippedTs: log[getExerciseSkipKey(ex.name, period, today)] || 0, closesInMin: 0, nextDay: -1, state: 'open'};
+            if (ex.suspended === true) {
+              row.state = 'suspended';
+            } else if (row.doneTs) {
+              row.state = 'done';
+            } else if (row.skippedTs) {
+              row.state = 'skipped';
+              if (nowMin >= w.start && nowMin < w.end) row.closesInMin = w.end - nowMin;
+            } else if (!isExerciseDay(ex, now)) {
+              row.state = 'rest';
+              row.nextDay = getNextExerciseDay(ex, now);
+            } else if (!isExercisePeriodTracked(ex, period, now)) {
+              row.state = 'untracked';
+            } else if (nowMin < w.start) {
+              row.state = 'later';
+            } else if (nowMin >= w.end) {
+              row.state = 'missed';
+            } else {
+              row.closesInMin = w.end - nowMin;
+            }
+            rows.push(row);
+          }
+        }
+        return rows;
+      }
+
+      // Due = open or done today. names = the open ones (ticker / Needs Attention).
+      // Skipped sessions are resolved — nothing left to nag about — but never
+      // count as done, so they sit outside total and are reported separately.
+      function countExerciseDue() {
+        var rows = getExerciseRows(new Date(), getExerciseDoneLog());
+        var total = 0;
+        var done = 0;
+        var skipped = 0;
+        var names = [];
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].state === 'done') { total++; done++; }
+          else if (rows[i].state === 'skipped') { skipped++; }
+          else if (rows[i].state === 'open') {
+            total++;
+            if (names.indexOf(rows[i].ex.name) === -1) names.push(rows[i].ex.name);
+          }
+        }
+        return {total: total, done: done, skipped: skipped, remaining: total - done, names: names};
+      }
+
+      // Consecutive scheduled days (today if finished, else from yesterday) on
+      // which every tracked period was done. A day with sessions still open does
+      // not break it; a skipped session is not done, so it does (from tomorrow).
+      // Capped: the done log only keeps 30 days.
+      function getExerciseStreak(ex, log, now) {
+        if (!ex || ex.suspended === true) return 0;
+        var periods = getExercisePeriods(ex);
+        var streak = 0;
+        for (var back = 0; back <= 45 && streak < EXERCISE_STREAK_CAP; back++) {
+          var day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
+          if (!isExerciseDay(ex, day)) continue;
+          var dateStr = getLocalDateStr(day);
+          var tracked = 0;
+          var done = 0;
+          for (var i = 0; i < periods.length; i++) {
+            if (log[getExerciseDoneKey(ex.name, periods[i], dateStr)]) { tracked++; done++; continue; }
+            if (isExercisePeriodTracked(ex, periods[i], day)) tracked++;
+          }
+          if (tracked === 0) {
+            if (back === 0) continue; // nothing tracked yet today
+            break; // before the latest (re)activation
+          }
+          if (done >= tracked) { streak++; continue; }
+          if (back === 0) continue; // today still in progress
+          break;
+        }
+        return streak;
+      }
+
+      function getExerciseDaysLabel(ex) {
+        var days = normaliseExerciseDaysForCompare(getExerciseDays(ex));
+        if (days.length === 0) return 'Every day';
+        if (days.join(',') === '1,2,3,4,5') return 'Weekdays';
+        if (days.join(',') === '0,6') return 'Weekends';
+        var names = [];
+        var order = [1, 2, 3, 4, 5, 6, 0];
+        for (var i = 0; i < order.length; i++) {
+          if (days.indexOf(order[i]) !== -1) names.push(EXERCISE_DAY_SHORT[order[i]]);
+        }
+        return names.join(' ');
+      }
+
+      function getExercisePeriodLabel(period) {
+        if (period === 'morning') return 'Morning';
+        if (period === 'evening') return 'Evening';
+        if (period === 'both') return 'Morning & evening';
+        return 'Any time';
+      }
+
+      function getExerciseDoneLog() {
+        if (dashboardStatusLoaded && dashboardStatus.exerciseDone) {
+          return sanitiseExerciseDoneLog(dashboardStatus.exerciseDone);
+        }
+        return readLocalExerciseDoneLog();
+      }
+
+      function saveExerciseDoneLog(log) {
+        var cleanLog = sanitiseExerciseDoneLog(log);
+        writeLocalExerciseDoneLog(cleanLog);
+        dashboardStatus.exerciseDone = cleanLog;
+        if (dashboardStatusLoaded) {
+          saveDashboardStatus();
+        } else {
+          dashboardStatusLocalDirty = true;
+        }
+      }
+
+      // Last 7 days for one (exercise, period): filled = done, solid red =
+      // skipped, hollow amber = open now, hollow grey = later today, dim = rest
+      // day / not tracked, faded red = missed. Render-only from the done log.
+      function buildExerciseHistoryStrip(ex, period, log, now) {
+        var w = getExerciseWindow(period);
+        var nowMin = now.getHours() * 60 + now.getMinutes();
+        var html = '<div style="margin-top:5px;font-size:0;line-height:0;">';
+        for (var d = 6; d >= 0; d--) {
+          var day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - d);
+          var dateStr = getLocalDateStr(day);
+          var title = EXERCISE_DAY_SHORT[day.getDay()] + ' ' + dateStr;
+          var style;
+          if (log[getExerciseDoneKey(ex.name, period, dateStr)]) {
+            style = 'background:var(--ok);';
+            title = title + ' done';
+          } else if (log[getExerciseSkipKey(ex.name, period, dateStr)]) {
+            style = 'background:var(--bad);';
+            title = title + ' skipped';
+          } else if (!isExerciseDay(ex, day) || !isExercisePeriodTracked(ex, period, day)) {
+            style = 'background:var(--w08);';
+            title = title + (isExerciseDay(ex, day) ? ' not tracked' : ' rest day');
+          } else if (d === 0 && nowMin < w.start) {
+            style = 'background:transparent;border:1px solid var(--w25);';
+            title = title + ' later today';
+          } else if (d === 0 && nowMin < w.end) {
+            style = 'background:transparent;border:1px solid var(--warn);';
+            title = title + ' open';
+          } else {
+            style = 'background:var(--bad);opacity:0.5;';
+            title = title + ' missed';
+          }
+          html = html + '<span title="' + title + '" style="display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;' + style + '"></span>';
+        }
+        return html + '</div>';
+      }
+
+      function renderExerciseRow(row, log, now) {
+        var ex = row.ex;
+        var type = getExerciseType(ex);
+        var html = '<div style="padding:8px 0;border-bottom:1px solid var(--w06);' + (ex.suspended === true ? 'opacity:0.68;' : '') + '">';
+        html = html + '<div style="display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:space-between;justify-content:space-between;">';
+        html = html + '<div style="-webkit-flex:1;flex:1;min-width:0;overflow:hidden;">';
+        html = html + '<span style="font-size:0.95em;margin-right:5px;" title="' + type[1] + '">' + type[2] + '</span>';
+        html = html + '<span style="font-weight:600;color:var(--t1);">' + escapeHtml(ex.name) + '</span>'; // exerciseDef syncs from other devices
+        if (typeof ex.target === 'string' && ex.target) {
+          html = html + ' <span style="font-size:0.8em;color:var(--t3);margin-left:4px;">' + escapeHtml(ex.target) + '</span>';
+        }
+        html = html + '<div style="margin-top:2px;font-size:0.78em;color:var(--t4);">';
+        html = html + '<span style="color:' + type[3] + ';">' + type[1] + '</span>';
+        html = html + ' · ' + getExercisePeriodLabel(ex.period) + ' · ' + getExerciseDaysLabel(ex);
+        if (ex.suspended === true) {
+          html = html + ' <span style="color:var(--warn);">Suspended</span>';
+        } else if (config.exerciseShowHistory) {
+          var streak = getExerciseStreak(ex, log, now);
+          if (streak >= 2) {
+            html = html + ' · <span style="color:var(--orange);" title="Consecutive scheduled days completed">🔥 ' + (streak >= EXERCISE_STREAK_CAP ? EXERCISE_STREAK_CAP + '+' : streak) + '-day streak</span>';
+          }
+        }
+        html = html + '</div>';
+        if (config.exerciseShowHistory && ex.suspended !== true) {
+          html = html + buildExerciseHistoryStrip(ex, row.period, log, now);
+        }
+        html = html + '</div>';
+
+        html = html + '<div style="-webkit-flex-shrink:0;flex-shrink:0;margin-left:8px;text-align:right;min-width:90px;white-space:nowrap;">';
+        if (row.state === 'suspended') {
+          html = html + '<span style="color:var(--warn);font-size:0.85em;">Not tracking</span>';
+        } else if (row.state === 'rest') {
+          html = html + '<span style="color:var(--t5);font-size:0.85em;">Next ' + EXERCISE_DAY_SHORT[row.nextDay] + '</span>';
+        } else if (row.state === 'untracked') {
+          html = html + '<span style="color:var(--t5);font-size:0.85em;">Next session</span>';
+        } else if (row.state === 'later') {
+          html = html + '<span style="color:var(--t5);font-size:0.85em;">' + (row.period === 'evening' ? 'Tonight' : 'Later today') + '</span>';
+        } else if (row.state === 'missed') {
+          html = html + '<span style="color:var(--t5);font-size:0.85em;">Missed</span>';
+        } else if (row.state === 'done') {
+          var doneTime = formatTime(new Date(row.doneTs));
+          html = html + '<span style="color:var(--ok);font-size:0.85em;" title="Done at ' + doneTime + '">&#10003; ' + doneTime + '</span>';
+        } else if (row.state === 'skipped') {
+          var skipTime = formatTime(new Date(row.skippedTs));
+          html = html + '<span style="color:var(--bad);font-size:0.85em;" title="Skipped at ' + skipTime + '">&#10005; Skipped</span>';
+          // Still inside the window: a skip can be taken back by doing it (done
+          // wins over skipped in the log, and a union merge can't delete the skip).
+          if (row.closesInMin > 0) {
+            html = html + ' ' + buildExerciseActionButton('doneExerciseAt', row, 'var(--ok)', 'rgba(74,222,128,0.1)', 'Done', 'padding:2px 8px;font-size:0.75em;margin-left:6px;');
+          }
+        } else {
+          html = html + buildExerciseActionButton('skipExerciseAt', row, 'var(--bad)', 'rgba(248,113,113,0.1)', 'Skip', 'padding:4px 9px;font-size:0.85em;margin-right:6px;');
+          html = html + buildExerciseActionButton('doneExerciseAt', row, 'var(--ok)', 'rgba(74,222,128,0.1)', 'Done', 'padding:4px 12px;font-size:0.85em;');
+        }
+        html = html + '</div>';
+        return html + '</div></div>';
+      }
+
+      // Pass the index, not the name: a name with a quote would otherwise break
+      // out of the attribute (synced, untrusted text). period/date are validated
+      // by the handler.
+      function buildExerciseActionButton(fn, row, colour, tint, label, extraStyle) {
+        return '<button type="button" onclick="' + fn + '(' + row.index + ', \'' + row.period + '\', \'' + row.date + '\')" ' +
+          'style="border-radius:6px;border:1px solid ' + colour + ';background:' + tint + ';color:' + colour + ';cursor:pointer;' + extraStyle + '">' + label + '</button>';
+      }
+
+      function renderExercise() {
+        if (!config.showExercise) return;
+        var list = config.exercises || [];
+        if (list.length === 0) {
+          elements.exerciseContent.innerHTML = '<div style="color:var(--t4);text-align:center;padding:12px 0;">No exercise configured. Add some in Settings.</div>';
+          elements.exerciseUpdated.textContent = '--';
+          return;
+        }
+        var now = new Date();
+        var log = getExerciseDoneLog();
+        var rows = getExerciseRows(now, log);
+        var sections = [['morning', 'Morning'], ['anytime', 'Any time'], ['evening', 'Evening']];
+        var sectionsUsed = 0;
+        for (var s = 0; s < sections.length; s++) {
+          for (var r = 0; r < rows.length; r++) {
+            if (rows[r].period === sections[s][0]) { sectionsUsed++; break; }
+          }
+        }
+        var html = '';
+        var dueCount = 0;
+        var skippedCount = 0;
+        var allDone = true;
+        for (var si = 0; si < sections.length; si++) {
+          var sectionHtml = '';
+          for (var ri = 0; ri < rows.length; ri++) {
+            var row = rows[ri];
+            if (row.period !== sections[si][0]) continue;
+            if (row.state === 'open' || row.state === 'done') dueCount++;
+            if (row.state === 'skipped') skippedCount++;
+            if (row.state === 'open' || row.state === 'missed') allDone = false;
+            sectionHtml = sectionHtml + renderExerciseRow(row, log, now);
+          }
+          if (!sectionHtml) continue;
+          if (sectionsUsed > 1) {
+            html = html + '<div style="font-size:0.72em;letter-spacing:0.06em;text-transform:uppercase;color:var(--t4);padding:6px 0 0 0;">' + sections[si][1] + '</div>';
+          }
+          html = html + sectionHtml;
+        }
+        if (dueCount > 0 && allDone && skippedCount === 0) {
+          html = html + '<div style="text-align:center;color:var(--ok);padding:8px 0;font-weight:600;">All exercise done &#10003;</div>';
+        } else if (allDone && skippedCount > 0) {
+          html = html + '<div style="text-align:center;color:var(--t4);padding:8px 0;font-size:0.9em;">Nothing left today &middot; <span style="color:var(--bad);">' + skippedCount + ' skipped</span></div>';
+        }
+        elements.exerciseContent.innerHTML = html;
+        elements.exerciseUpdated.textContent = formatUpdatedTime(new Date());
+        scheduleMasonry();
+      }
+
+      function markExerciseAt(index, period, date, skipped) {
+        var ex = (config.exercises || [])[index];
+        if (!ex || !ex.name) return;
+        if (!/^(morning|evening|anytime)$/.test(String(period)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return;
+        var log = getExerciseDoneLog();
+        var key = skipped ? getExerciseSkipKey(ex.name, period, date) : getExerciseDoneKey(ex.name, period, date);
+        log[key] = new Date().getTime();
+        saveExerciseDoneLog(log);
+        renderExercise();
+        updateCardVisibility();
+      }
+      function doneExerciseAt(index, period, date) { markExerciseAt(index, period, date, false); }
+      function skipExerciseAt(index, period, date) { markExerciseAt(index, period, date, true); }
+      window.doneExerciseAt = doneExerciseAt;
+      window.skipExerciseAt = skipExerciseAt;
+
+      // --- Exercise Settings UI ---
+
+      function renderExerciseSettingsRows() {
+        var container = elements.exerciseList;
+        if (!container) return;
+        container.innerHTML = '';
+        var list = config.exercises || [];
+        for (var i = 0; i < list.length; i++) {
+          addExerciseSettingsRow(list[i]);
+        }
+      }
+
+      function exerciseSettingsSelect(className, options, selected) {
+        var select = document.createElement('select');
+        select.className = className;
+        select.style.cssText = 'padding:6px 8px;border-radius:6px;border:1px solid #444;background:var(--s1);color:var(--t1);font-size:0.9em;margin-right:8px;';
+        for (var i = 0; i < options.length; i++) {
+          var opt = document.createElement('option');
+          opt.value = options[i][0];
+          opt.textContent = options[i][1];
+          if (options[i][0] === selected) opt.selected = true;
+          select.appendChild(opt);
+        }
+        return select;
+      }
+
+      function addExerciseSettingsRow(ex) {
+        var container = elements.exerciseList;
+        if (!container) return;
+        ex = ex || {};
+        var row = document.createElement('div');
+        row.style.cssText = 'display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;margin:6px 0;-webkit-flex-wrap:wrap;flex-wrap:wrap;';
+        row._exerciseSuspended = ex.suspended === true;
+        row._exerciseTrackingStart = typeof ex.trackingStart === 'string' ? ex.trackingStart : '';
+
+        var nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = typeof ex.name === 'string' ? ex.name : '';
+        nameInput.placeholder = 'Exercise (Walk, Push-ups...)';
+        nameInput.className = 'exercise-name-input';
+        nameInput.style.cssText = '-webkit-flex:1;flex:1;min-width:110px;padding:6px 10px;border-radius:6px;border:1px solid #444;background:var(--s1);color:var(--t1);font-size:0.9em;margin-right:8px;';
+
+        var typeOptions = [];
+        for (var t = 0; t < EXERCISE_TYPES.length; t++) typeOptions.push([EXERCISE_TYPES[t][0], EXERCISE_TYPES[t][2] + ' ' + EXERCISE_TYPES[t][1]]);
+        var typeSelect = exerciseSettingsSelect('exercise-type-select', typeOptions, getExerciseType(ex)[0]);
+        var periodSelect = exerciseSettingsSelect('exercise-period-select', [
+          ['morning', 'Morning'],
+          ['evening', 'Evening'],
+          ['both', 'Morning & Evening'],
+          ['anytime', 'Any time']
+        ], EXERCISE_PERIODS.indexOf(ex.period) !== -1 ? ex.period : 'anytime');
+
+        var targetInput = document.createElement('input');
+        targetInput.type = 'text';
+        targetInput.maxLength = 30;
+        targetInput.value = typeof ex.target === 'string' ? ex.target : '';
+        targetInput.placeholder = 'Target (20 min)';
+        targetInput.title = 'Optional note shown on the card, e.g. 20 min or 3 x 12';
+        targetInput.className = 'exercise-target-input';
+        targetInput.style.cssText = 'width:110px;padding:6px 10px;border-radius:6px;border:1px solid #444;background:var(--s1);color:var(--t1);font-size:0.9em;margin-right:8px;';
+
+        var suspendBtn = document.createElement('button');
+        suspendBtn.type = 'button';
+        suspendBtn.style.cssText = 'padding:5px 9px;border-radius:6px;border:1px solid #777;background:transparent;cursor:pointer;font-size:0.82em;margin-right:6px;';
+        function updateSuspendButton() {
+          suspendBtn.textContent = row._exerciseSuspended ? 'Reactivate' : 'Suspend';
+          suspendBtn.title = row._exerciseSuspended ? 'Resume from the next session' : 'Stop tracking without deleting this exercise';
+          suspendBtn.style.color = row._exerciseSuspended ? 'var(--ok)' : 'var(--warn)';
+          nameInput.style.opacity = row._exerciseSuspended ? '0.55' : '1';
+          typeSelect.style.opacity = row._exerciseSuspended ? '0.55' : '1';
+          periodSelect.style.opacity = row._exerciseSuspended ? '0.55' : '1';
+        }
+        suspendBtn.onclick = function() {
+          if (row._exerciseSuspended) {
+            row._exerciseSuspended = false;
+            row._exerciseTrackingStart = new Date().toISOString();
+          } else {
+            row._exerciseSuspended = true;
+          }
+          updateSuspendButton();
+        };
+        updateSuspendButton();
+
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.textContent = '×';
+        removeBtn.style.cssText = 'padding:4px 10px;border-radius:6px;border:1px solid #666;background:transparent;color:var(--bad);cursor:pointer;font-size:1.1em;';
+        removeBtn.onclick = function() { row.parentNode.removeChild(row); };
+
+        // Second line: scheduled days (all or none ticked = every day).
+        var dayLine = document.createElement('div');
+        dayLine.style.cssText = 'width:100%;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-flex-wrap:wrap;flex-wrap:wrap;margin:3px 0 2px 0;font-size:0.8em;color:var(--t4);';
+        var daysLabel = document.createElement('span');
+        daysLabel.textContent = 'Days';
+        daysLabel.style.cssText = 'margin-right:6px;';
+        dayLine.appendChild(daysLabel);
+        var days = normaliseExerciseDaysForCompare(getExerciseDays(ex));
+        var order = [1, 2, 3, 4, 5, 6, 0];
+        for (var d = 0; d < order.length; d++) {
+          var dayLabel = document.createElement('label');
+          dayLabel.style.cssText = 'display:-webkit-inline-flex;display:inline-flex;-webkit-align-items:center;align-items:center;cursor:pointer;margin-right:8px;';
+          var dayCb = document.createElement('input');
+          dayCb.type = 'checkbox';
+          dayCb.className = 'exercise-day-cb';
+          dayCb.value = String(order[d]);
+          dayCb.checked = days.length === 0 || days.indexOf(order[d]) !== -1;
+          dayCb.style.cssText = 'margin:0 3px 0 0;';
+          dayLabel.appendChild(dayCb);
+          dayLabel.appendChild(document.createTextNode(EXERCISE_DAY_SHORT[order[d]]));
+          dayLine.appendChild(dayLabel);
+        }
+
+        row.appendChild(nameInput);
+        row.appendChild(typeSelect);
+        row.appendChild(periodSelect);
+        row.appendChild(targetInput);
+        row.appendChild(suspendBtn);
+        row.appendChild(removeBtn);
+        row.appendChild(dayLine);
+        container.appendChild(row);
+      }
+      window.addExerciseSettingsRow = addExerciseSettingsRow;
+
+      function readExerciseSettingsRows() {
+        var container = elements.exerciseList;
+        if (!container) return [];
+        var rows = container.children;
+        var list = [];
+        for (var i = 0; i < rows.length; i++) {
+          var nameInput = rows[i].querySelector('.exercise-name-input');
+          var typeSelect = rows[i].querySelector('.exercise-type-select');
+          var periodSelect = rows[i].querySelector('.exercise-period-select');
+          var targetInput = rows[i].querySelector('.exercise-target-input');
+          if (!nameInput || !periodSelect || !nameInput.value.trim()) continue;
+          var ex = {name: nameInput.value.trim().substring(0, 60), period: periodSelect.value};
+          if (typeSelect && EXERCISE_DEF_TYPES.indexOf(typeSelect.value) !== -1) ex.type = typeSelect.value;
+          if (targetInput && targetInput.value.trim()) ex.target = targetInput.value.trim().substring(0, 30);
+          var dayCbs = rows[i].querySelectorAll('.exercise-day-cb');
+          var days = [];
+          for (var d = 0; d < dayCbs.length; d++) {
+            if (dayCbs[d].checked) days.push(parseInt(dayCbs[d].value, 10));
+          }
+          days = normaliseExerciseDaysForCompare(days);
+          if (days.length > 0) ex.days = days;
+          if (rows[i]._exerciseSuspended === true) ex.suspended = true;
+          if (typeof rows[i]._exerciseTrackingStart === 'string' && !isNaN(Date.parse(rows[i]._exerciseTrackingStart))) {
+            ex.trackingStart = rows[i]._exerciseTrackingStart;
+          }
+          list.push(ex);
+        }
+        return list;
       }
 
       function renderBirthdays() {
@@ -10191,6 +11073,22 @@
           }
         }
 
+        // Exercise
+        if (config.showExercise && isTickerDisplayMode(config.exerciseDisplayMode) && config.exercises && config.exercises.length > 0) {
+          var exStats = countExerciseDue();
+          if (exStats.total > 0 || exStats.skipped > 0) {
+            var exSkipText = exStats.skipped > 0 ? exStats.skipped + ' skipped' : '';
+            slides.push({
+              cardId: 'exercise',
+              icon: '\uD83C\uDFC3',
+              label: 'Exercise',
+              value: exStats.remaining > 0 ? exStats.done + '/' + exStats.total + ' done' : (exStats.done > 0 ? 'All done \u2713' : 'Skipped'),
+              changeClass: exStats.remaining > 0 ? '' : (exStats.skipped > 0 ? 'finance-down' : 'finance-up'),
+              changeText: exStats.remaining > 0 ? formatNameList(exStats.names) + (exSkipText ? ' \u00B7 ' + exSkipText : '') : exSkipText
+            });
+          }
+        }
+
         // Air Quality
         if (config.showAirQuality && isTickerDisplayMode(config.airQualityDisplayMode) && lastAirQualityData && lastAirQualityData.current && lastAirQualityData.current.us_aqi !== undefined && lastAirQualityData.current.us_aqi !== null) {
           var aqVal = Math.round(lastAirQualityData.current.us_aqi);
@@ -11061,6 +11959,7 @@
       }
 
       function fetchAllData() {
+        renderExercise();
         fetchWeather();
         fetchForecast();
         fetchWeatherWarnings();
@@ -11092,6 +11991,8 @@
 
         flightTimer = setInterval(fetchFlights, flightMs);
         dataTimer = setInterval(function() {
+          loadDashboardStatus(); // GET only; reconcile PUTs are throttled inside applyDashboardStatus
+          renderExercise();
           fetchWeather();
           fetchForecast();
           fetchWeatherWarnings();
