@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.68.0">
+  <meta name="app-version" content="1.69.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -2503,6 +2503,17 @@
         </div>
       </div>
 
+      <!-- F1 Card -->
+      <div class="card" id="f1Card" data-card-id="f1">
+        <div class="card-inner">
+          <div class="card-header">
+            <div class="card-title"><span class="card-icon">🏎️</span> Formula 1</div>
+            <div class="card-updated" id="f1Updated">--</div>
+          </div>
+          <div class="card-content" id="f1Content"><div class="card-loading">Loading...</div></div>
+        </div>
+      </div>
+
       <!-- Finance Card -->
       <div class="card" id="financeCard" data-card-id="finance">
         <div class="card-inner">
@@ -2998,6 +3009,20 @@
           </div>
         </div>
 
+        <!-- Formula 1 -->
+        <div class="card-setting-row">
+          <div class="card-setting-main">
+            <div class="card-setting-expander" id="f1SettingsExpander">
+              <span class="card-setting-icon">&#127950;&#65039;</span>
+              <span class="card-setting-name">Formula 1</span>
+            </div>
+            <div class="card-setting-checks">
+              <select id="f1DisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <label class="master-label"><input type="checkbox" id="showF1"></label>
+            </div>
+          </div>
+        </div>
+
         <!-- Fuel Prices -->
         <div class="card-setting-row">
           <div class="card-setting-main">
@@ -3056,7 +3081,7 @@
           <div class="card-setting-body" id="nflSettingsCollapsible" style="display:none;">
             <div class="settings-row">
               <div class="settings-group">
-                <label class="checkbox-label"><input type="checkbox" id="nflPlayoffs"> NFL Playoffs</label>
+                <label class="checkbox-label"><input type="checkbox" id="nflPlayoffs"> NFL (regular season + playoffs)</label>
               </div>
             </div>
           </div>
@@ -3619,7 +3644,7 @@
       var STRIP_PLACEMENT_CARDS = ['weather', 'uvIndex', 'airQuality', 'pollen'];
 
       // Canonical card order; also the config default (single source of truth).
-      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'forecast', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'exercise', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'finance', 'polymarket'];
+      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'forecast', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'exercise', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'f1', 'finance', 'polymarket'];
 
       var config = {
         latitude: -27.4705,
@@ -3729,6 +3754,7 @@
         tennisGrandSlams: false,
         tennisGeneral: false,
         showNFL: false,
+        showF1: false,
         nflPlayoffs: false,
         showFinance: false,
         financeSP500: false,
@@ -3781,6 +3807,7 @@
         cricketDisplayMode: 'card',
         tennisDisplayMode: 'card',
         nflDisplayMode: 'card',
+        f1DisplayMode: 'card',
         financeDisplayMode: 'both',
         polymarketDisplayMode: 'card',
         scrollingTicker: false,
@@ -4010,6 +4037,9 @@
         elements.nflCard = document.getElementById('nflCard');
         elements.nflContent = document.getElementById('nflContent');
         elements.nflUpdated = document.getElementById('nflUpdated');
+        elements.f1Card = document.getElementById('f1Card');
+        elements.f1Content = document.getElementById('f1Content');
+        elements.f1Updated = document.getElementById('f1Updated');
         elements.financeCard = document.getElementById('financeCard');
         elements.financeContent = document.getElementById('financeContent');
         elements.financeUpdated = document.getElementById('financeUpdated');
@@ -4062,6 +4092,7 @@
         elements.showCricket = document.getElementById('showCricket');
         elements.showTennis = document.getElementById('showTennis');
         elements.showNFL = document.getElementById('showNFL');
+        elements.showF1 = document.getElementById('showF1');
         elements.soccerEPL = document.getElementById('soccerEPL');
         elements.soccerChampionsLeague = document.getElementById('soccerChampionsLeague');
         elements.soccerWorldCup = document.getElementById('soccerWorldCup');
@@ -4082,6 +4113,7 @@
         elements.tennisGeneral = document.getElementById('tennisGeneral');
         elements.nflPlayoffs = document.getElementById('nflPlayoffs');
         elements.nflDisplayMode = document.getElementById('nflDisplayMode');
+        elements.f1DisplayMode = document.getElementById('f1DisplayMode');
       }
 
       function loadConfig() {
@@ -4221,6 +4253,7 @@
             config.tennisGrandSlams = parsed.tennisGrandSlams !== undefined ? parsed.tennisGrandSlams : false;
             config.tennisGeneral = parsed.tennisGeneral !== undefined ? parsed.tennisGeneral : false;
             config.showNFL = parsed.showNFL !== undefined ? parsed.showNFL : false;
+            config.showF1 = parsed.showF1 !== undefined ? parsed.showF1 : false;
             config.nflPlayoffs = parsed.nflPlayoffs !== undefined ? parsed.nflPlayoffs : false;
             config.showFinance = parsed.showFinance !== undefined ? parsed.showFinance : false;
             config.financeSP500 = parsed.financeSP500 !== undefined ? parsed.financeSP500 : false;
@@ -4271,6 +4304,7 @@
               ['cricket', 'tickerCricket', 'card'],
               ['tennis', 'tickerTennis', 'card'],
               ['nfl', 'tickerNFL', 'card'],
+              ['f1', null, 'card'],
               ['finance', null, 'both'],
               ['polymarket', 'tickerPolymarket', 'card'],
             ];
@@ -4625,6 +4659,7 @@
         if (cardId === 'cricket') return config.cricketDisplayMode;
         if (cardId === 'tennis') return config.tennisDisplayMode;
         if (cardId === 'nfl') return config.nflDisplayMode;
+        if (cardId === 'f1') return config.f1DisplayMode;
         if (cardId === 'finance') return config.financeDisplayMode;
         if (cardId === 'polymarket') return config.polymarketDisplayMode;
         return 'card';
@@ -4836,6 +4871,7 @@
         add(proxyHost, '/api/flights', 'Flights', config.showFlights);
         add(proxyHost, '/api/fuel', 'Fuel prices', config.showFuel);
         add(proxyHost, '/api/sports', 'Sports', config.showSoccer || config.showRugby || config.showCricket || config.showTennis || config.showNFL);
+        add(proxyHost, '/api/f1', 'Formula 1', config.showF1);
         add(proxyHost, '/api/finance', 'Finance', config.showFinance);
         add(proxyHost, '/api/polymarket', 'Polymarket', config.showPolymarket);
         add(proxyHost, '/api/dashboard-status', 'Dashboard sync', config.showBin || config.showExercise);
@@ -5337,6 +5373,7 @@
         elements.cricketCard.style.display = (config.showCricket && isCardDisplayMode(config.cricketDisplayMode)) ? '' : 'none';
         elements.tennisCard.style.display = (config.showTennis && isCardDisplayMode(config.tennisDisplayMode)) ? '' : 'none';
         elements.nflCard.style.display = (config.showNFL && isCardDisplayMode(config.nflDisplayMode)) ? '' : 'none';
+        elements.f1Card.style.display = (config.showF1 && isCardDisplayMode(config.f1DisplayMode)) ? '' : 'none';
         elements.financeCard.style.display = (config.showFinance && isCardDisplayMode(config.financeDisplayMode)) ? '' : 'none';
         elements.polymarketCard.style.display = (config.showPolymarket && isCardDisplayMode(config.polymarketDisplayMode)) ? '' : 'none';
         if (!config.showWeatherWarnings && elements.severeWarningBanner) elements.severeWarningBanner.style.display = 'none';
@@ -7822,6 +7859,7 @@
         updateTennisMaster();
         elements.nflPlayoffs.checked = config.nflPlayoffs;
         elements.nflDisplayMode.value = config.nflDisplayMode;
+        elements.f1DisplayMode.value = config.f1DisplayMode;
         updateNFLMaster();
         elements.financeSP500.checked = config.financeSP500;
         elements.financeDow.checked = config.financeDow;
@@ -7841,6 +7879,7 @@
         renderFinanceCustomSettingsRows();
         updateFinanceMaster();
         elements.showPolymarket.checked = config.showPolymarket;
+        elements.showF1.checked = config.showF1;
         elements.polymarketCount.value = config.polymarketCount || 5;
         elements.showTicker.checked = config.showTicker;
         elements.tickerInterval.value = config.tickerInterval || 5;
@@ -8037,6 +8076,7 @@
         config.showNFL = elements.showNFL.checked;
         config.nflPlayoffs = elements.nflPlayoffs.checked;
         config.nflDisplayMode = elements.nflDisplayMode.value;
+        config.f1DisplayMode = elements.f1DisplayMode.value;
         config.showFinance = elements.showFinance.checked;
         config.financeSP500 = elements.financeSP500.checked;
         config.financeDow = elements.financeDow.checked;
@@ -8055,6 +8095,7 @@
         config.financeJSEALSI = elements.financeJSEALSI.checked;
         config.financeCustom = readFinanceCustomSettingsRows();
         config.showPolymarket = elements.showPolymarket.checked;
+        config.showF1 = elements.showF1.checked;
         config.polymarketCount = parseInt(elements.polymarketCount.value) || 5;
         config.showTicker = elements.showTicker.checked;
         config.tickerInterval = parseInt(elements.tickerInterval.value, 10) || 5;
@@ -10545,7 +10586,7 @@
           }
         }
         if (config.showNFL && config.nflPlayoffs) {
-          leagueMap[SPORTS_LEAGUE_IDS.nflPlayoffs] = { card: 'nfl', title: '🏈 NFL Playoffs' };
+          leagueMap[SPORTS_LEAGUE_IDS.nflPlayoffs] = { card: 'nfl', title: '🏈 NFL' };
         }
 
         // If soccer is enabled but has no fixture leagues (all standings-only), clear fixtures
@@ -11408,6 +11449,22 @@
         }
 
         // Polymarket
+        // Formula 1 — next race, with the championship leader
+        if (config.showF1 && isTickerDisplayMode(config.f1DisplayMode) && lastF1Data) {
+          var f1Next = lastF1Data.upcoming && lastF1Data.upcoming[0];
+          var f1Leader = lastF1Data.drivers && lastF1Data.drivers[0];
+          if (f1Next || f1Leader) {
+            slides.push({
+              cardId: 'f1',
+              icon: '🏎️',
+              label: f1Next ? f1Next.name : ('F1 ' + (lastF1Data.season || '')),
+              value: f1Next ? formatF1Start(f1Next.start) : '',
+              changeClass: '',
+              changeText: f1Leader ? ('P1 ' + (f1Leader.code || f1Leader.name) + ' ' + f1Leader.points + ' pts') : ''
+            });
+          }
+        }
+
         if (config.showPolymarket && isTickerDisplayMode(config.polymarketDisplayMode) && lastPolymarketData && lastPolymarketData.length > 0) {
           var pmTop = lastPolymarketData[0];
           var pmPct = Math.round(pmTop.yesPrice * 100);
@@ -11886,6 +11943,101 @@
         document.getElementById('spotlightOverlay').className = 'spotlight-overlay';
       }
 
+      // --- Formula 1 ---
+      // Worker /api/f1 (Jolpica): last race with winner, next five races as UTC
+      // starts, top ten of both championships. Everything here is feed text,
+      // so it goes through escapeHtml at the sink.
+
+      var lastF1Data = null;
+
+      function formatF1Start(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        try {
+          return d.toLocaleString('en-AU', { timeZone: 'Australia/Brisbane', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+        } catch (e) {
+          return d.toDateString();
+        }
+      }
+
+      function fetchF1() {
+        if (!config.showF1) return;
+
+        var baseUrl = config.busProxyUrl || window.location.origin;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', baseUrl + '/api/f1', true);
+        if (config.dashboardToken) {
+          xhr.setRequestHeader('X-Dashboard-Token', config.dashboardToken);
+        }
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+              try {
+                var data = JSON.parse(xhr.responseText);
+                renderF1(data);
+                elements.f1Updated.textContent = formatUpdatedTime(new Date());
+              } catch (e) {
+                elements.f1Content.innerHTML = '<div class="card-error">Parse error</div>';
+              }
+            } else {
+              elements.f1Content.innerHTML = '<div class="card-error">Failed to load</div>';
+            }
+          }
+        };
+        xhr.onerror = function() {
+          elements.f1Content.innerHTML = '<div class="card-error">Network error</div>';
+        };
+        xhr.send();
+      }
+
+      function renderF1Race(race, badge, pastClass) {
+        var meta = escapeHtml(formatF1Start(race.start));
+        var detail = race.winnerTeam || race.circuit || '';
+        if (detail) meta += (meta ? ' · ' : '') + escapeHtml(detail);
+        return '<div class="sport-event-row' + pastClass + '">' +
+          '<div class="sport-event-teams">' +
+            '<span class="sport-team">' + escapeHtml(race.name) + '</span>' +
+            (badge ? '<span class="sport-score' + (pastClass ? '' : ' upcoming') + '">' + escapeHtml(badge) + '</span>' : '') +
+          '</div>' +
+          '<div class="sport-event-meta">' + meta + '</div>' +
+        '</div>';
+      }
+
+      function renderF1Standings(title, rows, isDrivers) {
+        if (!rows || !rows.length) return '';
+        var html = '<div class="standings-title">' + title + '</div>' +
+          '<table class="standings-table"><tr><th style="text-align:right">#</th><th>' + (isDrivers ? 'Driver' : 'Team') + '</th><th style="text-align:right">Pts</th><th style="text-align:right">W</th></tr>';
+        for (var i = 0; i < rows.length && i < 5; i++) {
+          var row = rows[i];
+          var cell = escapeHtml(isDrivers ? (row.name || row.code || '') : (row.team || ''));
+          if (isDrivers && row.team) cell += ' <span style="color:var(--t4);font-size:0.85em;">' + escapeHtml(row.team) + '</span>';
+          html += '<tr>' +
+            '<td style="text-align:right">' + (row.pos || (i + 1)) + '</td>' +
+            '<td>' + cell + '</td>' +
+            '<td style="text-align:right">' + (row.points || 0) + '</td>' +
+            '<td style="text-align:right">' + (row.wins || 0) + '</td>' +
+          '</tr>';
+        }
+        return html + '</table>';
+      }
+
+      function renderF1(data) {
+        lastF1Data = data;
+        var upcoming = (data && data.upcoming) || [];
+        if (!data || (!data.last && !upcoming.length && !(data.drivers && data.drivers.length))) {
+          elements.f1Content.innerHTML = '<div class="card-error">No F1 data</div>';
+          return;
+        }
+        var html = '';
+        if (upcoming[0]) html += renderF1Race(upcoming[0], 'Next', '');
+        if (data.last) html += renderF1Race(data.last, data.last.winner || '', ' sport-event-past');
+        html += renderF1Standings('Drivers', data.drivers, true);
+        html += renderF1Standings('Constructors', data.constructors, false);
+        elements.f1Content.innerHTML = html;
+        scheduleMasonry();
+      }
+
       function fetchPolymarket() {
         if (!config.showPolymarket) return;
 
@@ -11978,6 +12130,7 @@
         fetchStandings();
         fetchFinance();
         fetchPolymarket();
+        fetchF1();
         // Rebuild scrolling ticker after a delay so data can arrive
         setTimeout(buildScrollingTicker, 5000);
       }
@@ -12011,6 +12164,7 @@
           fetchStandings();
           fetchFinance();
           fetchPolymarket();
+          fetchF1();
           setTimeout(buildScrollingTicker, 5000);
         }, dataMs);
       }

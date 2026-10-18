@@ -6,7 +6,9 @@ Single-file city dashboard focused on Brisbane, deployed optionally as a Cloudfl
 
 - `npm run dev` - local Cloudflare Worker at `http://localhost:8787`
 - `npm run deploy` - deploy with Wrangler
+- `npm ci` - once: installs jsdom for the boot smoke test
 - `node scripts/check-ios12-compat.js` - scan `index.html` for iOS 12-incompatible JavaScript
+- `node scripts/check-boot.js` - boot `index.html` and `public/exercise.html` in jsdom with a seeded config and the network stubbed; fails on any uncaught exception
 - `node --check src/worker.js` - syntax-check the Worker
 - `npm run validate` - run the complete local validation suite
 - Or open `index.html` directly in a browser for features that do not require the Worker

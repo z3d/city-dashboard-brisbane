@@ -77,6 +77,9 @@ const _financeCache = {};
 let _electricityCache = null;
 let _electricityTime = 0;
 const _polymarketCache = {}; // keyed by limit
+let _f1Cache = null;            // JSON string of the /api/f1 payload (L1; L2 is KV when bound)
+let _f1Time = 0;
+const F1_KV_KEY = 'f1_current';
 let _routesCache = {};         // { callsign -> json string }
 let _routesTime = {};
 let _warningsCache = {};       // { geohash -> json string }
@@ -788,6 +791,87 @@ function timingSafeEqual(a, b) {
     diff |= (ab[i % ab.length] || 0) ^ (bb[i % bb.length] || 0);
   }
   return diff === 0;
+}
+
+// --- Formula 1 (Jolpica, the Ergast successor: free, keyless, ~500 req/h) ---
+const JOLPICA_BASE = 'https://api.jolpi.ca/ergast/f1';
+
+async function fetchJolpica(endpoint) {
+  try {
+    const resp = await fetch(JOLPICA_BASE + endpoint, { headers: { 'Accept': 'application/json' } });
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+function jolpicaName(driver) {
+  return driver ? ((driver.givenName || '') + ' ' + (driver.familyName || '')).trim() : '';
+}
+
+// One payload for the card: the last completed race (with its winner), the
+// next five races, and the top ten of both championships. Returns null when
+// the schedule call fails; empty standings early in a season are not an error.
+async function fetchF1Data() {
+  const [schedule, lastResult, driverData, constructorData] = await Promise.all([
+    fetchJolpica('/current.json?limit=100'),
+    fetchJolpica('/current/last/results.json?limit=1'),
+    fetchJolpica('/current/driverStandings.json'),
+    fetchJolpica('/current/constructorStandings.json')
+  ]);
+  const table = schedule && schedule.MRData && schedule.MRData.RaceTable;
+  if (!table || !Array.isArray(table.Races)) return null;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const upcoming = [];
+  let lastCompleted = null;
+  for (const r of table.Races) {
+    const race = {
+      round: parseInt(r.round, 10) || 0,
+      name: r.raceName || '',
+      circuit: (r.Circuit && r.Circuit.circuitName) || '',
+      country: (r.Circuit && r.Circuit.Location && r.Circuit.Location.country) || '',
+      // Jolpica splits the UTC start into date + time; join them so the
+      // frontend can render Brisbane local time.
+      start: r.date ? (r.date + 'T' + (r.time || '00:00:00Z')) : '',
+      completed: !!r.date && r.date < todayStr
+    };
+    if (race.completed) lastCompleted = race;
+    else if (upcoming.length < 5) upcoming.push(race);
+  }
+  const lastRace = ((lastResult && lastResult.MRData && lastResult.MRData.RaceTable && lastResult.MRData.RaceTable.Races) || [])[0];
+  const winner = lastRace && Array.isArray(lastRace.Results) ? lastRace.Results[0] : null;
+  if (lastCompleted && winner && lastRace.raceName === lastCompleted.name) {
+    lastCompleted.winner = jolpicaName(winner.Driver);
+    lastCompleted.winnerTeam = (winner.Constructor && winner.Constructor.name) || '';
+  }
+
+  const dList = ((driverData && driverData.MRData && driverData.MRData.StandingsTable && driverData.MRData.StandingsTable.StandingsLists) || [])[0];
+  const drivers = ((dList && dList.DriverStandings) || []).slice(0, 10).map(s => ({
+    pos: parseInt(s.position, 10) || 0,
+    name: jolpicaName(s.Driver),
+    code: (s.Driver && s.Driver.code) || '',
+    team: (s.Constructors && s.Constructors[0] && s.Constructors[0].name) || '',
+    points: parseFloat(s.points) || 0,
+    wins: parseInt(s.wins, 10) || 0
+  }));
+  const cList = ((constructorData && constructorData.MRData && constructorData.MRData.StandingsTable && constructorData.MRData.StandingsTable.StandingsLists) || [])[0];
+  const constructors = ((cList && cList.ConstructorStandings) || []).slice(0, 10).map(s => ({
+    pos: parseInt(s.position, 10) || 0,
+    team: (s.Constructor && s.Constructor.name) || '',
+    points: parseFloat(s.points) || 0,
+    wins: parseInt(s.wins, 10) || 0
+  }));
+
+  return {
+    season: table.season || '',
+    round: (dList && dList.round) || '',
+    last: lastCompleted,
+    upcoming: upcoming,
+    drivers: drivers,
+    constructors: constructors
+  };
 }
 
 export default {
@@ -1954,6 +2038,55 @@ async function handleRequest(request, env, ctx) {
       _financeCache[sortedKey] = { json: finJson, time: finNow };
       return new Response(finJson, {
         headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'MISS' }, corsHeaders)
+      });
+    }
+
+    // Formula 1. Four Jolpica calls per refresh against a ~500 req/h budget, so
+    // the cache is KV-backed when a namespace is bound (L1 module -> L2 KV ->
+    // upstream): a 30-min TTL is at most 192 upstream calls/day however many
+    // isolates cold-start. Without KV it degrades to the module cache.
+    if (path === '/api/f1') {
+      const f1Now = Date.now();
+      const F1_TTL = 30 * 60 * 1000;
+      const f1Kv = env.STATUS_KV || env.SETTINGS_KV;
+      let f1Json = null;
+      let f1Status = 'MISS';
+      if (_f1Cache && (f1Now - _f1Time) < F1_TTL) {
+        f1Json = _f1Cache;
+        f1Status = 'HIT';
+      } else {
+        let kvF1 = null;
+        if (f1Kv) { try { kvF1 = await f1Kv.get(F1_KV_KEY, 'json'); } catch (e) {} }
+        if (kvF1 && kvF1.json && (f1Now - (kvF1.ts || 0)) < F1_TTL) {
+          f1Json = kvF1.json;
+          _f1Cache = f1Json;
+          _f1Time = kvF1.ts;
+          f1Status = 'HIT';
+        } else {
+          const fresh = await fetchF1Data();
+          if (fresh) {
+            f1Json = JSON.stringify(fresh);
+            _f1Cache = f1Json;
+            _f1Time = f1Now;
+            if (f1Kv) { try { await f1Kv.put(F1_KV_KEY, JSON.stringify({ json: f1Json, ts: f1Now })); } catch (e) {} }
+          } else {
+            // Serve stale rather than re-hit a failing upstream. Negative-cache
+            // in the module only: never overwrite the KV copy with nothing.
+            f1Json = _f1Cache || (kvF1 && kvF1.json) || null;
+            _f1Cache = f1Json;
+            _f1Time = f1Now;
+            f1Status = 'STALE';
+          }
+        }
+      }
+      if (!f1Json) {
+        return new Response(JSON.stringify({ error: 'F1 data unavailable' }), {
+          status: 502,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      return new Response(f1Json, {
+        headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': f1Status }, corsHeaders)
       });
     }
 

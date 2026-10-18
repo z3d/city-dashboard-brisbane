@@ -525,6 +525,8 @@ try { checkNeedsAttentionDismissal(html); } catch (e) { fail('needs attention di
 
 run('iOS 12 compatibility', process.execPath, ['scripts/check-ios12-compat.js']);
 run('iOS 12 compatibility (phone app)', process.execPath, ['scripts/check-ios12-compat.js', 'public/exercise.html']);
+// Runtime: boot both pages in jsdom and fail on any uncaught exception.
+run('Boot smoke test', process.execPath, ['scripts/check-boot.js']);
 run('Exercise phone app shared block', process.execPath, ['scripts/sync-exercise-app.js', '--check']);
 run('Worker syntax', process.execPath, ['--check', 'src/worker.js']);
 

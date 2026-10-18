@@ -17,6 +17,7 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Overhead flight tracking via ADSB.lol, with route lookup fallbacks
 - Windy satellite map and BOM Brisbane weather radar
 - Sports fixtures and standings
+- Formula 1 card: next race in local time, last winner, driver and constructor standings via Jolpica (free, no key)
 - Finance prices via Yahoo Finance, including user-defined symbols, with 30-day ticker sparklines
 - Queensland fuel prices, when a FPD Direct API token is configured (a 30-day cheapest-price sparkline needs a KV binding)
 - Optional Polymarket event card
@@ -96,6 +97,7 @@ npm run validate
 | `GET /api/finance?symbols=^GSPC,^AXJO` | Finance proxy |
 | `GET /api/sports?leagues=4328,4480` | Sports fixtures |
 | `GET /api/standings?leagues=eng.1` | Sports standings |
+| `GET /api/f1` | Formula 1 schedule, last result and standings (Jolpica; cached 30 min, KV-backed when a namespace is bound) |
 | `GET /api/fuel?grades=e10\|Diesel&stations=Shell` | Queensland fuel prices |
 | `GET /api/polymarket?limit=5` | Polymarket events |
 | `GET/PUT /api/dashboard-status` | Optional KV-backed sync of bin dismissal/taken-out status, the exercise list and the exercise done-log (union-merged, idempotent PUT) |
