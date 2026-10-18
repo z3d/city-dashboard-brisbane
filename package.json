@@ -9,6 +9,6 @@
     "validate": "node scripts/validate-project.js"
   },
   "devDependencies": {
-    "wrangler": "^4.94.0"
+    "wrangler": "^4.151.1"
   }
 }
