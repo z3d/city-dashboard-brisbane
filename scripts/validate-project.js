@@ -439,7 +439,10 @@ function checkExerciseHelpers(frontend, worker) {
       'stretchStreak: getExerciseStreak(config.exercises[1], doneLog, wed10),' +
       'pausedStreak: getExerciseStreak(config.exercises[4], doneLog, wed10),' +
       'labels: [getExerciseDaysLabel({}), getExerciseDaysLabel({days: [1, 2, 3, 4, 5]}), getExerciseDaysLabel({days: [0, 6]}), getExerciseDaysLabel({days: [3, 1, 5]}), getExerciseDaysLabel({days: [0, 1, 2, 3, 4, 5, 6]})],' +
-      'strip: (buildExerciseHistoryStrip(config.exercises[2], "morning", doneLog, wed10).match(/<span/g) || []).length' +
+      'strip: (buildExerciseHistoryStrip(config.exercises[2], "morning", doneLog, wed10).match(/<span/g) || []).length,' +
+      'withIds: (function() { config.exercises = [{id: "aaaa1111", name: "Walk", period: "morning", type: "walk"}, {id: "bbbb2222", name: "Walk", period: "morning", type: "walk"}, {id: "cccc3333", name: "Renamed", period: "anytime"}];' +
+      ' var idLog = {"aaaa1111_morning_2026-10-14": 1, "Renamed_anytime_2026-10-14_skipped": 1, "Walk_morning_2026-10-14_skipped": 1, "Renamed_anytime_2026-10-13": 1};' +
+      ' var rows = getExerciseRows(wed10, idLog); return states(rows).concat([rows[0].key, getExerciseStreak(config.exercises[2], idLog, wed10)]); })()' +
       '};',
     context
   );
@@ -461,7 +464,11 @@ function checkExerciseHelpers(frontend, worker) {
     stretchStreak: 1, // Tue both done; Mon evening missing
     pausedStreak: 0,
     labels: ['Every day', 'Weekdays', 'Weekends', 'Mon Wed Fri', 'Every day'],
-    strip: 7
+    strip: 7,
+    // Two "Walk"s: the first is done under its own id, the second is only
+    // skipped via the legacy name key (written before ids existed) and stays
+    // independent; the renamed item still sees its name-keyed skip and streak day.
+    withIds: ['Walk:morning:done', 'Walk:morning:skipped', 'Renamed:anytime:skipped', 'aaaa1111_morning_2026-10-14', 1]
   };
   if (JSON.stringify(context.output) !== JSON.stringify(expected)) {
     fail('exercise window/state or streak rules changed: ' + JSON.stringify(context.output));
@@ -471,20 +478,24 @@ function checkExerciseHelpers(frontend, worker) {
   }
   if (frontend.indexOf('window.skipExerciseAt = skipExerciseAt;') === -1) fail('skipExerciseAt is not exposed for the card button');
 
-  var workerSource = extractBetween(worker, 'function isIsoTimestamp(', '\nfunction pickNewerDef', 'Worker exercise definition sanitizer');
+  var workerSource = 'const APPLE_HEALTH_MAX_STEPS = 200000;\n' + extractBetween(worker, 'function isIsoTimestamp(', '\nfunction pickNewerDef', 'Worker exercise definition sanitizer');
   var workerContext = { output: null };
   vm.runInNewContext(
     workerSource + '\n' +
       'output = sanitizeExerciseDef({updatedAt: "2026-10-14T00:00:00.000Z", morningStart: "06:00", eveningStart: "bad", exercises: [' +
-      '{name: "  Walk ", period: "anytime", type: "other", target: "  ", days: [0, 1, 2, 3, 4, 5, 6]},' +
-      '{name: "Run", period: "nope", type: "cardio", target: "20 min", days: [5, 1, 1, 9, "3", 3], suspended: true, trackingStart: "2026-10-14T01:00:00.000Z"},' +
+      '{name: "  Walk ", id: "ab12cd34", period: "anytime", type: "other", target: "  ", days: [0, 1, 2, 3, 4, 5, 6]},' +
+      '{name: "Run", id: "BAD-ID", period: "nope", type: "cardio", target: "20 min", days: [5, 1, 1, 9, "3", 3], suspended: true, trackingStart: "2026-10-14T01:00:00.000Z", stepGoal: "-5"},' +
+      '{name: "Steps", period: "both", type: "walk", stepGoal: 8000.4}, {name: "Big", period: "morning", type: "walk", stepGoal: 999999}, {name: "Lift", period: "morning", type: "strength", stepGoal: 5000},' +
       '{name: "", period: "morning"}, null]});',
     workerContext
   );
   var workerExpected = {
     exercises: [
-      { name: 'Walk', period: 'anytime' },
-      { name: 'Run', period: 'anytime', type: 'cardio', target: '20 min', days: [1, 3, 5], suspended: true, trackingStart: '2026-10-14T01:00:00.000Z' }
+      { name: 'Walk', period: 'anytime', id: 'ab12cd34' },
+      { name: 'Run', period: 'anytime', type: 'cardio', target: '20 min', days: [1, 3, 5], suspended: true, trackingStart: '2026-10-14T01:00:00.000Z' },
+      { name: 'Steps', period: 'both', type: 'walk', stepGoal: 8000 },
+      { name: 'Big', period: 'morning', type: 'walk' },
+      { name: 'Lift', period: 'morning', type: 'strength' }
     ],
     morningStart: '06:00',
     eveningStart: '16:30',
@@ -511,11 +522,179 @@ function checkExercisePhoneApp() {
   console.log('Exercise phone app checks passed');
 }
 
+// The Apple Health push endpoint trusts nothing from the phone: bad dates,
+// negative/oversized counts and unknown shapes are dropped, both payload
+// dialects (Shortcut and Health Auto Export) parse, and retention prunes.
+function checkAppleHealthPush(worker, frontend) {
+  var consts = extractBetween(worker, 'const APPLE_HEALTH_KV_KEY', '\nfunction brisbaneDateStr', 'APPLE_HEALTH constants');
+  var fns = extractBetween(worker, 'function brisbaneDateStr(', '\nfunction isDashboardStatusDate', 'Apple Health helpers');
+  var context = {};
+  vm.createContext(context);
+  vm.runInContext(consts + '\n' + fns +
+    '\nthis.parse = parseAppleHealthPush; this.sanitize = sanitizeAppleHealthRecord; this.bris = brisbaneDateStr; this.goalKeys = exerciseStepGoalKeys; this.goalOf = exerciseStepGoalOf; this.bp = parseAppleHealthBp;', context);
+  // 2026-10-18 09:00 Brisbane
+  var now = Date.parse('2026-10-17T23:00:00Z');
+  var today = context.bris(now);
+  if (today !== '2026-10-18') throwFail('brisbaneDateStr should give the Brisbane calendar date, got ' + today);
+
+  var simple = context.parse({ steps: '7,842 count' }, now);
+  if (simple.length !== 1 || simple[0].steps !== 7842 || simple[0].date !== '2026-10-18') throwFail('Shortcut payload with a formatted count should parse to today, got ' + JSON.stringify(simple));
+  if (context.parse({ steps: 500, date: '2026-10-25' }, now).length !== 0) throwFail('a date a week in the future must be rejected');
+  if (context.parse({ steps: 500, date: '2026-09-01' }, now).length !== 0) throwFail('a date outside the retention window must be rejected');
+  if (context.parse({ steps: -5 }, now).length !== 0) throwFail('negative steps must be rejected');
+  if (context.parse({ steps: 999999 }, now).length !== 0) throwFail('absurd step counts must be rejected');
+  if (context.parse({ hello: 'world' }, now).length !== 0 || context.parse('x', now).length !== 0 || context.parse(null, now).length !== 0) throwFail('unknown payload shapes must parse to nothing');
+  // Whatever Shortcuts ends up sending: capitalised key, a one-item list, a
+  // list of samples, a nested value, a bare number/string body, a form field.
+  var looseCases = [
+    [{ Steps: '7,842' }, 7842],
+    [{ steps: ['7842 count'] }, 7842],
+    [{ steps: [{ value: 3000 }, { value: 2000.4 }] }, 5000],
+    [{ step_count: { qty: 1234 } }, 1234],
+    [{ 'Step Count': 999 }, 999],
+    [7842, 7842],
+    ['7842', 7842],
+    [{ steps: '7842', Date: '2026-10-17' }, 7842]
+  ];
+  for (var lc = 0; lc < looseCases.length; lc++) {
+    var lr = context.parse(looseCases[lc][0], now);
+    if (lr.length !== 1 || lr[0].steps !== looseCases[lc][1]) throwFail('loose payload ' + JSON.stringify(looseCases[lc][0]) + ' should give ' + looseCases[lc][1] + ', got ' + JSON.stringify(lr));
+  }
+  if (context.parse({ steps: '7842', Date: '2026-10-17' }, now)[0].date !== '2026-10-17') throwFail('a capitalised Date field must still set the day');
+  var blankDate = context.parse({ systolic: '', steps: '30', diastolic: '', date: '' }, now);
+  if (blankDate.length !== 1 || blankDate[0].steps !== 30 || blankDate[0].date !== '2026-10-18') throwFail('a blank date field must not drop the steps (seen live), got ' + JSON.stringify(blankDate));
+  if (context.parse({ steps: 30, date: '18 Oct 2026 at 1:27 pm' }, now)[0].date !== '2026-10-18') throwFail('a Shortcut-formatted date on steps must reduce to the Brisbane day');
+  if (context.parse({ steps: 'no number here' }, now).length !== 0 || context.parse({ steps: [] }, now).length !== 0) throwFail('non-numeric step values must still be rejected');
+
+  // Blood pressure: Shortcut text, two-line text, explicit fields, Health Auto
+  // Export, nested under bp, implausible pairs rejected, stamped now when undated.
+  var bpCases = [
+    [{ bp: '120/80 mmHg' }, [[120, 80]]],
+    [{ bp: '128/84 mmHg\n122/79 mmHg' }, [[128, 84], [122, 79]]],
+    [{ 'Blood Pressure': 'Systolic: 118 Diastolic: 76' }, [[118, 76]]],
+    [{ systolic: 135, diastolic: 88, pulse: 64 }, [[135, 88]]],
+    [{ systolic: '128 mmHg', diastolic: '84 mmHg' }, [[128, 84]]],
+    [{ steps: '30', dias: '84 mmHg', sys: '128 mmHg' }, [[128, 84]]],
+    [{ steps: '30', dias: '', sys: '' }, []],
+    [{ Systolic: ['126 mmHg'], Diastolic: ['82 mmHg'], date: '2026-10-18T02:30:00Z' }, [[126, 82]]],
+    [{ bp: { sys: '117', dia: '75' } }, [[117, 75]]],
+    [{ data: { metrics: [{ name: 'blood_pressure', data: [{ date: '2026-10-17 08:00:00 +1000', systolic: 121, diastolic: 81 }] }] } }, [[121, 81]]],
+    [{ bp: '80/120' }, [[120, 80]]],
+    [{ diastolic: '120', systolic: '80' }, [[120, 80]]],
+    [{ bp: '400/80' }, []],
+    [{ steps: 7842 }, []],
+    [{ hello: 'world' }, []]
+  ];
+  for (var bc = 0; bc < bpCases.length; bc++) {
+    var br = context.bp(bpCases[bc][0], now).map(function(r) { return [r.sys, r.dia]; });
+    if (JSON.stringify(br) !== JSON.stringify(bpCases[bc][1])) throwFail('bp payload ' + JSON.stringify(bpCases[bc][0]) + ' should give ' + JSON.stringify(bpCases[bc][1]) + ', got ' + JSON.stringify(br));
+  }
+  var bpPulse = context.bp({ systolic: 135, diastolic: 88, pulse: 64 }, now)[0];
+  if (bpPulse.pulse !== 64 || bpPulse.t !== now) throwFail('pulse must be kept and an undated reading stamped with the push time');
+  var bpDated = context.bp({ data: { metrics: [{ name: 'blood_pressure', data: [{ date: '2026-10-17 08:00:00 +1000', systolic: 121, diastolic: 81 }] }] } }, now)[0];
+  if (bpDated.t !== Date.parse('2026-10-16T22:00:00Z')) throwFail('a Health Auto Export date with a +1000 offset must parse to the right instant, got ' + bpDated.t);
+  // The reading's own date, as Shortcuts renders Start Date on an Australian phone.
+  var bpDates = [
+    [{ systolic: '128 mmHg', diastolic: '84 mmHg', date: '19 Jul 2026 at 8:15 am' }, Date.parse('2026-07-18T22:15:00Z')],
+    [{ systolic: 128, diastolic: 84, date: '19/07/2026, 8:15 pm' }, Date.parse('2026-07-19T10:15:00Z')],
+    [{ systolic: 128, diastolic: 84, date: 'Jul 19 2026 12:05 am' }, Date.parse('2026-07-18T14:05:00Z')],
+    [{ systolic: 128, diastolic: 84, date: '2026-07-19T08:15:00+10:00' }, Date.parse('2026-07-18T22:15:00Z')],
+    [{ systolic: 128, diastolic: 84, date: ['19 Jul 2026 at 8:15 am'] }, Date.parse('2026-07-18T22:15:00Z')],
+    [{ systolic: 128, diastolic: 84, date: 'yesterday-ish' }, now]
+  ];
+  for (var bd = 0; bd < bpDates.length; bd++) {
+    var got = context.bp(bpDates[bd][0], now)[0].t;
+    if (got !== bpDates[bd][1]) throwFail('bp date ' + JSON.stringify(bpDates[bd][0].date) + ' should be ' + bpDates[bd][1] + ', got ' + got);
+  }
+  var bpRec = context.sanitize({ bp: [{ t: now - 5000, sys: 120, dia: 80 }, { t: now, sys: 125, dia: 82, pulse: 70 }, { t: now, sys: 50, dia: 80 }, 'junk'] }, now);
+  if (bpRec.bp.length !== 2 || bpRec.bp[0].sys !== 125 || bpRec.bp[0].pulse !== 70) throwFail('sanitised bp must drop junk and sort newest first, got ' + JSON.stringify(bpRec.bp));
+  // Steps and blood pressure may arrive in one body.
+  if (context.parse({ steps: 5000, bp: '120/80' }, now).length !== 1 || context.bp({ steps: 5000, bp: '120/80' }, now).length !== 1) throwFail('a combined steps + bp body must yield both');
+  var hae = context.parse({ data: { metrics: [
+    { name: 'heart_rate', data: [{ date: '2026-10-18 08:00:00 +1000', qty: 60 }] },
+    { name: 'step_count', units: 'count', data: [{ date: '2026-10-17 00:00:00 +1000', qty: 9120.4 }, { date: '2026-10-18 00:00:00 +1000', qty: 1200 }] }
+  ] } }, now);
+  if (hae.length !== 2 || hae[0].date !== '2026-10-17' || hae[0].steps !== 9120 || hae[1].steps !== 1200) throwFail('Health Auto Export payload should yield one entry per day of step_count only, got ' + JSON.stringify(hae));
+
+  var rec = context.sanitize({ updatedAt: now - 1000, days: {
+    '2026-10-18': { steps: 1200, at: now - 1000 },
+    '2026-10-01': { steps: 5000, at: now - 17 * 86400000 },
+    'garbage': { steps: 1, at: now },
+    '2026-10-17': { steps: 'NaN', at: now },
+    '2026-10-16': { steps: 8000.6, at: now - 2 * 86400000 }
+  } }, now);
+  var keys = Object.keys(rec.days).sort();
+  if (keys.join(',') !== '2026-10-16,2026-10-18') throwFail('sanitizeAppleHealthRecord should prune old/invalid days, kept ' + keys.join(','));
+  if (rec.days['2026-10-16'].steps !== 8001) throwFail('stored steps should be rounded integers');
+  if (context.sanitize(null, now).updatedAt !== null || Object.keys(context.sanitize(undefined, now).days).length !== 0) throwFail('an empty KV record must sanitise to an empty day map');
+
+  // Step goals -> done keys. 2026-10-18 is a Sunday (weekday 0).
+  var def = { morningStart: '05:00', eveningStart: '16:30', exercises: [
+    { name: 'Walk', period: 'anytime', type: 'walk', stepGoal: 8000 },
+    { name: 'Both', period: 'both', type: 'walk', stepGoal: 5000 },
+    { name: 'Weekday', period: 'morning', type: 'walk', stepGoal: 1000, days: [1, 2, 3, 4, 5] },
+    { name: 'Paused', period: 'anytime', type: 'walk', stepGoal: 1000, suspended: true },
+    { name: 'New', period: 'evening', type: 'walk', stepGoal: 1000, trackingStart: '2026-10-18T05:00:00.000Z' },
+    { name: 'NewMorning', period: 'both', type: 'walk', stepGoal: 1000, trackingStart: '2026-10-18T05:00:00.000Z' },
+    { name: 'Old', period: 'evening', type: 'walk', stepGoal: 1000, trackingStart: '2026-10-17T05:00:00.000Z' },
+    { name: 'Run', period: 'anytime', type: 'cardio', stepGoal: 1000 },
+    { name: 'NoGoal', period: 'anytime', type: 'walk' }
+  ] };
+  var got = context.goalKeys(def, '2026-10-18', 6000).sort().join('|');
+  // 'New' was added 15:00 Brisbane: its evening window (16:30) is tracked that day, 'NewMorning''s morning window (05:00) is not.
+  var want = ['Both_evening_2026-10-18', 'Both_morning_2026-10-18', 'NewMorning_evening_2026-10-18', 'New_evening_2026-10-18', 'Old_evening_2026-10-18'].join('|');
+  if (got !== want) throwFail('step-goal keys at 6000 steps on a Sunday should be ' + want + ', got ' + got);
+  if (context.goalKeys(def, '2026-10-18', 8000).indexOf('Walk_anytime_2026-10-18') === -1) throwFail('reaching the goal exactly must count');
+  if (context.goalKeys(def, '2026-10-19', 1500).indexOf('Weekday_morning_2026-10-19') === -1) throwFail('a weekday-only exercise must complete on Monday');
+  if (context.goalKeys(def, '2026-10-18', 6000).join('|').indexOf('Run_') !== -1) throwFail('a step goal on a non-walk exercise must be ignored');
+
+  // A numeric Target on a walk is the goal when no explicit stepGoal is set —
+  // and the frontend's getExerciseStepGoal must agree with the worker on every case.
+  var feCtx = {};
+  vm.createContext(feCtx);
+  vm.runInContext(extractFunction(frontend, 'getExerciseStepGoal') + '\nthis.goalOf = getExerciseStepGoal;', feCtx);
+  var goalCases = [
+    [{ type: 'walk', target: '10000' }, 10000],
+    [{ type: 'walk', target: ' 10,000 ' }, 10000],
+    [{ type: 'walk', target: '10 000 steps' }, 10000],
+    [{ type: 'walk', target: '5k' }, 5000],
+    [{ type: 'walk', target: '7.5K steps' }, 7500],
+    [{ type: 'walk', target: '2000', stepGoal: 3000 }, 3000],
+    [{ type: 'walk', target: '20 min' }, 0],
+    [{ type: 'walk', target: '2 sets of 10' }, 0],
+    [{ type: 'walk', target: '999999' }, 0],
+    [{ type: 'strength', target: '10000' }, 0],
+    [{ type: 'strength', stepGoal: 5000 }, 0],
+    [{ target: '10000' }, 0],
+    [null, 0]
+  ];
+  for (var gc = 0; gc < goalCases.length; gc++) {
+    var w = context.goalOf(goalCases[gc][0]);
+    var f = feCtx.goalOf(goalCases[gc][0]);
+    if (w !== goalCases[gc][1] || f !== goalCases[gc][1]) throwFail('step goal for ' + JSON.stringify(goalCases[gc][0]) + ' should be ' + goalCases[gc][1] + ' (worker ' + w + ', frontend ' + f + ')');
+  }
+  var targetDef = { exercises: [{ name: 'Walk 10k', period: 'morning', type: 'walk', target: '10000' }, { name: 'Squats', period: 'anytime', type: 'strength', target: '10000' }] };
+  if (context.goalKeys(targetDef, '2026-10-18', 10000).join('|') !== 'Walk 10k_morning_2026-10-18') throwFail('a walk whose Target is a number must auto-complete from it (and a strength item must not)');
+  var idDef = { exercises: [
+    { id: 'aaaa1111', name: 'Walk', period: 'morning', type: 'walk', stepGoal: 1000 },
+    { id: 'bbbb2222', name: 'Walk', period: 'morning', type: 'walk', stepGoal: 3000 }
+  ] };
+  if (context.goalKeys(idDef, '2026-10-18', 2000).join('|') !== 'aaaa1111_morning_2026-10-18') throwFail('two walks sharing a name must complete independently by id');
+  if (context.goalKeys(idDef, '2026-10-18', 2000, { 'Walk_morning_2026-10-18': 1 }).length !== 0) throwFail('a legacy name-keyed done entry must suppress the id-keyed auto-done for that row');
+  if (context.goalKeys(idDef, '2026-10-18', 5000, { 'aaaa1111_morning_2026-10-18': 1 }).join('|') !== 'bbbb2222_morning_2026-10-18') throwFail('an already-done id row must not be written again');
+  if (context.goalKeys(def, '2026-10-18', 0).length !== 0 || context.goalKeys(null, '2026-10-18', 9999).length !== 0 || context.goalKeys(def, 'nope', 9999).length !== 0) throwFail('no steps, no def or a bad date must yield no keys');
+  // The frontend's row key shape must stay identical or auto-done lands on nothing.
+  if (!/function getExerciseDoneKey\(name, period, date\) \{\s*return name \+ '_' \+ period \+ '_' \+ date;/.test(frontend)) throwFail('getExerciseDoneKey changed shape; update exerciseStepGoalKeys in the worker to match');
+  console.log('Apple Health push parsing and step-goal keys passed');
+}
+
+
 try { checkBinHelpers(html); } catch (e) { fail('bin helpers: ' + e.message); }
 try { checkExerciseSanitizerEquivalence(html, worker); } catch (e) { fail('exercise sanitisers: ' + e.message); }
 try { checkDashboardStatusFingerprint(worker); } catch (e) { fail('dashboard-status fingerprint: ' + e.message); }
 try { checkExerciseHelpers(html, worker); } catch (e) { fail('exercise helpers: ' + e.message); }
 try { checkExercisePhoneApp(); } catch (e) { fail('exercise phone app: ' + e.message); }
+try { checkAppleHealthPush(worker, html); } catch (e) { fail('apple health push: ' + e.message); }
 try { checkPollenHelpers(html); } catch (e) { fail('pollen helpers: ' + e.message); }
 try { checkClimateHelpers(html); } catch (e) { fail('climate helpers: ' + e.message); }
 try { checkStripPlacement(html); } catch (e) { fail('strip placement: ' + e.message); }

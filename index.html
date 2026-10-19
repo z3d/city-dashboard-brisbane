@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.69.0">
+  <meta name="app-version" content="1.70.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -457,6 +457,24 @@
       font-size: 0.7em;
       color: var(--t6);
     }
+
+    /* Per-card gear: opens Settings at this card's section. Muted so it reads
+       as chrome on a wall screen, big enough for a thumb on an iPad. */
+    .card-settings-btn {
+      background: none;
+      border: none;
+      color: var(--t6);
+      font-size: 1em;
+      line-height: 1;
+      padding: 4px 6px;
+      margin-left: 6px;
+      cursor: pointer;
+      opacity: 0.6;
+      -webkit-flex-shrink: 0;
+      flex-shrink: 0;
+    }
+    .card-settings-btn:hover, .card-settings-btn:focus { opacity: 1; color: var(--t2); outline: none; }
+    .card-setting-row.jump-target { outline: 2px solid var(--info); outline-offset: 3px; border-radius: 8px; }
 
     .card-content {
       color: #fff;
@@ -1669,6 +1687,13 @@
     .scrolling-ticker-item .ticker-spark.spark-fuel circle { fill: var(--warn2); }
     .scrolling-ticker-item .ticker-spark.spark-up polyline { stroke: var(--ok); }
     .scrolling-ticker-item .ticker-spark.spark-up circle { fill: var(--ok); }
+    .scrolling-ticker-item .ticker-spark.spark-steps polyline { stroke: var(--ok); }
+    .scrolling-ticker-item .ticker-spark.spark-steps circle { fill: var(--ok); }
+    #healthContent .ticker-spark { vertical-align: middle; overflow: visible; -webkit-flex-shrink: 0; flex-shrink: 0; }
+    #healthContent .ticker-spark polyline { fill: none; stroke: var(--ok); stroke-width: 1.5; stroke-linejoin: round; }
+    #healthContent .ticker-spark circle { fill: var(--ok); }
+    .scrolling-ticker-item .ticker-spark.spark-bp polyline, #healthContent .ticker-spark.spark-bp polyline { stroke: var(--bad2); }
+    .scrolling-ticker-item .ticker-spark.spark-bp circle, #healthContent .ticker-spark.spark-bp circle { fill: var(--bad2); }
     .scrolling-ticker-item .ticker-spark.spark-down polyline { stroke: #ef4444; }
     .scrolling-ticker-item .ticker-spark.spark-down circle { fill: #ef4444; }
     .scrolling-ticker-item .ticker-spark.spark-flat polyline { stroke: var(--t4); }
@@ -2336,6 +2361,17 @@
         </div>
       </div>
 
+      <!-- Health Card (Apple Health steps and blood pressure, pushed from an iPhone) -->
+      <div class="card" id="healthCard" data-card-id="health">
+        <div class="card-inner">
+          <div class="card-header">
+            <div class="card-title"><span class="card-icon">&#128099;</span> Health</div>
+            <div class="card-updated" id="healthUpdated">--</div>
+          </div>
+          <div class="card-content" id="healthContent"><div class="card-loading">Loading...</div></div>
+        </div>
+      </div>
+
       <!-- Air Quality Card -->
       <div class="card" id="airQualityCard" data-card-id="airQuality">
         <div class="card-inner">
@@ -2866,9 +2902,32 @@
             <div style="margin-bottom:8px;">
               <label style="font-size:0.9em;color:var(--t2);"><input type="checkbox" id="exerciseShowHistory" checked> Show last-7-days dots and streaks</label>
             </div>
+            <div style="color:var(--t4);font-size:0.8em;margin-bottom:8px;line-height:1.4;">A <b>Walk</b> exercise can have a <b>step goal</b>: it is marked done by itself when the day's Apple Health steps reach it (pushed from your phone, see Health settings) &mdash; even if it was skipped. A Walk whose Target is just a number (10000, 10,000, 5k) uses that as its goal unless the Step goal box says otherwise. The goal applies to every scheduled period of that walk. Exercises may share a name; each is tracked by its own id.</div>
             <div id="exerciseList"></div>
             <button type="button" id="addExerciseBtn" style="margin:8px 0 4px 0; padding:6px 16px; border-radius:8px; border:1px solid #444; background:var(--s2); color:var(--t1); cursor:pointer;">+ Add Exercise</button>
             <div style="font-size:0.78em;color:var(--t4);margin-top:4px;">Morning items can be ticked off until the evening starts; evening and any-time items until midnight. Tick the days an exercise is scheduled (none ticked = every day). The target is a free note shown on the card, e.g. &ldquo;20 min&rdquo; or &ldquo;3 &times; 12&rdquo;. Suspending keeps the history; reactivating starts from the next session. Skip marks a session you chose not to do: it stops the reminders but counts against the streak. The list and done-log sync to every screen with the same token. Phone: open <code>/exercise</code> on this worker, paste the same token and add it to the home screen for a standalone checklist with the weight line.</div>
+          </div>
+        </div>
+
+        <!-- Health (Apple Health steps and blood pressure) -->
+        <div class="card-setting-row">
+          <div class="card-setting-main">
+            <div class="card-setting-expander" id="healthSettingsExpander">
+              <span class="card-setting-arrow" id="healthSettingsArrow">&#9654;</span>
+              <span class="card-setting-icon">&#128099;</span>
+              <span class="card-setting-name">Health</span>
+            </div>
+            <div class="card-setting-checks">
+              <select id="healthDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
+              <label class="master-label"><input type="checkbox" id="showHealth"></label>
+            </div>
+          </div>
+          <div class="card-setting-body" id="healthSettingsCollapsible" style="display:none;">
+            <div class="settings-group">
+              <label style="font-size:0.9em;color:var(--t2);display:block;"><input type="checkbox" id="healthShowSteps" checked> Show today's steps from Apple Health (also a ticker slide)</label>
+              <label style="font-size:0.9em;color:var(--t2);display:block;margin-top:6px;"><input type="checkbox" id="healthShowBp" checked> Show the latest blood pressure from Apple Health (also a ticker slide)</label>
+              <div style="color:var(--t4);font-size:0.8em;margin-top:6px;line-height:1.4;">Apple Health has no cloud API, so the iPhone pushes the total itself. In the Shortcuts app create a shortcut: <b>Find Health Samples</b> (Type: Steps, Start Date: is today, Group By: Day) &rarr; <b>Get Contents of URL</b> &mdash; URL <code>&lt;dashboard&gt;/api/apple-health</code>, Method POST, header <code>X-Dashboard-Token</code> = your token, Request Body JSON with a <code>steps</code> field set to the samples' value. Then add Time of Day triggers (e.g. every two hours) and an app-open trigger that run it: Health data is sealed while the phone is locked, so a timed run only succeeds when the phone is in use. For blood pressure add a second <b>Find Health Samples</b> (Type: Blood Pressure, sorted latest first, Limit 1) and a second <b>Get Contents of URL</b> to the same address with a <code>bp</code> field set to that sample. A push that changes nothing costs no storage write. Needs a KV namespace bound to the Worker.</div>
+            </div>
           </div>
         </div>
 
@@ -3644,7 +3703,7 @@
       var STRIP_PLACEMENT_CARDS = ['weather', 'uvIndex', 'airQuality', 'pollen'];
 
       // Canonical card order; also the config default (single source of truth).
-      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'forecast', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'exercise', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'f1', 'finance', 'polymarket'];
+      var DEFAULT_CARD_ORDER = ['bus1', 'bus2', 'weather', 'forecast', 'weatherWarnings', 'bushfires', 'news', 'birthdays', 'exercise', 'health', 'airQuality', 'uvIndex', 'pollen', 'bin', 'electricity', 'flights', 'radar', 'bomRadar', 'fuel', 'soccer', 'rugby', 'cricket', 'tennis', 'nfl', 'f1', 'finance', 'polymarket'];
 
       var config = {
         latitude: -27.4705,
@@ -3687,6 +3746,9 @@
         exerciseEveningStart: '16:30',
         exercises: [],
         exerciseDefUpdatedAt: '',
+        showHealth: false,
+        healthShowSteps: true,
+        healthShowBp: true,
         showAirQuality: false,
         airQualityShowWhenPoor: false,
         showUvIndex: false,
@@ -3808,6 +3870,7 @@
         tennisDisplayMode: 'card',
         nflDisplayMode: 'card',
         f1DisplayMode: 'card',
+        healthDisplayMode: 'card',
         financeDisplayMode: 'both',
         polymarketDisplayMode: 'card',
         scrollingTicker: false,
@@ -4040,6 +4103,9 @@
         elements.f1Card = document.getElementById('f1Card');
         elements.f1Content = document.getElementById('f1Content');
         elements.f1Updated = document.getElementById('f1Updated');
+        elements.healthCard = document.getElementById('healthCard');
+        elements.healthContent = document.getElementById('healthContent');
+        elements.healthUpdated = document.getElementById('healthUpdated');
         elements.financeCard = document.getElementById('financeCard');
         elements.financeContent = document.getElementById('financeContent');
         elements.financeUpdated = document.getElementById('financeUpdated');
@@ -4093,6 +4159,9 @@
         elements.showTennis = document.getElementById('showTennis');
         elements.showNFL = document.getElementById('showNFL');
         elements.showF1 = document.getElementById('showF1');
+        elements.showHealth = document.getElementById('showHealth');
+        elements.healthShowSteps = document.getElementById('healthShowSteps');
+        elements.healthShowBp = document.getElementById('healthShowBp');
         elements.soccerEPL = document.getElementById('soccerEPL');
         elements.soccerChampionsLeague = document.getElementById('soccerChampionsLeague');
         elements.soccerWorldCup = document.getElementById('soccerWorldCup');
@@ -4114,6 +4183,7 @@
         elements.nflPlayoffs = document.getElementById('nflPlayoffs');
         elements.nflDisplayMode = document.getElementById('nflDisplayMode');
         elements.f1DisplayMode = document.getElementById('f1DisplayMode');
+        elements.healthDisplayMode = document.getElementById('healthDisplayMode');
       }
 
       function loadConfig() {
@@ -4177,6 +4247,10 @@
             config.exerciseEveningStart = parsed.exerciseEveningStart !== undefined ? parsed.exerciseEveningStart : '16:30';
             config.exercises = parsed.exercises !== undefined ? parsed.exercises : [];
             config.exerciseDefUpdatedAt = parsed.exerciseDefUpdatedAt !== undefined ? parsed.exerciseDefUpdatedAt : '';
+            config.showHealth = parsed.showHealth !== undefined ? parsed.showHealth : false;
+            // Both default ON: the Health card shows what the phone pushes unless a screen opts out.
+            config.healthShowSteps = parsed.healthShowSteps !== undefined ? parsed.healthShowSteps : true;
+            config.healthShowBp = parsed.healthShowBp !== undefined ? parsed.healthShowBp : true;
             config.showAirQuality = parsed.showAirQuality !== undefined ? parsed.showAirQuality : false;
             config.airQualityShowWhenPoor = parsed.airQualityShowWhenPoor !== undefined ? parsed.airQualityShowWhenPoor : false;
             config.showUvIndex = parsed.showUvIndex !== undefined ? parsed.showUvIndex : false;
@@ -4305,6 +4379,7 @@
               ['tennis', 'tickerTennis', 'card'],
               ['nfl', 'tickerNFL', 'card'],
               ['f1', null, 'card'],
+              ['health', null, 'card'],
               ['finance', null, 'both'],
               ['polymarket', 'tickerPolymarket', 'card'],
             ];
@@ -4660,6 +4735,7 @@
         if (cardId === 'tennis') return config.tennisDisplayMode;
         if (cardId === 'nfl') return config.nflDisplayMode;
         if (cardId === 'f1') return config.f1DisplayMode;
+        if (cardId === 'health') return config.healthDisplayMode;
         if (cardId === 'finance') return config.financeDisplayMode;
         if (cardId === 'polymarket') return config.polymarketDisplayMode;
         return 'card';
@@ -4872,6 +4948,7 @@
         add(proxyHost, '/api/fuel', 'Fuel prices', config.showFuel);
         add(proxyHost, '/api/sports', 'Sports', config.showSoccer || config.showRugby || config.showCricket || config.showTennis || config.showNFL);
         add(proxyHost, '/api/f1', 'Formula 1', config.showF1);
+        add(proxyHost, '/api/apple-health', 'Apple Health', isStepsFeedWanted());
         add(proxyHost, '/api/finance', 'Finance', config.showFinance);
         add(proxyHost, '/api/polymarket', 'Polymarket', config.showPolymarket);
         add(proxyHost, '/api/dashboard-status', 'Dashboard sync', config.showBin || config.showExercise);
@@ -5374,6 +5451,7 @@
         elements.tennisCard.style.display = (config.showTennis && isCardDisplayMode(config.tennisDisplayMode)) ? '' : 'none';
         elements.nflCard.style.display = (config.showNFL && isCardDisplayMode(config.nflDisplayMode)) ? '' : 'none';
         elements.f1Card.style.display = (config.showF1 && isCardDisplayMode(config.f1DisplayMode)) ? '' : 'none';
+        elements.healthCard.style.display = (config.showHealth && isCardDisplayMode(config.healthDisplayMode)) ? '' : 'none';
         elements.financeCard.style.display = (config.showFinance && isCardDisplayMode(config.financeDisplayMode)) ? '' : 'none';
         elements.polymarketCard.style.display = (config.showPolymarket && isCardDisplayMode(config.polymarketDisplayMode)) ? '' : 'none';
         if (!config.showWeatherWarnings && elements.severeWarningBanner) elements.severeWarningBanner.style.display = 'none';
@@ -6826,10 +6904,12 @@
         for (var i = 0; i < src.length; i++) {
           var e = src[i] || {};
           arr.push({
+            id: typeof e.id === 'string' ? e.id : '',
             name: typeof e.name === 'string' ? e.name : '',
             period: typeof e.period === 'string' ? e.period : '',
             type: (typeof e.type === 'string' && EXERCISE_DEF_TYPES.indexOf(e.type) !== -1) ? e.type : '',
             target: typeof e.target === 'string' ? e.target : '',
+            stepGoal: (e.type === 'walk' && typeof e.stepGoal === 'number' && e.stepGoal > 0) ? Math.round(e.stepGoal) : 0,
             days: normaliseExerciseDaysForCompare(e.days),
             suspended: e.suspended === true,
             trackingStart: (typeof e.trackingStart === 'string' && !isNaN(Date.parse(e.trackingStart))) ? e.trackingStart : ''
@@ -7732,6 +7812,66 @@
 
       // Settings
       window.openSettings = function() { openSettings(); };
+
+      // --- Jump to a card's Settings section ---
+      // Every card header gets a small gear. It opens Settings on the Cards tab,
+      // expands the card's section (if it has one) and scrolls it into view.
+      // The section is found from the card's master checkbox, `show<CardId>`,
+      // walking up to its .card-setting-row — so no hand-kept card→section map.
+      function settingsRowForCard(cardId) {
+        var cbId = 'show' + (cardId === 'nfl' ? 'NFL' : cardId.charAt(0).toUpperCase() + cardId.slice(1));
+        var el = document.getElementById(cbId);
+        while (el && el !== document.body) {
+          if (el.className && (' ' + el.className + ' ').indexOf(' card-setting-row ') !== -1) return el;
+          el = el.parentNode;
+        }
+        return null;
+      }
+
+      function openSettingsForCard(cardId) {
+        openSettings();
+        if (typeof switchTab === 'function') switchTab('cards');
+        var row = settingsRowForCard(cardId);
+        if (!row) return;
+        var expanders = row.getElementsByClassName('card-setting-expander');
+        if (expanders.length && expanders[0].id && /Expander$/.test(expanders[0].id)) {
+          var key = expanders[0].id.replace(/Expander$/, '');
+          if (!settingsUiState[key]) makeSettingsToggle(key)();
+        }
+        var prev = document.getElementsByClassName('jump-target');
+        while (prev.length) prev[0].className = prev[0].className.replace(/\s*\bjump-target\b/g, '');
+        row.className += ' jump-target';
+        setTimeout(function() {
+          if (row.scrollIntoView) row.scrollIntoView(true);
+        }, 60);
+        setTimeout(function() {
+          row.className = row.className.replace(/\s*\bjump-target\b/g, '');
+        }, 5000);
+      }
+      window.openSettingsForCard = openSettingsForCard;
+
+      function installCardSettingsButtons() {
+        var cards = document.querySelectorAll('.card[data-card-id]');
+        for (var i = 0; i < cards.length; i++) {
+          var card = cards[i];
+          var headers = card.getElementsByClassName('card-header');
+          if (!headers.length || headers[0].getElementsByClassName('card-settings-btn').length) continue;
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'card-settings-btn';
+          btn.innerHTML = '&#9881;';
+          btn.title = 'Settings for this card';
+          btn.setAttribute('aria-label', 'Settings for this card');
+          btn.setAttribute('data-card-id', card.getAttribute('data-card-id'));
+          btn.onclick = function(e) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            openSettingsForCard(this.getAttribute('data-card-id'));
+            return false;
+          };
+          headers[0].appendChild(btn);
+        }
+      }
+
       function openSettings() {
         elements.latitude.value = config.latitude;
         elements.longitude.value = config.longitude;
@@ -7860,6 +8000,7 @@
         elements.nflPlayoffs.checked = config.nflPlayoffs;
         elements.nflDisplayMode.value = config.nflDisplayMode;
         elements.f1DisplayMode.value = config.f1DisplayMode;
+        elements.healthDisplayMode.value = config.healthDisplayMode;
         updateNFLMaster();
         elements.financeSP500.checked = config.financeSP500;
         elements.financeDow.checked = config.financeDow;
@@ -7880,6 +8021,9 @@
         updateFinanceMaster();
         elements.showPolymarket.checked = config.showPolymarket;
         elements.showF1.checked = config.showF1;
+        elements.showHealth.checked = config.showHealth;
+        elements.healthShowSteps.checked = config.healthShowSteps;
+        elements.healthShowBp.checked = config.healthShowBp;
         elements.polymarketCount.value = config.polymarketCount || 5;
         elements.showTicker.checked = config.showTicker;
         elements.tickerInterval.value = config.tickerInterval || 5;
@@ -8077,6 +8221,7 @@
         config.nflPlayoffs = elements.nflPlayoffs.checked;
         config.nflDisplayMode = elements.nflDisplayMode.value;
         config.f1DisplayMode = elements.f1DisplayMode.value;
+        config.healthDisplayMode = elements.healthDisplayMode.value;
         config.showFinance = elements.showFinance.checked;
         config.financeSP500 = elements.financeSP500.checked;
         config.financeDow = elements.financeDow.checked;
@@ -8096,6 +8241,9 @@
         config.financeCustom = readFinanceCustomSettingsRows();
         config.showPolymarket = elements.showPolymarket.checked;
         config.showF1 = elements.showF1.checked;
+        config.showHealth = elements.showHealth.checked;
+        config.healthShowSteps = elements.healthShowSteps.checked;
+        config.healthShowBp = elements.healthShowBp.checked;
         config.polymarketCount = parseInt(elements.polymarketCount.value) || 5;
         config.showTicker = elements.showTicker.checked;
         config.tickerInterval = parseInt(elements.tickerInterval.value, 10) || 5;
@@ -8401,6 +8549,7 @@
         var floatingTickerBtn = document.getElementById('floatingTickerBtn');
         settingsBtn.onclick = openSettings;
         floatingSettingsBtn.onclick = openSettings;
+        installCardSettingsButtons();
         floatingTickerBtn.onclick = showTicker;
         if (openSettingsBtn) {
           openSettingsBtn.onclick = openSettings;
@@ -8470,6 +8619,7 @@
         document.getElementById('nflSettingsExpander').onclick = makeSettingsToggle('nflSettings');
         document.getElementById('financeSettingsExpander').onclick = makeSettingsToggle('financeSettings');
         document.getElementById('exerciseSettingsExpander').onclick = makeSettingsToggle('exerciseSettings');
+        document.getElementById('healthSettingsExpander').onclick = makeSettingsToggle('healthSettings');
         document.getElementById('addExerciseBtn').onclick = function() { addExerciseSettingsRow({period: 'morning', trackingStart: new Date().toISOString()}); };
         document.getElementById('addFinanceCustomBtn').onclick = function() {
           addFinanceCustomSettingsRow(null);
@@ -9305,6 +9455,42 @@
         return ['anytime'];
       }
 
+      // Stable identity for the done log: the synced `id` (hex, assigned when
+      // settings are saved), so a rename keeps history and two exercises may
+      // share a name. Entries written before an exercise had an id are keyed by
+      // name; reads fall back to that key for the 30 days the log keeps them.
+      function getExerciseKeyBase(ex) {
+        if (ex && typeof ex.id === 'string' && ex.id) return ex.id;
+        return ex && typeof ex.name === 'string' ? ex.name : '';
+      }
+
+      function getExerciseLogTs(log, ex, period, date, skipped) {
+        var base = getExerciseKeyBase(ex);
+        var key = skipped ? getExerciseSkipKey(base, period, date) : getExerciseDoneKey(base, period, date);
+        var ts = log[key] || 0;
+        if (!ts && base !== ex.name && typeof ex.name === 'string' && ex.name) {
+          var legacy = skipped ? getExerciseSkipKey(ex.name, period, date) : getExerciseDoneKey(ex.name, period, date);
+          ts = log[legacy] || 0;
+        }
+        return ts;
+      }
+
+      // Effective Apple Health step goal: walks only; the explicit stepGoal, else
+      // a Target note that is just a number ("10000", "10,000", "5k", "8000 steps").
+      // The worker's exerciseStepGoalOf applies the same rule (regression-tested).
+      function getExerciseStepGoal(ex) {
+        if (!ex || ex.type !== 'walk') return 0;
+        if (typeof ex.stepGoal === 'number' && ex.stepGoal > 0) return Math.round(ex.stepGoal);
+        var t = typeof ex.target === 'string' ? ex.target.replace(/^\s+|\s+$/g, '') : '';
+        var m = t.match(/^(\d{1,3}(?:[,\s]\d{3})+|\d+)\s*(?:steps?)?$/i);
+        var n = m ? parseInt(m[1].replace(/[,\s]/g, ''), 10) : 0;
+        if (!n) {
+          m = t.match(/^(\d+(?:\.\d+)?)\s*k\s*(?:steps?)?$/i);
+          n = m ? Math.round(parseFloat(m[1]) * 1000) : 0;
+        }
+        return n > 0 && n <= 200000 ? n : 0;
+      }
+
       function getExerciseDays(ex) {
         return (ex && Object.prototype.toString.call(ex.days) === '[object Array]') ? ex.days : [];
       }
@@ -9363,8 +9549,8 @@
           for (var p = 0; p < periods.length; p++) {
             var period = periods[p];
             var w = getExerciseWindow(period);
-            var key = getExerciseDoneKey(ex.name, period, today);
-            var row = {ex: ex, index: i, period: period, date: today, key: key, doneTs: log[key] || 0, skippedTs: log[getExerciseSkipKey(ex.name, period, today)] || 0, closesInMin: 0, nextDay: -1, state: 'open'};
+            var key = getExerciseDoneKey(getExerciseKeyBase(ex), period, today);
+            var row = {ex: ex, index: i, period: period, date: today, key: key, doneTs: getExerciseLogTs(log, ex, period, today, false), skippedTs: getExerciseLogTs(log, ex, period, today, true), closesInMin: 0, nextDay: -1, state: 'open'};
             if (ex.suspended === true) {
               row.state = 'suspended';
             } else if (row.doneTs) {
@@ -9425,7 +9611,7 @@
           var tracked = 0;
           var done = 0;
           for (var i = 0; i < periods.length; i++) {
-            if (log[getExerciseDoneKey(ex.name, periods[i], dateStr)]) { tracked++; done++; continue; }
+            if (getExerciseLogTs(log, ex, periods[i], dateStr, false)) { tracked++; done++; continue; }
             if (isExercisePeriodTracked(ex, periods[i], day)) tracked++;
           }
           if (tracked === 0) {
@@ -9489,10 +9675,10 @@
           var dateStr = getLocalDateStr(day);
           var title = EXERCISE_DAY_SHORT[day.getDay()] + ' ' + dateStr;
           var style;
-          if (log[getExerciseDoneKey(ex.name, period, dateStr)]) {
+          if (getExerciseLogTs(log, ex, period, dateStr, false)) {
             style = 'background:var(--ok);';
             title = title + ' done';
-          } else if (log[getExerciseSkipKey(ex.name, period, dateStr)]) {
+          } else if (getExerciseLogTs(log, ex, period, dateStr, true)) {
             style = 'background:var(--bad);';
             title = title + ' skipped';
           } else if (!isExerciseDay(ex, day) || !isExercisePeriodTracked(ex, period, day)) {
@@ -9521,8 +9707,19 @@
         html = html + '<div style="-webkit-flex:1;flex:1;min-width:0;overflow:hidden;">';
         html = html + '<span style="font-size:0.95em;margin-right:5px;" title="' + type[1] + '">' + type[2] + '</span>';
         html = html + '<span style="font-weight:600;color:var(--t1);">' + escapeHtml(ex.name) + '</span>'; // exerciseDef syncs from other devices
-        if (typeof ex.target === 'string' && ex.target) {
+        var stepGoal = getExerciseStepGoal(ex);
+        if (typeof ex.target === 'string' && ex.target && !(stepGoal > 0 && !(typeof ex.stepGoal === 'number' && ex.stepGoal > 0))) {
           html = html + ' <span style="font-size:0.8em;color:var(--t3);margin-left:4px;">' + escapeHtml(ex.target) + '</span>';
+        }
+        if (stepGoal > 0) {
+          // Apple Health step goal (walks only): the worker marks the row done when the pushed
+          // total reaches it; show the goal and, once today's total is known,
+          // the progress (lastStepsData/stepsToday come from the Health feed).
+          // Only a row scheduled today gets today's count: a walk on another
+          // weekday (rest / untracked / suspended) shows just its goal.
+          var goalToday = (row.state !== 'rest' && row.state !== 'untracked' && row.state !== 'suspended' && typeof stepsToday === 'function') ? stepsToday() : null;
+          var goalColor = goalToday && goalToday.steps >= stepGoal ? 'var(--ok)' : 'var(--t3)';
+          html = html + ' <span style="font-size:0.8em;color:' + goalColor + ';margin-left:4px;white-space:nowrap;" title="Marked done automatically when Apple Health steps reach the goal">&#128099; ' + (goalToday ? formatStepCount(goalToday.steps) + ' / ' : '') + formatStepCount(stepGoal) + '</span>';
         }
         html = html + '<div style="margin-top:2px;font-size:0.78em;color:var(--t4);">';
         html = html + '<span style="color:' + type[3] + ';">' + type[1] + '</span>';
@@ -9632,7 +9829,8 @@
         if (!ex || !ex.name) return;
         if (!/^(morning|evening|anytime)$/.test(String(period)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return;
         var log = getExerciseDoneLog();
-        var key = skipped ? getExerciseSkipKey(ex.name, period, date) : getExerciseDoneKey(ex.name, period, date);
+        var base = getExerciseKeyBase(ex);
+        var key = skipped ? getExerciseSkipKey(base, period, date) : getExerciseDoneKey(base, period, date);
         log[key] = new Date().getTime();
         saveExerciseDoneLog(log);
         renderExercise();
@@ -9677,6 +9875,8 @@
         row.style.cssText = 'display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;margin:6px 0;-webkit-flex-wrap:wrap;flex-wrap:wrap;';
         row._exerciseSuspended = ex.suspended === true;
         row._exerciseTrackingStart = typeof ex.trackingStart === 'string' ? ex.trackingStart : '';
+        // Keep the synced id across edits; a row without one gets an id on save.
+        row._exerciseId = (typeof ex.id === 'string' && /^[a-z0-9]{6,16}$/.test(ex.id)) ? ex.id : '';
 
         var nameInput = document.createElement('input');
         nameInput.type = 'text';
@@ -9703,6 +9903,30 @@
         targetInput.title = 'Optional note shown on the card, e.g. 20 min or 3 x 12';
         targetInput.className = 'exercise-target-input';
         targetInput.style.cssText = 'width:110px;padding:6px 10px;border-radius:6px;border:1px solid #444;background:var(--s1);color:var(--t1);font-size:0.9em;margin-right:8px;';
+
+        var stepGoalInput = document.createElement('input');
+        stepGoalInput.type = 'number';
+        stepGoalInput.min = '0';
+        stepGoalInput.max = '200000';
+        stepGoalInput.step = '500';
+        stepGoalInput.value = (typeof ex.stepGoal === 'number' && ex.stepGoal > 0) ? String(Math.round(ex.stepGoal)) : '';
+        stepGoalInput.placeholder = 'Step goal';
+        stepGoalInput.title = 'Optional: marked done automatically (even if skipped) when the day\'s Apple Health steps reach this. A Target that is just a number counts as the goal when this is empty.';
+        function updateStepGoalPlaceholder() {
+          var probe = {type: 'walk', target: targetInput.value};
+          var derived = getExerciseStepGoal(probe);
+          stepGoalInput.placeholder = derived > 0 ? derived + ' (from target)' : 'Step goal';
+        }
+        targetInput.oninput = updateStepGoalPlaceholder;
+        updateStepGoalPlaceholder();
+        stepGoalInput.className = 'exercise-stepgoal-input';
+        stepGoalInput.style.cssText = 'width:90px;padding:6px 10px;border-radius:6px;border:1px solid #444;background:var(--s1);color:var(--t1);font-size:0.9em;margin-right:8px;';
+        // Only a Walk can have a step goal; the box follows the type select.
+        function updateStepGoalVisibility() {
+          stepGoalInput.style.display = typeSelect.value === 'walk' ? '' : 'none';
+        }
+        typeSelect.onchange = updateStepGoalVisibility;
+        updateStepGoalVisibility();
 
         var suspendBtn = document.createElement('button');
         suspendBtn.type = 'button';
@@ -9759,12 +9983,20 @@
         row.appendChild(typeSelect);
         row.appendChild(periodSelect);
         row.appendChild(targetInput);
+        row.appendChild(stepGoalInput);
         row.appendChild(suspendBtn);
         row.appendChild(removeBtn);
         row.appendChild(dayLine);
         container.appendChild(row);
       }
       window.addExerciseSettingsRow = addExerciseSettingsRow;
+
+      // 8 hex chars; only needs to be unique within one household's list.
+      function generateExerciseId() {
+        var s = '';
+        for (var i = 0; i < 8; i++) s += Math.floor(Math.random() * 16).toString(16);
+        return s;
+      }
 
       function readExerciseSettingsRows() {
         var container = elements.exerciseList;
@@ -9778,8 +10010,13 @@
           var targetInput = rows[i].querySelector('.exercise-target-input');
           if (!nameInput || !periodSelect || !nameInput.value.trim()) continue;
           var ex = {name: nameInput.value.trim().substring(0, 60), period: periodSelect.value};
+          ex.id = rows[i]._exerciseId || generateExerciseId();
+          rows[i]._exerciseId = ex.id;
           if (typeSelect && EXERCISE_DEF_TYPES.indexOf(typeSelect.value) !== -1) ex.type = typeSelect.value;
           if (targetInput && targetInput.value.trim()) ex.target = targetInput.value.trim().substring(0, 30);
+          var stepGoalInput = rows[i].querySelector('.exercise-stepgoal-input');
+          var stepGoal = (ex.type === 'walk' && stepGoalInput) ? parseInt(stepGoalInput.value, 10) : 0;
+          if (stepGoal > 0) ex.stepGoal = Math.min(stepGoal, 200000);
           var dayCbs = rows[i].querySelectorAll('.exercise-day-cb');
           var days = [];
           for (var d = 0; d < dayCbs.length; d++) {
@@ -11465,6 +11702,46 @@
           }
         }
 
+        // Apple Health steps (Health card, own slide). Only today's total makes a
+        // slide; an unreported day shows on the card but has no place in the strip.
+        if (isStepsCardWanted() && isTickerDisplayMode(config.healthDisplayMode)) {
+          var stToday = stepsToday();
+          if (stToday) {
+            var stYday = stepsYesterday();
+            var stSpark = stepsHistory(7);
+            slides.push({
+              cardId: 'health',
+              icon: '\uD83D\uDC63',
+              label: 'Steps',
+              value: formatStepCount(stToday.steps),
+              changeClass: '',
+              changeText: stYday !== null ? 'Yesterday ' + formatStepCount(stYday) : '',
+              spark: stSpark.length >= 3 ? stSpark : null,
+              sparkClass: 'spark-steps'
+            });
+          }
+        }
+
+        // Blood pressure (same card, own slide): latest reading and its range.
+        if (isBpCardWanted() && isTickerDisplayMode(config.healthDisplayMode)) {
+          var bpLatest = latestBp();
+          if (bpLatest) {
+            var bpCat = bpCategory(bpLatest.sys, bpLatest.dia);
+            var bpSpark = [];
+            for (var bpi = Math.min(lastStepsData.bp.length, 30) - 1; bpi >= 0; bpi--) bpSpark.push(lastStepsData.bp[bpi].sys);
+            slides.push({
+              cardId: 'health',
+              icon: '\uD83E\uDE78',
+              label: 'BP',
+              value: bpLatest.sys + '/' + bpLatest.dia,
+              changeClass: bpCat[0] === 'Normal' ? 'positive' : (bpCat[0] === 'High' || bpCat[0] === 'Very high') ? 'negative' : '',
+              changeText: bpCat[0] + ' \u00B7 ' + bpWhenLabel(bpLatest.t),
+              spark: bpSpark.length >= 3 ? bpSpark : null,
+              sparkClass: 'spark-bp'
+            });
+          }
+        }
+
         if (config.showPolymarket && isTickerDisplayMode(config.polymarketDisplayMode) && lastPolymarketData && lastPolymarketData.length > 0) {
           var pmTop = lastPolymarketData[0];
           var pmPct = Math.round(pmTop.yesPrice * 100);
@@ -11652,8 +11929,9 @@
 
       // 60x14 polyline from an array of numbers; anything non-numeric drops
       // the sparkline rather than reaching the markup.
-      function tickerSparkHtml(vals, cls) {
-        var W = 60, H = 14, i;
+      // Same renderer as the strip; w/h optional (the Health card draws a wider one).
+      function tickerSparkHtml(vals, cls, w, h) {
+        var W = w || 60, H = h || 14, i;
         var min = Infinity, max = -Infinity;
         for (i = 0; i < vals.length; i++) {
           var v = Number(vals[i]);
@@ -11948,6 +12226,208 @@
       // starts, top ten of both championships. Everything here is feed text,
       // so it goes through escapeHtml at the sink.
 
+      // --- Health card: Apple Health steps + blood pressure (phone push; see README) ---
+      // lastStepsData mirrors the worker record: { days: { 'YYYY-MM-DD': { steps, at } }, bp: [...], updatedAt, today }.
+      var lastStepsData = null;
+      var stepsErrorText = null;
+
+      // The Health card line/ticker slide need the toggle; an Exercise step goal
+      // needs the feed too (progress on the row).
+      function isStepsCardWanted() {
+        return !!(config.showHealth && config.healthShowSteps);
+      }
+
+      function exerciseHasStepGoal() {
+        var list = config.exercises || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && getExerciseStepGoal(list[i]) > 0 && list[i].suspended !== true) return true;
+        }
+        return false;
+      }
+
+      function isBpCardWanted() {
+        return !!(config.showHealth && config.healthShowBp);
+      }
+
+      // One feed (/api/apple-health) serves steps and blood pressure.
+      function isStepsFeedWanted() {
+        return isStepsCardWanted() || isBpCardWanted() || !!(config.showExercise && exerciseHasStepGoal());
+      }
+
+      function formatStepCount(n) {
+        return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      }
+
+      // Today's entry if the phone has pushed today, else null.
+      function stepsToday() {
+        if (!lastStepsData || !lastStepsData.days) return null;
+        var entry = lastStepsData.days[getLocalDateStr(new Date())];
+        return entry && typeof entry.steps === 'number' ? entry : null;
+      }
+
+      // Daily totals for the last `count` days ending today, oldest first,
+      // skipping days the phone never reported.
+      function stepsHistory(count) {
+        var vals = [];
+        if (!lastStepsData || !lastStepsData.days) return vals;
+        var now = new Date();
+        for (var i = count - 1; i >= 0; i--) {
+          var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+          var e = lastStepsData.days[getLocalDateStr(d)];
+          if (e && typeof e.steps === 'number') vals.push(e.steps);
+        }
+        return vals;
+      }
+
+      function stepsYesterday() {
+        if (!lastStepsData || !lastStepsData.days) return null;
+        var now = new Date();
+        var e = lastStepsData.days[getLocalDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))];
+        return e && typeof e.steps === 'number' ? e.steps : null;
+      }
+
+      function fetchAppleHealth() {
+        if (!isStepsFeedWanted()) return;
+        var baseUrl = config.busProxyUrl || window.location.origin;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', baseUrl + '/api/apple-health', true);
+        if (config.dashboardToken) xhr.setRequestHeader('X-Dashboard-Token', config.dashboardToken);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status === 200) {
+            try {
+              var data = JSON.parse(xhr.responseText);
+              if (!data || typeof data !== 'object' || !data.days || typeof data.days !== 'object') throw new Error('bad shape');
+              lastStepsData = data;
+              stepsErrorText = null;
+              if (elements.healthUpdated) elements.healthUpdated.textContent = formatUpdatedTime(new Date());
+            } catch (e) {
+              stepsErrorText = 'Parse error';
+            }
+          } else {
+            stepsErrorText = 'Failed to load';
+          }
+          renderHealthCard();
+          if (config.showExercise && exerciseHasStepGoal()) renderExercise();
+        };
+        xhr.onerror = function() {
+          stepsErrorText = 'Network error';
+          renderHealthCard();
+        };
+        xhr.send();
+      }
+
+      function renderHealthCard() {
+        if (!elements.healthContent) return;
+        var parts = [];
+        if (isStepsCardWanted()) parts.push(buildStepsHtml());
+        if (isBpCardWanted()) parts.push(buildBpHtml());
+        var html = parts.join('<div style="margin-top:10px;border-top:1px solid var(--w06);"></div>');
+        if (!html) html = '<div class="card-loading">Turn on steps or blood pressure in Settings</div>';
+        elements.healthContent.innerHTML = html;
+        scheduleMasonry();
+      }
+
+      function buildStepsHtml() {
+        var html = '<div style="padding-top:6px;">';
+        var today = stepsToday();
+        if (!lastStepsData) {
+          html += '<div style="font-size:0.8em;color:var(--t4);">Steps: ' + (stepsErrorText ? escapeHtml(stepsErrorText) : 'loading…') + '</div></div>';
+          return html;
+        }
+        var hist = stepsHistory(7);
+        if (!today && hist.length === 0) {
+          html += '<div style="font-size:0.8em;color:var(--t4);">Steps: waiting for the first push from your phone (Settings → Health)</div></div>';
+          return html;
+        }
+        // No push yet today: fall back to the most recent day so the number
+        // never vanishes overnight, but label it with its date.
+        var shown = today;
+        var shownLabel = 'steps today';
+        if (!shown) {
+          var keys = Object.keys(lastStepsData.days).sort();
+          var lastKey = keys[keys.length - 1];
+          shown = lastStepsData.days[lastKey];
+          var lp = lastKey.split('-');
+          var ld = new Date(Number(lp[0]), Number(lp[1]) - 1, Number(lp[2]));
+          shownLabel = 'steps ' + ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][ld.getDay()] + ' ' + ld.getDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][ld.getMonth()];
+        }
+        html += '<div style="display:-webkit-flex;display:flex;-webkit-align-items:baseline;align-items:baseline;">';
+        html += '<span style="font-size:0.95em;margin-right:6px;" title="Apple Health">&#128099;</span>';
+        html += '<span style="font-size:1.6em;font-weight:bold;color:var(--t1);">' + formatStepCount(shown.steps) + '</span>';
+        html += '<span style="font-size:0.8em;color:var(--t4);margin-left:5px;">' + shownLabel + '</span>';
+        html += '</div>';
+        var sub = [];
+        var yday = stepsYesterday();
+        if (today && yday !== null) sub.push('Yesterday ' + formatStepCount(yday));
+        if (shown.at) {
+          var ageMs = new Date().getTime() - shown.at;
+          sub.push((ageMs > 24 * 60 * 60 * 1000 ? 'last push ' : 'updated ') + formatUpdatedTime(new Date(shown.at)));
+        }
+        if (stepsErrorText) sub.push(escapeHtml(stepsErrorText));
+        html += '<div style="display:-webkit-flex;display:flex;-webkit-justify-content:space-between;justify-content:space-between;-webkit-align-items:center;align-items:center;margin-top:2px;">';
+        html += '<span style="font-size:0.75em;color:var(--t4);">' + sub.join(' · ') + '</span>';
+        if (hist.length >= 3) html += tickerSparkHtml(hist, 'spark-steps', 90, 22);
+        html += '</div>';
+        html += '</div>';
+        return html;
+      }
+
+      // --- Blood pressure (same Apple Health record, `bp` newest first) ---
+      function latestBp() {
+        var list = lastStepsData && lastStepsData.bp;
+        return (list && list.length && typeof list[0].sys === 'number') ? list[0] : null;
+      }
+
+      // Range by the common clinical bands; returns [label, colour token].
+      function bpCategory(sys, dia) {
+        if (sys > 180 || dia > 120) return ['Very high', 'var(--bad)'];
+        if (sys >= 140 || dia >= 90) return ['High', 'var(--bad2)'];
+        if (sys >= 130 || dia >= 80) return ['Raised', 'var(--orange)'];
+        if (sys >= 120) return ['Elevated', 'var(--orange)'];
+        if (sys < 90 || dia < 60) return ['Low', 'var(--info)'];
+        return ['Normal', 'var(--ok2)'];
+      }
+
+      // Always the full date with the time, e.g. "Sat 18 Oct, 1:27 pm".
+      function bpWhenLabel(ms) {
+        var d = new Date(ms);
+        return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] + ' ' + d.getDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()] + ', ' + formatTime(d);
+      }
+
+      function buildBpHtml() {
+        var html = '<div style="padding-top:6px;">';
+        if (!lastStepsData) {
+          html += '<div style="font-size:0.8em;color:var(--t4);">Blood pressure: ' + (stepsErrorText ? escapeHtml(stepsErrorText) : 'loading…') + '</div></div>';
+          return html;
+        }
+        var r = latestBp();
+        if (!r) {
+          html += '<div style="font-size:0.8em;color:var(--t4);">Blood pressure: no reading pushed yet (Settings → Health)</div></div>';
+          return html;
+        }
+        // The latest reading whatever day it was taken, with its full date.
+        var cat = bpCategory(r.sys, r.dia);
+        html += '<div style="display:-webkit-flex;display:flex;-webkit-align-items:baseline;align-items:baseline;">';
+        html += '<span style="font-size:0.95em;margin-right:6px;" title="Blood pressure">&#129656;</span>';
+        html += '<span style="font-size:1.6em;font-weight:bold;color:var(--t1);">' + r.sys + '<span style="color:var(--t4);font-weight:normal;">/</span>' + r.dia + '</span>';
+        html += '<span style="font-size:0.8em;color:var(--t4);margin-left:5px;">mmHg</span>';
+        html += '<span style="font-size:0.8em;color:' + cat[1] + ';margin-left:8px;font-weight:600;">' + cat[0] + '</span>';
+        if (typeof r.pulse === 'number') html += '<span style="font-size:0.8em;color:var(--t4);margin-left:8px;">&#9829; ' + r.pulse + '</span>';
+        html += '</div>';
+        var sysSpark = [];
+        var list = lastStepsData.bp;
+        for (var i = Math.min(list.length, 30) - 1; i >= 0; i--) {
+          if (typeof list[i].sys === 'number') sysSpark.push(list[i].sys);
+        }
+        html += '<div style="display:-webkit-flex;display:flex;-webkit-justify-content:space-between;justify-content:space-between;-webkit-align-items:center;align-items:center;margin-top:2px;">';
+        html += '<span style="font-size:0.75em;color:var(--t4);">' + bpWhenLabel(r.t) + (list.length > 1 ? ' · ' + list.length + ' readings' : '') + '</span>';
+        if (sysSpark.length >= 3) html += tickerSparkHtml(sysSpark, 'spark-bp', 90, 22);
+        html += '</div>';
+        html += '</div>';
+        return html;
+      }
+
       var lastF1Data = null;
 
       function formatF1Start(iso) {
@@ -12131,6 +12611,7 @@
         fetchFinance();
         fetchPolymarket();
         fetchF1();
+        fetchAppleHealth();
         // Rebuild scrolling ticker after a delay so data can arrive
         setTimeout(buildScrollingTicker, 5000);
       }
@@ -12165,6 +12646,7 @@
           fetchFinance();
           fetchPolymarket();
           fetchF1();
+          fetchAppleHealth();
           setTimeout(buildScrollingTicker, 5000);
         }, dataMs);
       }

@@ -3,6 +3,7 @@
   "main": "src/worker.js",
   "compatibility_date": "2026-01-27",
   "assets": {
-    "directory": "./public"
+    "directory": "./public",
+    "binding": "ASSETS"
   }
 }

@@ -148,6 +148,288 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 
 const BUSHFIRE_LEVELS = { 'emergency warning': 3, 'watch and act': 2, 'advice': 1 };
 
+// ---- Apple Health steps (pushed from the phone; see README) ----
+// HealthKit has no cloud API, so an iOS Shortcut automation (or Health Auto
+// Export) POSTs the day's step total to /api/apple-health a few times a day.
+// One KV record holds the last APPLE_HEALTH_KEEP_DAYS daily totals; a push
+// whose total matches what is stored is acknowledged without a put, so a
+// re-fired automation costs nothing against the KV write budget.
+const APPLE_HEALTH_KV_KEY = 'apple_health_v1';
+const APPLE_HEALTH_KEEP_DAYS = 14;
+const APPLE_HEALTH_MAX_STEPS = 200000;
+const APPLE_HEALTH_BP_KEEP = 30;
+
+function brisbaneDateStr(ms) {
+  // en-CA formats as YYYY-MM-DD.
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Brisbane', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+}
+
+function isPlausibleHealthDate(dateStr, nowMs) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const t = Date.parse(dateStr + 'T00:00:00Z');
+  if (!isFinite(t)) return false;
+  // No further back than the retention window, no further forward than
+  // tomorrow (the phone's clock may sit just past Brisbane midnight).
+  return t >= nowMs - (APPLE_HEALTH_KEEP_DAYS + 1) * 86400000 && t <= nowMs + 86400000;
+}
+
+// Loose step extraction for whatever shape the Shortcuts app ends up sending:
+// a number, "7,842 count", a one-element list (Group By Day), a list of
+// samples ({ value } / { qty } objects, summed), or an object whose key is
+// any spelling of steps. Returns NaN when nothing numeric is found.
+const APPLE_HEALTH_STEP_KEYS = /^(steps?|step[_ -]?count|stepcount|value|qty|quantity|count|total)$/i;
+function appleHealthLooseSteps(v, depth) {
+  depth = depth || 0;
+  if (depth > 4 || v === null || v === undefined) return NaN;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const token = v.match(/-?\d[\d,]*(?:\.\d+)?/);
+    return token ? Number(token[0].replace(/,/g, '')) : NaN;
+  }
+  if (Array.isArray(v)) {
+    let sum = 0, found = false;
+    for (const item of v) {
+      const n = appleHealthLooseSteps(item, depth + 1);
+      if (isFinite(n)) { sum += n; found = true; }
+    }
+    return found ? sum : NaN;
+  }
+  if (typeof v === 'object') {
+    for (const k of Object.keys(v)) {
+      if (!APPLE_HEALTH_STEP_KEYS.test(k)) continue;
+      const n = appleHealthLooseSteps(v[k], depth + 1);
+      if (isFinite(n)) return n;
+    }
+  }
+  return NaN;
+}
+
+function appleHealthLooseDate(body) {
+  if (!body || typeof body !== 'object') return undefined;
+  for (const k of Object.keys(body)) {
+    // A blank date (an empty Shortcut variable) is the same as no date.
+    if (/^(date|day|start[_ ]?date)$/i.test(k) && typeof body[k] === 'string' && body[k].trim()) return body[k].trim();
+  }
+  return undefined;
+}
+
+// Accepts the simple Shortcut payload { steps, date? } (any spelling/shape, see
+// appleHealthLooseSteps) or a Health Auto Export "REST API" payload
+// { data: { metrics: [{ name: 'step_count', data: [{ date, qty }] }] } }.
+// Returns [{ date, steps }] with invalid entries dropped.
+function parseAppleHealthPush(body, nowMs) {
+  const out = [];
+  const push = function(dateStr, rawSteps) {
+    // Shortcuts may hand over "7,842 count" or a bare number; take the first
+    // signed numeric token so a minus sign still fails the range check.
+    const token = String(rawSteps === undefined || rawSteps === null ? '' : rawSteps).match(/-?\d[\d,]*(?:\.\d+)?/);
+    const steps = token ? Math.round(Number(token[0].replace(/,/g, ''))) : NaN;
+    if (!isFinite(steps) || steps < 0 || steps > APPLE_HEALTH_MAX_STEPS) return;
+    const date = String(dateStr || '').slice(0, 10);
+    if (!isPlausibleHealthDate(date, nowMs)) return;
+    out.push({ date: date, steps: steps });
+  };
+  if (body === null || body === undefined) return out;
+  if (typeof body === 'object' && body.data && Array.isArray(body.data.metrics)) {
+    for (const m of body.data.metrics) {
+      if (!m || m.name !== 'step_count' || !Array.isArray(m.data)) continue;
+      for (const d of m.data) if (d) push(d.date, d.qty);
+    }
+    return out;
+  }
+  const loose = appleHealthLooseSteps(body);
+  if (isFinite(loose)) {
+    const d = appleHealthLooseDate(body);
+    // A dated steps value may carry a full timestamp; reduce it to the Brisbane day.
+    const dMs = d !== undefined ? parseLooseDateMs(d) : NaN;
+    push(d === undefined ? brisbaneDateStr(nowMs) : (/^\d{4}-\d{2}-\d{2}$/.test(d) ? d : (isFinite(dMs) ? brisbaneDateStr(dMs) : brisbaneDateStr(nowMs))), loose);
+  }
+  return out;
+}
+
+function sanitizeAppleHealthRecord(stored, nowMs) {
+  const days = {};
+  const src = stored && typeof stored === 'object' && stored.days && typeof stored.days === 'object' ? stored.days : {};
+  const cutoff = brisbaneDateStr(nowMs - APPLE_HEALTH_KEEP_DAYS * 86400000);
+  for (const k of Object.keys(src)) {
+    const v = src[k];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || k < cutoff || !v || typeof v !== 'object') continue;
+    const steps = Number(v.steps), at = Number(v.at);
+    if (!isFinite(steps) || steps < 0 || !isFinite(at)) continue;
+    days[k] = { steps: Math.round(steps), at: Math.round(at) };
+  }
+  // Blood pressure readings, newest first: { t, sys, dia, pulse? }.
+  const bp = [];
+  const bpSrc = stored && Array.isArray(stored.bp) ? stored.bp : [];
+  for (const r of bpSrc) {
+    if (!r || typeof r !== 'object') continue;
+    const t = Number(r.t), sys = Number(r.sys), dia = Number(r.dia), pulse = Number(r.pulse);
+    if (!isFinite(t) || !isBpPair(sys, dia)) continue;
+    const entry = { t: Math.round(t), sys: Math.round(sys), dia: Math.round(dia) };
+    if (isFinite(pulse) && pulse >= 20 && pulse <= 250) entry.pulse = Math.round(pulse);
+    bp.push(entry);
+    if (bp.length >= APPLE_HEALTH_BP_KEEP) break;
+  }
+  bp.sort((a, b) => b.t - a.t);
+  const updatedAt = Number(stored && stored.updatedAt);
+  return { days: days, bp: bp, updatedAt: isFinite(updatedAt) && updatedAt > 0 ? updatedAt : null };
+}
+
+// A date as Shortcuts renders a sample's Start Date on an Australian phone
+// ("19 Jul 2026 at 8:15 am", "19/07/2026, 8:15 am"), Health Auto Export's
+// "2026-10-18 08:00:00 +1000", or ISO. Zone-less forms are taken as Brisbane
+// (+10:00, no DST). Returns ms or NaN.
+const MONTHS_SHORT = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+function parseLooseDateMs(value) {
+  if (typeof value === 'number') return value > 1e12 ? value : value > 1e9 ? value * 1000 : NaN;
+  if (typeof value !== 'string') return NaN;
+  let s = value.trim().replace(/\s+at\s+/i, ' ').replace(/,/g, ' ').replace(/\s+/g, ' ');
+  if (!s) return NaN;
+  const iso = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)(?:\s?([+-]\d{2}):?(\d{2})|Z)?$/i);
+  if (iso) return Date.parse(iso[1] + 'T' + (iso[2].length === 5 ? iso[2] + ':00' : iso[2]) + (iso[3] ? iso[3] + ':' + iso[4] : (/z$/i.test(s) ? 'Z' : '+10:00')));
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return Date.parse(s + 'T00:00:00+10:00');
+  const time = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?/i);
+  let hh = 0, mm = 0, ss = 0;
+  if (time) {
+    hh = parseInt(time[1], 10); mm = parseInt(time[2], 10); ss = time[3] ? parseInt(time[3], 10) : 0;
+    if (time[4]) { const pm = /pm/i.test(time[4]); if (pm && hh < 12) hh += 12; if (!pm && hh === 12) hh = 0; }
+    s = s.replace(time[0], ' ').replace(/\s+/g, ' ').trim();
+  }
+  let d, m, y;
+  let mt = s.match(/^(\d{1,2})[ \/.-]([A-Za-z]{3,})[a-z]*[ \/.-](\d{4})$/);
+  if (mt) { d = +mt[1]; m = MONTHS_SHORT.indexOf(mt[2].slice(0, 3).toLowerCase()); y = +mt[3]; }
+  else if ((mt = s.match(/^([A-Za-z]{3,})[a-z]*[ \/.-](\d{1,2})[ \/.-](\d{4})$/))) { m = MONTHS_SHORT.indexOf(mt[1].slice(0, 3).toLowerCase()); d = +mt[2]; y = +mt[3]; }
+  else if ((mt = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/))) { d = +mt[1]; m = +mt[2] - 1; y = +mt[3]; }
+  else return Date.parse(value);
+  if (!(m >= 0 && m < 12 && d >= 1 && d <= 31 && y > 2000)) return NaN;
+  const pad = function(n) { return (n < 10 ? '0' : '') + n; };
+  return Date.parse(y + '-' + pad(m + 1) + '-' + pad(d) + 'T' + pad(hh) + ':' + pad(mm) + ':' + pad(ss) + '+10:00');
+}
+
+function isBpPair(sys, dia) {
+  return isFinite(sys) && isFinite(dia) && sys >= 60 && sys <= 260 && dia >= 30 && dia <= 160 && sys > dia;
+}
+
+// Blood pressure out of a push. Shortcuts renders a Blood Pressure sample as
+// "120/80 mmHg" (one per line when several), Health Auto Export sends a
+// blood_pressure metric with { date, systolic, diastolic }, and a hand-made
+// body may use { systolic, diastolic, pulse?, date? } or { bp: "120/80" }.
+// Returns [{ t, sys, dia, pulse? }] newest first; a reading without its own
+// time is stamped `nowMs`.
+function parseAppleHealthBp(body, nowMs) {
+  const out = [];
+  // Values may arrive as "128 mmHg" (a Shortcut's Blood Pressure Systolic
+  // sample rendered as text), so take the first numeric token.
+  const num = function(v) {
+    if (typeof v === 'number') return v;
+    const m = String(v === undefined || v === null ? '' : v).match(/\d+(?:\.\d+)?/);
+    return m ? Number(m[0]) : NaN;
+  };
+  const add = function(sys, dia, t, pulse) {
+    sys = num(sys); dia = num(dia); pulse = num(pulse);
+    // Systolic is always the larger number; a Shortcut with the two sample
+    // variables attached to the wrong fields sends them reversed (seen live).
+    if (isFinite(sys) && isFinite(dia) && dia > sys) { const tmp = sys; sys = dia; dia = tmp; }
+    if (!isBpPair(sys, dia)) return;
+    let ts = Array.isArray(t) ? parseLooseDateMs(t[0]) : parseLooseDateMs(t);
+    if (!isFinite(ts) || ts > nowMs + 86400000 || ts < nowMs - 400 * 86400000) ts = nowMs;
+    const entry = { t: Math.round(ts), sys: Math.round(sys), dia: Math.round(dia) };
+    const p = Number(pulse);
+    if (isFinite(p) && p >= 20 && p <= 250) entry.pulse = Math.round(p);
+    out.push(entry);
+  };
+  const fromText = function(text, t) {
+    const str = String(text);
+    const pairs = str.match(/\b(\d{2,3})\s*\/\s*(\d{2,3})\b/g) || [];
+    if (pairs.length) {
+      for (const pr of pairs) { const m = pr.match(/(\d{2,3})\s*\/\s*(\d{2,3})/); add(m[1], m[2], t); }
+      return;
+    }
+    const s = str.match(/systolic[^\d]{0,10}(\d{2,3})/i), d = str.match(/diastolic[^\d]{0,10}(\d{2,3})/i);
+    if (s && d) add(s[1], d[1], t);
+  };
+  const fromObj = function(o, depth) {
+    if (depth > 4 || o === null || o === undefined) return;
+    if (typeof o === 'string' || typeof o === 'number') { fromText(o); return; }
+    if (Array.isArray(o)) { for (const item of o) fromObj(item, depth + 1); return; }
+    if (typeof o !== 'object') return;
+    const keys = Object.keys(o);
+    const find = function(re) { for (const k of keys) if (re.test(k)) return o[k]; return undefined; };
+    const sys = find(/^(sys|syst|systolic|upper)$/i), dia = find(/^(dia|dias|diast|diastolic|lower)$/i);
+    if (sys !== undefined && dia !== undefined) { add(sys, dia, find(/^(date|start[_ ]?date|t|time|at)$/i), find(/^(pulse|heart[_ ]?rate|bpm)$/i)); return; }
+    for (const k of keys) {
+      if (/^(bp|blood[_ ]?pressure|bloodpressure|blood pressure)$/i.test(k)) {
+        const v = o[k];
+        if (typeof v === 'string' || typeof v === 'number') fromText(v, find(/^(date|start[_ ]?date|bpdate|t|time|at)$/i));
+        else fromObj(v, depth + 1);
+      }
+    }
+  };
+  if (body && typeof body === 'object' && !Array.isArray(body) && body.data && Array.isArray(body.data.metrics)) {
+    for (const m of body.data.metrics) {
+      if (!m || !/^blood_pressure$/i.test(m.name || '') || !Array.isArray(m.data)) continue;
+      for (const d of m.data) if (d) add(d.systolic, d.diastolic, d.date, d.pulse);
+    }
+  } else {
+    fromObj(body, 0);
+  }
+  out.sort((a, b) => b.t - a.t);
+  return out;
+}
+
+// Done-log keys a step total earns on one calendar day: every period row of
+// each exercise whose stepGoal it reaches, that is not suspended, is scheduled
+// on that weekday and whose window opened at or after trackingStart. Mirrors
+// the frontend's getExercisePeriods / isExerciseDay / isExercisePeriodTracked
+// (due instant = the window's start on that day; Brisbane is fixed +10:00) and
+// the `<name>_<period>_<date>` key shape. A done key beats a `_skipped` key on
+// every surface, so this is also how an auto-done overrides a manual Skip.
+// Effective step goal of an exercise: walks only; the explicit stepGoal, else a
+// Target note that is just a number ("10000", "10,000", "5k", "8000 steps") —
+// the user had typed goals into Target before the field existed. Must stay
+// byte-equivalent in spirit with the frontend's getExerciseStepGoal (tested).
+function exerciseStepGoalOf(ex) {
+  if (!ex || ex.type !== 'walk') return 0;
+  if (typeof ex.stepGoal === 'number' && ex.stepGoal > 0) return Math.round(ex.stepGoal);
+  const t = typeof ex.target === 'string' ? ex.target.trim() : '';
+  let m = t.match(/^(\d{1,3}(?:[,\s]\d{3})+|\d+)\s*(?:steps?)?$/i);
+  let n = m ? parseInt(m[1].replace(/[,\s]/g, ''), 10) : 0;
+  if (!n) {
+    m = t.match(/^(\d+(?:\.\d+)?)\s*k\s*(?:steps?)?$/i);
+    n = m ? Math.round(parseFloat(m[1]) * 1000) : 0;
+  }
+  return n > 0 && n <= APPLE_HEALTH_MAX_STEPS ? n : 0;
+}
+
+// `existingLog` (optional) suppresses rows already done under the id key or,
+// for an exercise that gained its id after the entry was written, the legacy
+// name key — mirroring the frontend's getExerciseLogTs fallback.
+function exerciseStepGoalKeys(exerciseDef, dateStr, steps, existingLog) {
+  const keys = [];
+  const log = existingLog && typeof existingLog === 'object' ? existingLog : {};
+  if (!exerciseDef || !Array.isArray(exerciseDef.exercises) || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !(steps > 0)) return keys;
+  const weekday = new Date(dateStr + 'T00:00:00Z').getUTCDay();
+  const timeRe = /^\d{2}:\d{2}$/;
+  const morningStart = timeRe.test(exerciseDef.morningStart) ? exerciseDef.morningStart : '05:00';
+  const eveningStart = timeRe.test(exerciseDef.eveningStart) ? exerciseDef.eveningStart : '16:30';
+  for (const ex of exerciseDef.exercises) {
+    const goal = exerciseStepGoalOf(ex);
+    if (!goal || steps < goal || (ex && ex.suspended === true)) continue;
+    if (Array.isArray(ex.days) && ex.days.length > 0 && ex.days.indexOf(weekday) === -1) continue;
+    const trackingStart = ex.trackingStart ? Date.parse(ex.trackingStart) : NaN;
+    const periods = ex.period === 'both' ? ['morning', 'evening'] : (ex.period === 'morning' || ex.period === 'evening') ? [ex.period] : ['anytime'];
+    const base = typeof ex.id === 'string' && ex.id ? ex.id : ex.name;
+    for (const p of periods) {
+      const dueInstant = Date.parse(dateStr + 'T' + (p === 'evening' ? eveningStart : morningStart) + ':00+10:00');
+      if (isFinite(trackingStart) && dueInstant < trackingStart) continue;
+      const key = base + '_' + p + '_' + dateStr;
+      if (log[key] || (base !== ex.name && log[ex.name + '_' + p + '_' + dateStr])) continue;
+      keys.push(key);
+    }
+  }
+  return keys;
+}
+
 function isDashboardStatusDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
@@ -203,9 +485,17 @@ function sanitizeExerciseDef(d) {
     const name = clampString(e.name, 60).trim();
     if (!name) continue;
     const entry = { name: name, period: EXERCISE_PERIODS.indexOf(e.period) === -1 ? 'anytime' : e.period };
+    // Stable identity: the done log is keyed by id when present, so a rename
+    // keeps history and two exercises may share a name.
+    if (typeof e.id === 'string' && /^[a-z0-9]{6,16}$/.test(e.id)) entry.id = e.id;
     if (EXERCISE_TYPES.indexOf(e.type) !== -1) entry.type = e.type;
     const target = clampString(e.target, 30).trim();
     if (target) entry.target = target;
+    // Apple Health step goal: walking exercises only — the push route marks the
+    // day's rows done once the pushed total reaches it. Rounded, positive,
+    // bounded like a push; dropped on any other type.
+    const stepGoal = Math.round(Number(e.stepGoal));
+    if (entry.type === 'walk' && isFinite(stepGoal) && stepGoal > 0 && stepGoal <= APPLE_HEALTH_MAX_STEPS) entry.stepGoal = stepGoal;
     if (Array.isArray(e.days)) {
       const days = [];
       for (let j = 0; j < e.days.length && j < 14; j++) {
@@ -2513,6 +2803,152 @@ async function handleRequest(request, env, ctx) {
           headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
         });
       }
+    }
+
+    // Apple Health steps: GET returns the stored daily totals, POST/PUT ingests
+    // a push from the phone. No upstream — the phone is the source of truth.
+    if (path === '/api/apple-health') {
+      const ahNow = Date.now();
+      if (request.method !== 'GET' && request.method !== 'POST' && request.method !== 'PUT') {
+        return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+      }
+      const ahKv = env.STATUS_KV || env.SETTINGS_KV;
+      if (!ahKv) {
+        return new Response(JSON.stringify({ error: 'STATUS_KV not configured' }), {
+          status: 500,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      let ahStored = null;
+      try {
+        ahStored = await ahKv.get(APPLE_HEALTH_KV_KEY, 'json');
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'Apple Health storage unavailable' }), {
+          status: 503,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      const ahRecord = sanitizeAppleHealthRecord(ahStored, ahNow);
+      if (request.method === 'GET') {
+        ahRecord.today = brisbaneDateStr(ahNow);
+        return new Response(JSON.stringify(ahRecord), {
+          headers: Object.assign({ 'Content-Type': 'application/json', 'X-Cache': 'MISS' }, corsHeaders)
+        });
+      }
+      // Body: JSON preferred, but Shortcuts is easily left on "Form", so form
+      // bodies (urlencoded or multipart) are read too, and a bare number works.
+      let ahBody;
+      let ahRawSample = '';
+      const ahCt = (request.headers.get('Content-Type') || '').toLowerCase();
+      try {
+        if (ahCt.indexOf('multipart/form-data') !== -1 || ahCt.indexOf('x-www-form-urlencoded') !== -1) {
+          const fd = await request.formData();
+          ahBody = {};
+          for (const pair of fd.entries()) { if (typeof pair[1] === 'string') ahBody[pair[0]] = pair[1]; }
+          ahRawSample = JSON.stringify(ahBody).slice(0, 200);
+        } else {
+          const text = await request.text();
+          ahRawSample = text.slice(0, 200);
+          try { ahBody = JSON.parse(text); } catch (e) { ahBody = text; }
+        }
+      } catch (e) {
+        ahBody = undefined;
+      }
+      const ahEntries = parseAppleHealthPush(ahBody, ahNow);
+      const ahBp = parseAppleHealthBp(ahBody, ahNow);
+      if (!ahEntries.length && !ahBp.length) {
+        // Visible in `wrangler tail` while setting up a phone; no secrets here.
+        console.log('apple-health 400: content-type=' + (ahCt || 'none') + ' body=' + ahRawSample);
+        return new Response(JSON.stringify({
+          error: 'No step count or blood pressure found. Send JSON like { "steps": 7842 } and/or { "bp": "120/80" } (optional "date"), or a Health Auto Export payload.',
+          received: { contentType: ahCt || null, body: ahRawSample }
+        }), {
+          status: 400,
+          headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+        });
+      }
+      // One line per push in `wrangler tail`: what parsed and (for a push that
+      // mentions blood pressure but yields none) the raw body, for phone setup.
+      console.log('apple-health push: steps=' + JSON.stringify(ahEntries.map(e => e.steps)) + ' bp=' + ahBp.length + ' body=' + ahRawSample);
+      let ahChanged = false;
+      // Blood pressure: merge new readings, newest first, deduplicated. A
+      // reading that arrived without its own time (Shortcut text) matches the
+      // stored latest when the pair is identical and it is less than 12 h
+      // newer — a re-fired automation must not append the same cuff reading.
+      for (const r of ahBp) {
+        let dup = false;
+        for (const s of ahRecord.bp) {
+          if (s.sys !== r.sys || s.dia !== r.dia) continue;
+          if (Math.abs(s.t - r.t) < 60000 || (r.t === ahNow && ahNow - s.t < 12 * 3600000)) { dup = true; break; }
+        }
+        if (dup) continue;
+        ahRecord.bp.push(r);
+        ahChanged = true;
+      }
+      if (ahChanged) {
+        ahRecord.bp.sort((a, b) => b.t - a.t);
+        ahRecord.bp = ahRecord.bp.slice(0, APPLE_HEALTH_BP_KEEP);
+      }
+      for (const entry of ahEntries) {
+        const prev = ahRecord.days[entry.date];
+        // A day's total only ever grows while the day is live; a smaller
+        // number is a partial re-read (e.g. the Watch not yet synced) — keep
+        // the larger one so the card never steps backwards.
+        if (prev && prev.steps >= entry.steps) continue;
+        ahRecord.days[entry.date] = { steps: entry.steps, at: ahNow };
+        ahChanged = true;
+      }
+      if (ahChanged) {
+        ahRecord.updatedAt = ahNow;
+        try {
+          await ahKv.put(APPLE_HEALTH_KV_KEY, JSON.stringify(ahRecord));
+        } catch (e) {
+          return new Response(JSON.stringify({ error: 'Storage write failed, retry later' }), {
+            status: 503,
+            headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+          });
+        }
+      }
+      // Step goals on the Exercise card: evaluated on every push (not only a
+      // changed one, so a goal set after the steps were already there still
+      // completes on the next push) against the stored total for each day.
+      // Writes dashboard_status only when a key is new — once per row per day.
+      const ahAutoDone = [];
+      try {
+        let stStored = null;
+        try { stStored = await ahKv.get(DASHBOARD_STATUS_KV_KEY, 'json'); } catch (e) { stStored = undefined; }
+        if (stStored !== undefined) {
+          const stExisting = sanitizeDashboardStatus(stStored);
+          const stDone = Object.assign({}, stExisting.exerciseDone);
+          const seenDates = {};
+          for (const entry of ahEntries) {
+            if (seenDates[entry.date]) continue;
+            seenDates[entry.date] = true;
+            const dayRec = ahRecord.days[entry.date];
+            const keys = exerciseStepGoalKeys(stExisting.exerciseDef, entry.date, dayRec ? dayRec.steps : 0, stDone);
+            for (const k of keys) {
+              if (stDone[k]) continue;
+              stDone[k] = ahNow;
+              ahAutoDone.push(k);
+            }
+          }
+          if (ahAutoDone.length) {
+            const stNext = sanitizeDashboardStatus(Object.assign({}, stExisting, { exerciseDone: stDone, updatedAt: new Date(ahNow).toISOString() }));
+            await ahKv.put(DASHBOARD_STATUS_KV_KEY, JSON.stringify(stNext));
+          }
+        } else {
+          ahRecord.autoDoneError = 'status read failed';
+        }
+      } catch (e) {
+        ahRecord.autoDoneError = String(e && e.message || e).slice(0, 140);
+      }
+      ahRecord.autoDone = ahAutoDone;
+      ahRecord.ok = true;
+      ahRecord.changed = ahChanged;
+      ahRecord.today = brisbaneDateStr(ahNow);
+      return new Response(JSON.stringify(ahRecord), {
+        headers: Object.assign({ 'Content-Type': 'application/json' }, corsHeaders)
+      });
     }
 
     // Dashboard status — optional KV-backed mutable state shared across devices

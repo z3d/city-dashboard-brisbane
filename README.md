@@ -11,6 +11,8 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Optional pollen forecasts through the Google Pollen API, showing today's forecast day. In Australia Google covers only grasses and cypress pine, so the tree index is labelled Cypress and the card notes the gap
 - Optional locally configured birthday reminders with per-person timezones, acknowledgement, and birthday-only import/export (ships with an empty list)
 - Exercise checklist: morning / evening / any-time sessions with weekday schedules, Done and Skip buttons, 7-day dots and streaks, a Needs Attention nudge before a window closes, and a standalone phone page at `/exercise` (add to home screen) that shares the same token and synced log
+- Health card: today's Apple Health steps (7-day sparkline) and the latest blood pressure, pushed from an iPhone Shortcut to `/api/apple-health`; a Walk exercise with a step goal ticks itself done when the day's total reaches it
+- Every card header has a gear that opens Settings at that card's section
 - Queensland electricity spot prices via AEMO NEMWEB, with a 24h price graph plus the AEMO pre-dispatch forecast
 - Brisbane City Council bin collection lookup and recycling/garden alternation
 - TransLink bus arrivals through the Worker proxy
@@ -100,6 +102,7 @@ npm run validate
 | `GET /api/f1` | Formula 1 schedule, last result and standings (Jolpica; cached 30 min, KV-backed when a namespace is bound) |
 | `GET /api/fuel?grades=e10\|Diesel&stations=Shell` | Queensland fuel prices |
 | `GET /api/polymarket?limit=5` | Polymarket events |
+| `GET/POST /api/apple-health` | Apple Health steps and blood pressure pushed from the phone (needs a KV namespace; a push that changes nothing costs no write; a day's total only grows; reaching a Walk's step goal marks it done in `dashboard-status`) |
 | `GET/PUT /api/dashboard-status` | Optional KV-backed sync of bin dismissal/taken-out status, the exercise list and the exercise done-log (union-merged, idempotent PUT) |
 
 Electricity prices are read from the latest NEMWEB DispatchIS ZIP report. The old `GRAPH_5QLD1.csv` feed is no longer available. The card graph comes from `visualisations.aemo.com.au/aemo/apps/api/report/5MIN` (the host behind the AEMO NEM dashboard; `aemo.com.au` itself is Cloudflare-challenged), trimmed to QLD1 and module-cached for 5 minutes.
