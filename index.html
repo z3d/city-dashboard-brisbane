@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.70.0">
+  <meta name="app-version" content="1.71.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -4845,6 +4845,8 @@
           action: action || '',
           // Stable identity for per-item dismissal. Items that own their own
           // dismissal (bushfire, bin, birthday buttons) carry an action instead.
+          // A caller whose action merely opens something (storm → radar popup)
+          // sets dismissable back to true on the returned item.
           key: key || ((label || '') + '|' + (value || '')),
           dismissable: !action
         };
@@ -5078,7 +5080,12 @@
         var rainProb = getWeatherRainProbability(lastWeatherData);
 
         if (code >= 95 && code <= 99) {
-          addNeedsAttentionItem(items, 90, 'urgent', 'Weather', 'Storm conditions now', 'Check the radar and warnings');
+          // Tapping lifts the BoM radar loop (showRadarPopup) — the detail tells the
+          // reader to check the radar, so the item is where they look for it. The
+          // action only opens a popup, it is not a dismissal, so the item keeps
+          // its ✕ (the renderer handles the ✕ before the tap action can fire).
+          var storm = addNeedsAttentionItem(items, 90, 'urgent', 'Weather', 'Storm conditions now', 'Check the radar and warnings \u00B7 tap for radar', 'showRadarPopup()');
+          storm.dismissable = true;
         } else if (rainProb !== null && rainProb >= 80) {
           addNeedsAttentionItem(items, 55, 'warn', 'Weather', rainProb + '% rain chance', 'Rain likely today');
         }
@@ -5251,18 +5258,26 @@
         html += '</div>';
         container.innerHTML = html;
         container.style.display = '';
-        // Delegated ✕ handler (items are re-rendered every tick, so no per-button listeners)
-        container.onclick = function(ev) {
-          var target = ev && ev.target;
-          while (target && target !== container) {
-            if (target.className && String(target.className).indexOf('needs-attention-dismiss') !== -1) {
-              if (ev.stopPropagation) ev.stopPropagation();
-              dismissNeedsAttentionItem(target.getAttribute('data-na-key'));
-              return;
-            }
-            target = target.parentNode;
+        // Delegated ✕ handler (items are re-rendered every tick, so no per-button
+        // listeners). Capture phase: it runs before the item's inline onclick, so
+        // a ✕ tap on an item that is both tappable and dismissable (storm →
+        // radar) dismisses without also opening the popup. Same function
+        // reference each render, so remove + add never stacks listeners.
+        container.removeEventListener('click', needsAttentionClickCapture, true);
+        container.addEventListener('click', needsAttentionClickCapture, true);
+      }
+
+      function needsAttentionClickCapture(ev) {
+        var container = ev.currentTarget;
+        var target = ev && ev.target;
+        while (target && target !== container) {
+          if (target.className && String(target.className).indexOf('needs-attention-dismiss') !== -1) {
+            if (ev.stopPropagation) ev.stopPropagation();
+            dismissNeedsAttentionItem(target.getAttribute('data-na-key'));
+            return;
           }
-        };
+          target = target.parentNode;
+        }
       }
 
       function setCardBannerClass(card, isBanner) {
@@ -7583,15 +7598,19 @@
           'loading="lazy"></iframe>';
       }
 
-      // BOM Weather Radar - Brisbane (Mt Stapylton) 128km loop
+      // BOM Weather Radar - Brisbane (Mt Stapylton) 128km loop. One markup
+      // helper feeds both the card and the storm popup (showRadarPopup).
+      function bomRadarHtml() {
+        return '<div style="position:relative;width:100%;max-width:520px;margin:0 auto;overflow:hidden;border-radius:8px;height:520px;">' +
+          '<iframe src="https://reg.bom.gov.au/products/IDR663.loop.shtml" ' +
+          'style="position:absolute;top:-200px;left:-8px;width:560px;height:760px;border:none;" ' +
+          'loading="lazy" scrolling="no"></iframe></div>';
+      }
       var bomRadarRendered = false;
       function renderBomRadar() {
         if (!bomRadarRendered) {
           bomRadarRendered = true;
-          elements.bomRadarContent.innerHTML = '<div style="position:relative;width:100%;max-width:520px;margin:0 auto;overflow:hidden;border-radius:8px;height:520px;">' +
-            '<iframe src="https://reg.bom.gov.au/products/IDR663.loop.shtml" ' +
-            'style="position:absolute;top:-200px;left:-8px;width:560px;height:760px;border:none;" ' +
-            'loading="lazy" scrolling="no"></iframe></div>';
+          elements.bomRadarContent.innerHTML = bomRadarHtml();
         }
       }
 
@@ -9145,17 +9164,11 @@
 
       var _cardPopupTimer = null;
 
-      function showCardPopup(cardId) {
-        if (cardId === 'finance') { showFinanceSpotlight(); return; }
-        var card = document.querySelector('.card[data-card-id="' + cardId + '"]');
-        var inner = card ? card.querySelector('.card-inner') : null;
+      function openCardPopupNode(node) {
         var panel = document.getElementById('cardPopupPanel');
-        if (!inner || !panel) return;
-        var clone = inner.cloneNode(true);
-        var withIds = clone.querySelectorAll('[id]');
-        for (var i = 0; i < withIds.length; i++) withIds[i].removeAttribute('id');
+        if (!node || !panel) return;
         panel.innerHTML = '';
-        panel.appendChild(clone);
+        panel.appendChild(node);
         var hint = document.createElement('div');
         hint.className = 'card-popup-hint';
         hint.textContent = 'Tap anywhere to close';
@@ -9164,6 +9177,31 @@
         if (_cardPopupTimer) clearTimeout(_cardPopupTimer);
         _cardPopupTimer = setTimeout(hideCardPopup, 60000);
       }
+
+      function showCardPopup(cardId) {
+        if (cardId === 'finance') { showFinanceSpotlight(); return; }
+        var card = document.querySelector('.card[data-card-id="' + cardId + '"]');
+        var inner = card ? card.querySelector('.card-inner') : null;
+        if (!inner) return;
+        var clone = inner.cloneNode(true);
+        var withIds = clone.querySelectorAll('[id]');
+        for (var i = 0; i < withIds.length; i++) withIds[i].removeAttribute('id');
+        openCardPopupNode(clone);
+      }
+
+      // Weather Radar popup for the storm Needs Attention item ("check the
+      // radar"). Built fresh rather than cloned from the Weather Radar card:
+      // that card is often disabled (no iframe to clone), and cloning an
+      // iframe reloads the loop anyway. Same chrome, tap-anywhere and 60 s
+      // auto-close as every other card popup.
+      function showRadarPopup() {
+        var inner = document.createElement('div');
+        inner.className = 'card-inner';
+        inner.innerHTML = '<div class="card-header"><div class="card-title"><span class="card-icon">\uD83C\uDF27\uFE0F</span> Weather Radar</div></div>' +
+          '<div class="card-content">' + bomRadarHtml() + '</div>';
+        openCardPopupNode(inner);
+      }
+      window.showRadarPopup = showRadarPopup;
 
       function hideCardPopup() {
         if (_cardPopupTimer) { clearTimeout(_cardPopupTimer); _cardPopupTimer = null; }

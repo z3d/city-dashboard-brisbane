@@ -477,6 +477,13 @@ function checkExerciseHelpers(frontend, worker) {
     fail('new exercises do not start tracking from their creation time');
   }
   if (frontend.indexOf('window.skipExerciseAt = skipExerciseAt;') === -1) fail('skipExerciseAt is not exposed for the card button');
+  // The storm Needs Attention item says "check the radar": tapping it must open
+  // the BoM radar popup while keeping its ✕, and that opener must be a window
+  // global for the inline onclick to reach it.
+  if (!/var storm = addNeedsAttentionItem\(items, 90, 'urgent', 'Weather', 'Storm conditions now', '[^']*tap for radar', 'showRadarPopup\(\)'\);\s*storm\.dismissable = true;/.test(frontend)) fail('storm Needs Attention item must open the radar popup AND keep its dismiss ✕');
+  if (frontend.indexOf("container.addEventListener('click', needsAttentionClickCapture, true);") === -1) fail('Needs Attention ✕ must be handled in the capture phase (dismiss without firing the item tap action)');
+  if (frontend.indexOf('window.showRadarPopup = showRadarPopup;') === -1) fail('showRadarPopup is not exposed for the Needs Attention tap');
+  if (!/function showRadarPopup\(\) \{[\s\S]*?bomRadarHtml\(\)[\s\S]*?openCardPopupNode\(/.test(frontend)) fail('showRadarPopup must reuse bomRadarHtml() and the shared card popup chrome');
 
   var workerSource = 'const APPLE_HEALTH_MAX_STEPS = 200000;\n' + extractBetween(worker, 'function isIsoTimestamp(', '\nfunction pickNewerDef', 'Worker exercise definition sanitizer');
   var workerContext = { output: null };
