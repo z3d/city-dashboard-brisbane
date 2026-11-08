@@ -561,11 +561,18 @@ function dashboardStatusFingerprint(status) {
 const ELECTRICITY_DISPATCH_DIR_URL = 'https://www.nemweb.com.au/REPORTS/CURRENT/DispatchIS_Reports/';
 const ELECTRICITY_DATA_TTL = 60 * 1000;
 // Price history + pre-dispatch forecast for the card graph. aemo.com.au itself
-// sits behind a Cloudflare challenge, but the host the AEMO NEM dashboard reads
-// from answers plainly: one POST returns ~24h of 5-min actuals and ~32h of
-// 30-min forecast for every region (~430 KB), so QLD1 is trimmed out here.
+// sits behind a Cloudflare challenge, but the API the AEMO NEM dashboard reads
+// from answers plainly: one GET returns ~24h of 5-min actuals and ~17h of
+// 30-min forecast for every region (~380 KB), so QLD1 is trimmed out here.
+// AEMO moved the dashboard here on 2026-11-07 (the old visualisations.aemo.com.au
+// report API now 500s). It wants an x-api-key header: a public key the
+// dashboard itself loads from config.json, so it is read from there rather
+// than hardcoded and re-read on a 401/403 in case AEMO rotates it.
 // Unmetered public feed on a 5-min cadence — a module cache is enough.
-const ELECTRICITY_HISTORY_URL = 'https://visualisations.aemo.com.au/aemo/apps/api/report/5MIN';
+const ELECTRICITY_DASH_HOST = 'https://dashboards.public.aemo.com.au';
+const ELECTRICITY_HISTORY_URL = ELECTRICITY_DASH_HOST + '/NEM/v1/PWS/NEMDashboard/priceAndDemand?timescale=30MIN';
+const ELECTRICITY_DASH_CONFIG_URL = ELECTRICITY_DASH_HOST + '/config.json';
+let _aemoDashApiKey = null;
 const ELECTRICITY_HISTORY_TTL = 5 * 60 * 1000;
 let _electricityHistoryCache = null;
 let _electricityHistoryTime = 0;
@@ -697,32 +704,57 @@ async function unzipFirstFileText(arrayBuffer) {
   return await new Response(stream).text();
 }
 
-// SETTLEMENTDATE strings are NEM market time (AEST, no DST), so pin the
-// offset rather than letting the client's zone decide.
+// settlementDate carries its own offset (+10:00, NEM market time never
+// observes DST); pin AEST anyway if a bare timestamp ever comes back.
 function nemTimeToMs(str) {
-  var ms = Date.parse(String(str || '') + '+10:00');
+  str = String(str || '');
+  var ms = Date.parse(/(Z|[+-]\d\d:\d\d)$/.test(str) ? str : str + '+10:00');
   return isNaN(ms) ? null : ms;
 }
 
 function compactElectricityHistory(raw, region) {
-  var rows = (raw && raw['5MIN']) || [];
+  var rows = (raw && raw.data && raw.data.items) || [];
   var actual = [];
   var forecast = [];
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
-    if (!r || r.REGIONID !== region) continue;
-    var t = nemTimeToMs(r.SETTLEMENTDATE);
-    var p = parseFloat(r.RRP);
+    if (!r || r.regionId !== region) continue;
+    var t = nemTimeToMs(r.settlementDate);
+    var p = parseFloat(r.rrp);
     if (t === null || isNaN(p)) continue;
-    var d = parseFloat(r.TOTALDEMAND);
+    var d = parseFloat(r.totalDemand);
     var point = [t, Math.round(p * 100) / 100, isNaN(d) ? null : Math.round(d)];
-    if (r.PERIODTYPE === 'FORECAST') forecast.push(point); else actual.push(point);
+    if (r.periodType === 'FORECAST') forecast.push(point); else actual.push(point);
   }
   var byTime = function(a, b) { return a[0] - b[0]; };
   actual.sort(byTime);
   forecast.sort(byTime);
-  if (!actual.length) throw new Error(region + ' actuals not found in AEMO 5MIN report');
+  if (!actual.length) throw new Error(region + ' actuals not found in AEMO priceAndDemand');
   return { region: region, actual: actual, forecast: forecast };
+}
+
+async function aemoDashApiKey(refresh) {
+  if (_aemoDashApiKey && !refresh) return _aemoDashApiKey;
+  var resp = await fetch(ELECTRICITY_DASH_CONFIG_URL, {
+    headers: { 'Accept': 'application/json', 'User-Agent': 'city-dashboard/1.0' }
+  });
+  if (!resp.ok) throw new Error('AEMO dashboard config error: ' + resp.status);
+  var cfg = await resp.json();
+  if (!cfg || typeof cfg.xApiKey !== 'string' || !cfg.xApiKey) throw new Error('AEMO dashboard config has no xApiKey');
+  _aemoDashApiKey = cfg.xApiKey;
+  return _aemoDashApiKey;
+}
+
+async function fetchAemoPriceAndDemand() {
+  for (var attempt = 0; attempt < 2; attempt++) {
+    var key = await aemoDashApiKey(attempt > 0);
+    var resp = await fetch(ELECTRICITY_HISTORY_URL, {
+      headers: { 'Accept': '*/*', 'x-api-key': key, 'User-Agent': 'city-dashboard/1.0' }
+    });
+    if ((resp.status === 401 || resp.status === 403) && attempt === 0) continue;
+    if (!resp.ok) throw new Error('AEMO priceAndDemand error: ' + resp.status);
+    return await resp.json();
+  }
 }
 
 function fuelHistoryKey(cacheKey) {
@@ -1290,19 +1322,7 @@ async function handleRequest(request, env, ctx) {
         });
       }
       try {
-        var ehResp = await fetch(ELECTRICITY_HISTORY_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'User-Agent': 'city-dashboard/1.0'
-          },
-          body: JSON.stringify({ timeScale: ['30MIN'] })
-        });
-        if (!ehResp.ok) {
-          throw new Error('AEMO 5MIN report error: ' + ehResp.status);
-        }
-        var ehData = compactElectricityHistory(await ehResp.json(), 'QLD1');
+        var ehData = compactElectricityHistory(await fetchAemoPriceAndDemand(), 'QLD1');
         ehData.fetchedAt = ehNow;
         var ehJson = JSON.stringify(ehData);
         _electricityHistoryCache = ehJson;

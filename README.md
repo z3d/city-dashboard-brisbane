@@ -105,7 +105,7 @@ npm run validate
 | `GET/POST /api/apple-health` | Apple Health steps and blood pressure pushed from the phone (needs a KV namespace; a push that changes nothing costs no write; a day's total only grows; reaching a Walk's step goal marks it done in `dashboard-status`) |
 | `GET/PUT /api/dashboard-status` | Optional KV-backed sync of bin dismissal/taken-out status, the exercise list and the exercise done-log (union-merged, idempotent PUT) |
 
-Electricity prices are read from the latest NEMWEB DispatchIS ZIP report. The old `GRAPH_5QLD1.csv` feed is no longer available. The card graph comes from `visualisations.aemo.com.au/aemo/apps/api/report/5MIN` (the host behind the AEMO NEM dashboard; `aemo.com.au` itself is Cloudflare-challenged), trimmed to QLD1 and module-cached for 5 minutes.
+Electricity prices are read from the latest NEMWEB DispatchIS ZIP report. The old `GRAPH_5QLD1.csv` feed is no longer available. The card graph comes from `dashboards.public.aemo.com.au/NEM/v1/PWS/NEMDashboard/priceAndDemand` (the API behind the AEMO NEM dashboard since 2026-11-07, called with the public `x-api-key` from that host's `config.json`; `aemo.com.au` itself is Cloudflare-challenged), trimmed to QLD1 and module-cached for 5 minutes.
 
 ## Adapting For Another City
 
