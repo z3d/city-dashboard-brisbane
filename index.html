@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.71.0">
+  <meta name="app-version" content="1.71.1">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -5624,6 +5624,14 @@
         }, 400);
       }
 
+      // Swap only the drag classes so a card keeps its other state (collapsed)
+      // while it is dragged; assigning className = 'card' used to expand every
+      // collapsed card until the next reload.
+      function setCardDragClass(card, dragCls) {
+        var cls = (card.className || 'card').replace(/\s*\b(dragging|drag-over)\b/g, '');
+        card.className = dragCls ? cls + ' ' + dragCls : cls;
+      }
+
       function activateDrag(card) {
         var grid = document.getElementById('dashboard');
         // Switch from masonry (absolute) to flex so cards can be reordered visually
@@ -5633,10 +5641,10 @@
         for (var i = 0; i < allCards.length; i++) {
           allCards[i].style.left = '';
           allCards[i].style.top = '';
-          allCards[i].className = 'card';
+          setCardDragClass(allCards[i], '');
         }
         dragState.active = true;
-        card.className = 'card dragging';
+        setCardDragClass(card, 'dragging');
       }
 
       function onCardDragMove(e) {
@@ -5659,7 +5667,7 @@
         for (var i = 0; i < cards.length; i++) {
           var c = cards[i];
           if (c === dragState.card) {
-            c.className = 'card dragging';
+            setCardDragClass(c, 'dragging');
             continue;
           }
           var rect = c.getBoundingClientRect();
@@ -5668,9 +5676,9 @@
           var dx = Math.abs(coords.x - cx);
           var dy = Math.abs(coords.y - cy);
           if (dx < rect.width / 2 && dy < rect.height / 2) {
-            c.className = 'card drag-over';
+            setCardDragClass(c, 'drag-over');
           } else {
-            c.className = 'card';
+            setCardDragClass(c, '');
           }
         }
       }
@@ -5685,7 +5693,7 @@
         var cards = grid.querySelectorAll('.card[data-card-id]');
         var dropTarget = null;
         for (var i = 0; i < cards.length; i++) {
-          if (cards[i].className.indexOf('drag-over') !== -1) {
+          if (/\bdrag-over\b/.test(cards[i].className)) {
             dropTarget = cards[i];
             break;
           }
@@ -5707,7 +5715,7 @@
           }
         }
         for (var k = 0; k < cards.length; k++) {
-          cards[k].className = 'card';
+          setCardDragClass(cards[k], '');
         }
         dragState.active = false;
         dragState.card = null;
