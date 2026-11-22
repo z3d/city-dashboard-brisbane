@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.71.1">
+  <meta name="app-version" content="1.72.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -2900,7 +2900,7 @@
               <label style="font-size:0.9em;color:var(--t2);"><input type="checkbox" id="exerciseReminders" checked> Needs Attention reminder in the last 3 hours of a window</label>
             </div>
             <div style="margin-bottom:8px;">
-              <label style="font-size:0.9em;color:var(--t2);"><input type="checkbox" id="exerciseShowHistory" checked> Show last-7-days dots and streaks</label>
+              <label style="font-size:0.9em;color:var(--t2);"><input type="checkbox" id="exerciseShowHistory" checked> Show last-7-days dots and streaks (weeks for once-a-week exercises)</label>
             </div>
             <div style="color:var(--t4);font-size:0.8em;margin-bottom:8px;line-height:1.4;">A <b>Walk</b> exercise can have a <b>step goal</b>: it is marked done by itself when the day's Apple Health steps reach it (pushed from your phone, see Health settings) &mdash; even if it was skipped. A Walk whose Target is just a number (10000, 10,000, 5k) uses that as its goal unless the Step goal box says otherwise. The goal applies to every scheduled period of that walk. Exercises may share a name; each is tracked by its own id.</div>
             <div id="exerciseList"></div>
@@ -6846,15 +6846,17 @@
       }
 
       // Exercise done-log sanitiser. MUST mirror the Worker's sanitizeExerciseDoneLog
-      // exactly (30-day cutoff + newest 500): if the client kept entries the worker
+      // exactly (180-day cutoff + newest 500): if the client kept entries the worker
       // strips, the merged log would never equal the server's stored set and every
-      // poll would trigger another KV write (validate-project pins the pair).
+      // poll would trigger another KV write (validate-project pins the pair). 180
+      // days lets weekly streaks run for months.
+      var EXERCISE_DONE_KEEP_DAYS = 180;
       function sanitiseExerciseDoneLog(log) {
         var result = {};
         if (!log || typeof log !== 'object' || Object.prototype.toString.call(log) === '[object Array]') {
           return result;
         }
-        var cutoff = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        var cutoff = Date.now() - (EXERCISE_DONE_KEEP_DAYS * 24 * 60 * 60 * 1000);
         var kept = {};
         var keys = [];
         var scanned = 0;
@@ -9454,7 +9456,7 @@
       // --- Exercise Card ---
       // Definitions (config.exercises + the two window starts) live in the synced
       // exerciseDef; completions in the exerciseDone log keyed
-      // '<name>_<period>_<YYYY-MM-DD>' (union-merged, 30-day retention). Every surface — card, conditional visibility,
+      // '<name>_<period>_<YYYY-MM-DD>' (union-merged, 180-day retention). Every surface — card, conditional visibility,
       // ticker, Needs Attention — derives from getExerciseRows(), so they agree on
       // which windows are open. Windows: morning = morningStart..eveningStart,
       // evening = eveningStart..midnight, any time = morningStart..midnight. There
@@ -9471,7 +9473,10 @@
       ];
       var EXERCISE_DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       var EXERCISE_REMIND_BEFORE_MIN = 180;
-      var EXERCISE_STREAK_CAP = 30; // the done log is pruned at 30 days
+      var EXERCISE_STREAK_CAP = 180; // the done log keeps 180 days (EXERCISE_DONE_KEEP_DAYS)
+      // Once-a-week exercises count their streak in weeks. The 180-day log holds
+      // 25 earlier occurrences of a weekday, so cap there.
+      var EXERCISE_WEEK_STREAK_CAP = 25;
 
       function getExerciseType(ex) {
         var key = ex && typeof ex.type === 'string' ? ex.type : 'other';
@@ -9487,7 +9492,7 @@
 
       // Skipped sessions live in the same union-merged done log under a suffixed
       // key, so the shared client/worker sanitiser covers them unchanged (same
-      // 30-day retention). Done wins over skipped when both exist: a skip can be
+      // 180-day retention). Done wins over skipped when both exist: a skip can be
       // taken back by doing it.
       function getExerciseSkipKey(name, period, date) {
         return getExerciseDoneKey(name, period, date) + '_skipped';
@@ -9504,7 +9509,7 @@
       // Stable identity for the done log: the synced `id` (hex, assigned when
       // settings are saved), so a rename keeps history and two exercises may
       // share a name. Entries written before an exercise had an id are keyed by
-      // name; reads fall back to that key for the 30 days the log keeps them.
+      // name; reads fall back to that key for as long as the log keeps them.
       function getExerciseKeyBase(ex) {
         if (ex && typeof ex.id === 'string' && ex.id) return ex.id;
         return ex && typeof ex.name === 'string' ? ex.name : '';
@@ -9645,12 +9650,12 @@
       // Consecutive scheduled days (today if finished, else from yesterday) on
       // which every tracked period was done. A day with sessions still open does
       // not break it; a skipped session is not done, so it does (from tomorrow).
-      // Capped: the done log only keeps 30 days.
+      // Capped: the done log only keeps 180 days.
       function getExerciseStreak(ex, log, now) {
         if (!ex || ex.suspended === true) return 0;
         var periods = getExercisePeriods(ex);
         var streak = 0;
-        for (var back = 0; back <= 45 && streak < EXERCISE_STREAK_CAP; back++) {
+        for (var back = 0; back <= EXERCISE_STREAK_CAP + 15 && streak < EXERCISE_STREAK_CAP; back++) {
           var day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
           if (!isExerciseDay(ex, day)) continue;
           var dateStr = getLocalDateStr(day);
@@ -9669,6 +9674,26 @@
           break;
         }
         return streak;
+      }
+
+      // Scheduled on exactly one weekday: its streak is counted in weeks.
+      function isExerciseWeekly(ex) {
+        var days = getExerciseDays(ex);
+        var seen = [];
+        for (var i = 0; i < days.length; i++) {
+          if (typeof days[i] === 'number' && days[i] >= 0 && days[i] <= 6 && seen.indexOf(days[i]) === -1) seen.push(days[i]);
+        }
+        return seen.length === 1;
+      }
+
+      // '' below two; otherwise "N-day streak", or "N-week streak" for a
+      // once-a-week exercise (each scheduled day is one week), capped by the log.
+      function getExerciseStreakLabel(ex, streak) {
+        if (streak < 2) return '';
+        if (isExerciseWeekly(ex)) {
+          return (streak >= EXERCISE_WEEK_STREAK_CAP ? EXERCISE_WEEK_STREAK_CAP + '+' : streak) + '-week streak';
+        }
+        return (streak >= EXERCISE_STREAK_CAP ? EXERCISE_STREAK_CAP + '+' : streak) + '-day streak';
       }
 
       function getExerciseDaysLabel(ex) {
@@ -9745,6 +9770,27 @@
         return html + '</div>';
       }
 
+      // Next due: every session open now, else the session(s) whose window
+      // opens soonest today. The card and the phone app lift these to the top.
+      function getExerciseNextDue(rows) {
+        var out = [];
+        var open = false;
+        var nextStart = -1;
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].state === 'open') { open = true; break; }
+        }
+        for (var j = 0; j < rows.length; j++) {
+          if (open) {
+            if (rows[j].state === 'open') out.push(rows[j]);
+          } else if (rows[j].state === 'later') {
+            var startMin = getExerciseWindow(rows[j].period).start;
+            if (nextStart === -1 || startMin < nextStart) { nextStart = startMin; out = []; }
+            if (startMin === nextStart) out.push(rows[j]);
+          }
+        }
+        return {rows: out, open: open};
+      }
+
       function renderExerciseRow(row, log, now) {
         var ex = row.ex;
         var type = getExerciseType(ex);
@@ -9773,9 +9819,9 @@
         if (ex.suspended === true) {
           html = html + ' <span style="color:var(--warn);">Suspended</span>';
         } else if (config.exerciseShowHistory) {
-          var streak = getExerciseStreak(ex, log, now);
-          if (streak >= 2) {
-            html = html + ' · <span style="color:var(--orange);" title="Consecutive scheduled days completed">🔥 ' + (streak >= EXERCISE_STREAK_CAP ? EXERCISE_STREAK_CAP + '+' : streak) + '-day streak</span>';
+          var streakLabel = getExerciseStreakLabel(ex, getExerciseStreak(ex, log, now));
+          if (streakLabel) {
+            html = html + ' · <span style="color:var(--orange);" title="' + (isExerciseWeekly(ex) ? 'Consecutive weeks completed' : 'Consecutive scheduled days completed') + '">🔥 ' + streakLabel + '</span>';
           }
         }
         html = html + '</div>';
@@ -9833,30 +9879,44 @@
         var now = new Date();
         var log = getExerciseDoneLog();
         var rows = getExerciseRows(now, log);
-        var sections = [['morning', 'Morning'], ['anytime', 'Any time'], ['evening', 'Evening']];
-        var sectionsUsed = 0;
-        for (var s = 0; s < sections.length; s++) {
-          for (var r = 0; r < rows.length; r++) {
-            if (rows[r].period === sections[s][0]) { sectionsUsed++; break; }
-          }
-        }
-        var html = '';
+        var next = getExerciseNextDue(rows);
+        var nextDue = next.rows;
+        var nextIsOpen = next.open;
+        var rest = [];
         var dueCount = 0;
         var skippedCount = 0;
         var allDone = true;
+        for (var ci = 0; ci < rows.length; ci++) {
+          var st = rows[ci].state;
+          if (st === 'open' || st === 'done') dueCount++;
+          if (st === 'skipped') skippedCount++;
+          if (st === 'open' || st === 'missed') allDone = false;
+          if (nextDue.indexOf(rows[ci]) === -1) rest.push(rows[ci]);
+        }
+        var sections = [['morning', 'Morning'], ['anytime', 'Any time'], ['evening', 'Evening']];
+        var sectionsUsed = nextDue.length > 0 && rest.length > 0 ? 1 : 0;
+        for (var s = 0; s < sections.length; s++) {
+          for (var r = 0; r < rest.length; r++) {
+            if (rest[r].period === sections[s][0]) { sectionsUsed++; break; }
+          }
+        }
+        var headingStyle = 'font-size:0.72em;letter-spacing:0.06em;text-transform:uppercase;color:var(--t4);padding:6px 0 0 0;';
+        var html = '';
+        if (nextDue.length > 0) {
+          if (rest.length > 0) {
+            html = html + '<div style="' + headingStyle + (nextIsOpen ? 'color:var(--warn);' : '') + '">' + (nextIsOpen ? 'Due now' : 'Next up') + '</div>';
+          }
+          for (var nk = 0; nk < nextDue.length; nk++) html = html + renderExerciseRow(nextDue[nk], log, now);
+        }
         for (var si = 0; si < sections.length; si++) {
           var sectionHtml = '';
-          for (var ri = 0; ri < rows.length; ri++) {
-            var row = rows[ri];
-            if (row.period !== sections[si][0]) continue;
-            if (row.state === 'open' || row.state === 'done') dueCount++;
-            if (row.state === 'skipped') skippedCount++;
-            if (row.state === 'open' || row.state === 'missed') allDone = false;
-            sectionHtml = sectionHtml + renderExerciseRow(row, log, now);
+          for (var ri = 0; ri < rest.length; ri++) {
+            if (rest[ri].period !== sections[si][0]) continue;
+            sectionHtml = sectionHtml + renderExerciseRow(rest[ri], log, now);
           }
           if (!sectionHtml) continue;
           if (sectionsUsed > 1) {
-            html = html + '<div style="font-size:0.72em;letter-spacing:0.06em;text-transform:uppercase;color:var(--t4);padding:6px 0 0 0;">' + sections[si][1] + '</div>';
+            html = html + '<div style="' + headingStyle + '">' + sections[si][1] + '</div>';
           }
           html = html + sectionHtml;
         }

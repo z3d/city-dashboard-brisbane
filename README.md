@@ -10,7 +10,7 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Nearby Queensland bushfire incidents with local dismissal, plus ABC/Brisbane Times headlines
 - Optional pollen forecasts through the Google Pollen API, showing today's forecast day. In Australia Google covers only grasses and cypress pine, so the tree index is labelled Cypress and the card notes the gap
 - Optional locally configured birthday reminders with per-person timezones, acknowledgement, and birthday-only import/export (ships with an empty list)
-- Exercise checklist: morning / evening / any-time sessions with weekday schedules, Done and Skip buttons, 7-day dots and streaks, a Needs Attention nudge before a window closes, and a standalone phone page at `/exercise` (add to home screen) that shares the same token and synced log
+- Exercise checklist: morning / evening / any-time sessions with weekday schedules, Done and Skip buttons, the next due session on top, 7-day dots and day or week streaks, a Needs Attention nudge before a window closes, and a standalone phone page at `/exercise` (add to home screen) that shares the same token and synced log
 - Health card: today's Apple Health steps (7-day sparkline) and the latest blood pressure, pushed from an iPhone Shortcut to `/api/apple-health`; a Walk exercise with a step goal ticks itself done when the day's total reaches it
 - Every card header has a gear that opens Settings at that card's section
 - Queensland electricity spot prices via AEMO NEMWEB, with a 24h price graph plus the AEMO pre-dispatch forecast

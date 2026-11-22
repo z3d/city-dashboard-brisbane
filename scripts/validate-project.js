@@ -360,10 +360,15 @@ function checkExerciseSanitizerEquivalence(frontend, worker) {
   var day = 24 * 60 * 60 * 1000;
   var overLimit = {};
   for (var i = 0; i < 1005; i++) overLimit['s_' + i] = i < 1000 ? now - i : now + i;
-  var fixtures = [null, [], { a: now, numeric_string: String(now - 1000), garbage: '123oops', inf: Infinity, old: now - 31 * day, fresh: now - 29 * day, long: now }, overLimit];
+  var fixtures = [null, [], { a: now, numeric_string: String(now - 1000), garbage: '123oops', inf: Infinity, old: now - 181 * day, fresh: now - 179 * day, long: now }, overLimit];
   fixtures[2][new Array(202).join('x')] = now;
   var frontSrc = extractBetween(frontend, 'function sanitiseExerciseDoneLog(', '\n      function mergeExerciseDoneLogs(', 'frontend exercise sanitiser');
   var workerSrc = extractBetween(worker, 'function sanitizeExerciseDoneLog(', '\nfunction isIsoTimestamp(', 'worker exercise sanitiser');
+  var keepFront = (frontend.match(/var EXERCISE_DONE_KEEP_DAYS = (\d+);/) || [])[1];
+  var keepWorker = (worker.match(/const EXERCISE_DONE_KEEP_DAYS = (\d+);/) || [])[1];
+  if (!keepFront || keepFront !== keepWorker) throwFail('EXERCISE_DONE_KEEP_DAYS differs between frontend and Worker');
+  frontSrc = 'var EXERCISE_DONE_KEEP_DAYS = ' + keepFront + ';\n' + frontSrc;
+  workerSrc = 'var EXERCISE_DONE_KEEP_DAYS = ' + keepWorker + ';\n' + workerSrc;
   for (var k = 0; k < fixtures.length; k++) {
     var fc = { input: fixtures[k], output: null, Date: { now: function() { return now; } } };
     vm.runInNewContext(frontSrc + '\noutput = sanitiseExerciseDoneLog(input);', fc);
@@ -438,6 +443,10 @@ function checkExerciseHelpers(frontend, worker) {
       'runStreak: getExerciseStreak(config.exercises[2], doneLog, wed10),' +
       'stretchStreak: getExerciseStreak(config.exercises[1], doneLog, wed10),' +
       'pausedStreak: getExerciseStreak(config.exercises[4], doneLog, wed10),' +
+      'weeklyStreak: (function() { var sat = {name: "SatWalk", period: "anytime", days: [6]}; var log = {"SatWalk_anytime_2026-10-10": 1, "SatWalk_anytime_2026-10-03": 1, "SatWalk_anytime_2026-09-26": 1};' +
+      ' var long = {"SatWalk_anytime_2026-10-10": 1, "SatWalk_anytime_2026-10-03": 1, "SatWalk_anytime_2026-09-26": 1, "SatWalk_anytime_2026-09-19": 1, "SatWalk_anytime_2026-09-12": 1};' +
+      ' return [getExerciseStreak(sat, log, wed10), getExerciseStreakLabel(sat, getExerciseStreak(sat, log, wed10)), getExerciseStreakLabel(sat, getExerciseStreak(sat, long, wed10)), getExerciseStreakLabel(sat, 1),' +
+      ' isExerciseWeekly({days: [6, 6]}), isExerciseWeekly({days: [2, 4]}), isExerciseWeekly({}), getExerciseStreakLabel(config.exercises[2], 2), getExerciseStreakLabel({}, 181), getExerciseStreakLabel(sat, 26)]; })(),' +
       'labels: [getExerciseDaysLabel({}), getExerciseDaysLabel({days: [1, 2, 3, 4, 5]}), getExerciseDaysLabel({days: [0, 6]}), getExerciseDaysLabel({days: [3, 1, 5]}), getExerciseDaysLabel({days: [0, 1, 2, 3, 4, 5, 6]})],' +
       'strip: (buildExerciseHistoryStrip(config.exercises[2], "morning", doneLog, wed10).match(/<span/g) || []).length,' +
       'withIds: (function() { config.exercises = [{id: "aaaa1111", name: "Walk", period: "morning", type: "walk"}, {id: "bbbb2222", name: "Walk", period: "morning", type: "walk"}, {id: "cccc3333", name: "Renamed", period: "anytime"}];' +
@@ -463,6 +472,8 @@ function checkExerciseHelpers(frontend, worker) {
     runStreak: 2, // Mon 12 + Fri 9; Wed 7 missed; non-scheduled days skipped
     stretchStreak: 1, // Tue both done; Mon evening missing
     pausedStreak: 0,
+    // Once-a-week items count weeks (one scheduled day each); the 180-day log caps it at 25+.
+    weeklyStreak: [3, '3-week streak', '5-week streak', '', true, false, false, '2-day streak', '180+-day streak', '25+-week streak'],
     labels: ['Every day', 'Weekdays', 'Weekends', 'Mon Wed Fri', 'Every day'],
     strip: 7,
     // Two "Walk"s: the first is done under its own id, the second is only

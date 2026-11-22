@@ -434,14 +434,15 @@ function isDashboardStatusDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-// MUST mirror the frontend sanitiseExerciseDoneLog exactly (30-day cutoff + newest
+// MUST mirror the frontend sanitiseExerciseDoneLog exactly (180-day cutoff + newest
 // 500) or the client/server logs permanently diverge and every poll PUTs to KV.
+const EXERCISE_DONE_KEEP_DAYS = 180;
 function sanitizeExerciseDoneLog(log) {
   const result = {};
   if (!log || typeof log !== 'object' || Array.isArray(log)) return result;
 
   const keys = Object.keys(log);
-  const cutoff = Date.now() - (30 * 24 * 60 * 60 * 1000);
+  const cutoff = Date.now() - (EXERCISE_DONE_KEEP_DAYS * 24 * 60 * 60 * 1000);
   for (let i = 0; i < keys.length && i < 1000; i++) {
     const key = keys[i];
     if (typeof key !== 'string' || key.length > 200) continue;
