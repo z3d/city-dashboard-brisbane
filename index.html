@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.73.0">
+  <meta name="app-version" content="1.74.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -57,6 +57,11 @@
       padding: 15px;
       min-height: 100%;
     }
+    /* Wide layouts (TV at 50% display scale, big monitors): let the grid use the width;
+       layoutMasonry() adds columns at the same breakpoints. */
+    @media (min-width: 1200px) {
+      .container { max-width: 1960px; }
+    }
 
     .card-content,
     .card-title,
@@ -102,6 +107,30 @@
       transition: opacity 0.2s;
     }
     .floating-ticker-btn { right: 56px; }
+    /* Display scale below 100% (TV): keep the floating buttons and the settings panel at their
+       normal on-screen size and clear of the picture edge, which TVs overscan. --ds-inv = 100/scale. */
+    body.display-scaled .floating-settings-btn, body.display-scaled .floating-ticker-btn {
+      -webkit-transform: scale(var(--ds-inv, 1));
+      transform: scale(var(--ds-inv, 1));
+      -webkit-transform-origin: top right;
+      transform-origin: top right;
+      top: 3vh;
+      right: 2.5vw;
+    }
+    body.display-scaled .floating-ticker-btn { right: calc(2.5vw + 44px * var(--ds-inv, 1)); }
+    /* The overlay is laid out at the on-screen size (viewport / --ds-inv) and transformed back up,
+       so its own units (85vh panel, 100% width) stay correct; CSS zoom doubled the vh height. */
+    body.display-scaled .settings-overlay {
+      width: calc(100% / var(--ds-inv, 1));
+      height: calc(100% / var(--ds-inv, 1));
+      right: auto;
+      bottom: auto;
+      -webkit-transform: scale(var(--ds-inv, 1));
+      transform: scale(var(--ds-inv, 1));
+      -webkit-transform-origin: top left;
+      transform-origin: top left;
+    }
+    body.display-scaled .settings-panel { max-height: calc(85vh / var(--ds-inv, 1)); }
     .floating-settings-btn:hover, .floating-ticker-btn:hover { color: #fff; background: rgba(50,50,50,0.95); }
 
     .header-left {
@@ -421,6 +450,16 @@
       position: relative;
     }
 
+    /* Fire TV D-pad: every card is a focus stop (tabindex set at boot by makeCardsFocusable),
+       ringed as a whole so Up/Down walk the grid with the page scrolling along, and Select
+       lifts the card popup. The ring follows key-driven focus only (:focus-visible), so a
+       finger tap on an iPad does not leave one behind. */
+    .card:focus, #cardPopupOverlay:focus { outline: none; }
+    .card:focus-visible > .card-inner {
+      -webkit-box-shadow: 0 0 0 3px var(--warn2), 0 0 18px var(--w30);
+      box-shadow: 0 0 0 3px var(--warn2), 0 0 18px var(--w30);
+    }
+
     .card-header {
       display: -webkit-box;
       display: -webkit-flex;
@@ -683,7 +722,10 @@
     .forecast-icon { font-size: 1.5em; line-height: 1.4; }
     .forecast-hi { font-weight: 700; color: #fff; }
     .forecast-lo { color: var(--t4); font-size: 0.9em; }
-    .forecast-rain { font-size: 0.75em; color: var(--t3); min-height: 1.2em; margin-top: 2px; white-space: nowrap; }
+    /* Each figure on its own line: a nowrap "💧 84% 6mm" overflowed into the next day in narrow
+       columns (3-4 column TV layouts), reading as "84% 6mm71%". */
+    .forecast-rain { font-size: 0.75em; color: var(--t3); min-height: 1.2em; margin-top: 2px; }
+    .forecast-pct, .forecast-mm { display: block; white-space: nowrap; }
     .forecast-rain-likely, .forecast-mm { color: var(--info); }
     body.light-theme .forecast-today { background: rgba(0,0,0,0.05); }
     body.light-theme .forecast-hi { color: #1a1a2e; }
@@ -1602,6 +1644,9 @@
       background: rgba(79,142,247,0.35);
     }
     .card-setting-checks .mode-chip input:focus + span, .theme-chips .mode-chip input:focus + span { text-decoration: underline; }
+    /* Fire TV: the chip label is the D-pad stop (its input is invisible and tabindex=-1,
+       which spatial navigation skipped), so it carries the visible focus ring. */
+    .card-setting-checks .mode-chip:focus, .theme-chips .mode-chip:focus { outline: none; -webkit-box-shadow: inset 0 0 0 3px var(--warn2); box-shadow: inset 0 0 0 3px var(--warn2); }
     /* Theme picker in General settings: same chips at form size. */
     .theme-chips { height: 32px; margin-top: 2px; }
     .theme-chips .mode-chip { display: inline-block; height: 32px; line-height: 32px; padding: 0 14px; font-size: 0.85em; margin-bottom: 0; }
@@ -3369,6 +3414,7 @@
               <span class="card-setting-name">Weather Radar</span>
             </div>
             <div class="card-setting-checks">
+              <select id="bomRadarDisplayMode" class="display-mode-select"><option value="card">Card</option><option value="ticker">Ticker</option><option value="banner">Banner</option><option value="both">Card + Ticker</option></select>
               <label class="master-label" id="showBomRadarMasterLabel"><input type="checkbox" id="showBomRadar" checked></label>
             </div>
           </div>
@@ -3437,6 +3483,17 @@
             <label class="checkbox-label">
               <input type="checkbox" id="use24hClock"> Use 24-hour Clock
             </label>
+          </div>
+          <div class="settings-group">
+            <label for="displayScale">Display scale</label>
+            <select id="displayScale">
+              <option value="100">100% (default)</option>
+              <option value="85">85%</option>
+              <option value="75">75%</option>
+              <option value="67">67%</option>
+              <option value="50">50% (TV)</option>
+            </select>
+            <div class="settings-info">Lays the page out at a larger virtual width and shrinks it to fit, so more cards fit on a TV. Saved with this device's settings and included in Export, so import a TV's export only onto a TV.</div>
           </div>
           <div class="settings-group">
             <label>Theme</label>
@@ -3565,7 +3622,7 @@
   </div>
 
   <!-- Card Popup Overlay (ticker tap -> card snapshot) -->
-  <div class="spotlight-overlay" id="cardPopupOverlay">
+  <div class="spotlight-overlay" id="cardPopupOverlay" tabindex="-1">
     <div class="spotlight-panel card-popup-panel" id="cardPopupPanel"></div>
   </div>
 
@@ -3845,6 +3902,7 @@
         showFeedHealthAlerts: true,
         weatherDisplayMode: 'both',
         forecastDisplayMode: 'card',
+        bomRadarDisplayMode: 'card',
         weatherWarningsDisplayMode: 'card',
         bushfiresDisplayMode: 'card',
         newsDisplayMode: 'ticker',
@@ -3874,6 +3932,7 @@
         financeDisplayMode: 'both',
         polymarketDisplayMode: 'card',
         scrollingTicker: false,
+        displayScale: 100,
         lightTheme: false,
         themeAuto: false,
         themeAutoOffset: 60
@@ -3991,6 +4050,7 @@
         elements.bomRadarContent = document.getElementById('bomRadarContent');
         elements.showBomRadar = document.getElementById('showBomRadar');
         elements.bomRadarShowWhenRainy = document.getElementById('bomRadarShowWhenRainy');
+        elements.bomRadarDisplayMode = document.getElementById('bomRadarDisplayMode');
         elements.fuelCard = document.getElementById('fuelCard');
         elements.fuelContent = document.getElementById('fuelContent');
         elements.fuelUpdated = document.getElementById('fuelUpdated');
@@ -4073,6 +4133,7 @@
         elements.showFlights = document.getElementById('showFlights');
         elements.mainHeader = document.getElementById('mainHeader');
         elements.showHeader = document.getElementById('showHeader');
+        elements.displayScale = document.getElementById('displayScale');
         elements.use24hClock = document.getElementById('use24hClock');
         elements.themeMode = document.getElementById('themeMode');
         elements.themeAutoRow = document.getElementById('themeAutoRow');
@@ -4359,6 +4420,7 @@
             // Display mode per card (migrate from old tickerXxx booleans)
             var _dmCards = [
               ['forecast', null, 'card'],
+              ['bomRadar', null, 'card'],
               ['weather', 'tickerWeather', 'both'],
               ['weatherWarnings', null, 'card'],
               ['bushfires', null, 'card'],
@@ -4403,6 +4465,7 @@
             config.lightTheme = parsed.lightTheme !== undefined ? parsed.lightTheme : false;
             config.themeAuto = parsed.themeAuto !== undefined ? parsed.themeAuto : false;
             config.themeAutoOffset = typeof parsed.themeAutoOffset === 'number' ? parsed.themeAutoOffset : 60;
+            config.displayScale = parsed.displayScale !== undefined ? parseInt(parsed.displayScale, 10) || 100 : 100;
           } else {
             isFirstRun = true;
           }
@@ -4717,6 +4780,7 @@
         if (cardId === 'bus1' || cardId === 'bus2') return config.busDisplayMode;
         if (cardId === 'weather') return config.weatherDisplayMode;
         if (cardId === 'forecast') return config.forecastDisplayMode;
+        if (cardId === 'bomRadar') return config.bomRadarDisplayMode;
         if (cardId === 'weatherWarnings') return config.weatherWarningsDisplayMode;
         if (cardId === 'bushfires') return config.bushfiresDisplayMode;
         if (cardId === 'news') return config.newsDisplayMode;
@@ -5063,6 +5127,16 @@
         if (isRainWeatherCode(data.current.weather_code)) return true;
         var rainProb = getWeatherRainProbability(data);
         return rainProb !== null && rainProb >= 50;
+      }
+
+      // Weather Radar eligibility (enabled + schedule + only-when-rainy) — the
+      // one rule behind the card and the ticker slide, so a radar hidden by
+      // its hours or a dry day disappears from both surfaces together.
+      function isBomRadarEligible() {
+        if (!config.showBomRadar) return false;
+        if (!isInSchedule(config.bomRadarScheduleHide, config.bomRadarScheduleStart, config.bomRadarScheduleEnd)) return false;
+        if (config.bomRadarShowWhenRainy && !isRainyWeather(lastWeatherData)) return false;
+        return true;
       }
 
       function shouldFetchWeather() {
@@ -5445,10 +5519,7 @@
         }
         elements.radarCard.style.display = showRadar ? '' : 'none';
         if (showRadar) renderRadar();
-        var showBomRadar = config.showBomRadar && isInSchedule(config.bomRadarScheduleHide, config.bomRadarScheduleStart, config.bomRadarScheduleEnd);
-        if (showBomRadar && config.bomRadarShowWhenRainy && !isRainyWeather(lastWeatherData)) {
-          showBomRadar = false;
-        }
+        var showBomRadar = isBomRadarEligible() && isCardDisplayMode(config.bomRadarDisplayMode);
         elements.bomRadarCard.style.display = showBomRadar ? '' : 'none';
         if (showBomRadar) renderBomRadar();
         var busTimeVisible = isInSchedule(config.busScheduleHide, config.busScheduleStart, config.busScheduleEnd);
@@ -5536,11 +5607,13 @@
       function layoutMasonry() {
         var grid = document.getElementById('dashboard');
         if (!grid || dragState.active) return;
+        fitBomRadar(); // before measuring card heights
         var cards = grid.querySelectorAll('.card[data-card-id]');
         var gridWidth = grid.offsetWidth;
         if (gridWidth === 0) return;
-        var numCols = gridWidth <= 600 ? 1 : 2;
+        var numCols = gridWidth <= 600 ? 1 : gridWidth < 1150 ? 2 : gridWidth < 1750 ? 3 : 4;
         var colWidth = gridWidth / numCols;
+        var cardWidth = (100 / numCols) + '%'; // .card defaults to 50%; 3-4 columns need narrower cards
         var colHeights = [];
         for (var ci = 0; ci < numCols; ci++) colHeights.push(0);
 
@@ -5556,6 +5629,7 @@
           for (var cj = 1; cj < numCols; cj++) {
             if (colHeights[cj] < colHeights[col]) col = cj;
           }
+          if (card.style.width !== cardWidth) card.style.width = cardWidth;
           card.style.left = (col * colWidth) + 'px';
           card.style.top = colHeights[col] + 'px';
           // Measure actual rendered height
@@ -5962,8 +6036,8 @@
             '<div class="forecast-temps"><span class="forecast-hi">' + (day.hi != null ? Math.round(day.hi) + '\u00B0' : '--') + '</span> ' +
               '<span class="forecast-lo">' + (day.lo != null ? Math.round(day.lo) + '\u00B0' : '--') + '</span></div>' +
             '<div class="forecast-rain' + (rainLikely ? ' forecast-rain-likely' : '') + '">' +
-              (day.rainPct != null ? '&#128167; ' + Math.round(day.rainPct) + '%' : '') +
-              (day.rainMm != null && day.rainMm >= 1 ? ' <span class="forecast-mm">' + Math.round(day.rainMm) + 'mm</span>' : '') +
+              (day.rainPct != null ? '<span class="forecast-pct">&#128167;\u00A0' + Math.round(day.rainPct) + '%</span>' : '') +
+              (day.rainMm != null && day.rainMm >= 1 ? '<span class="forecast-mm">' + Math.round(day.rainMm) + 'mm</span>' : '') +
             '</div>' +
             '</div>';
         }
@@ -7603,24 +7677,48 @@
           '&metricRain=default&metricTemp=default&metricWind=default' +
           '&zoom=' + zoom + '&overlay=satellite&product=satellite&level=surface' +
           '&lat=' + lat + '&lon=' + lon;
-        elements.radarContent.innerHTML = '<iframe src="' + src + '" ' +
+        elements.radarContent.innerHTML = '<iframe src="' + src + '" tabindex="-1" ' + radarIframeInertAttr() +
           'style="width:100%;height:350px;border:none;border-radius:8px;" ' +
           'loading="lazy"></iframe>';
       }
 
       // BOM Weather Radar - Brisbane (Mt Stapylton) 128km loop. One markup
       // helper feeds both the card and the storm popup (showRadarPopup).
+      // The BoM loop page is fixed-width, so the 520px crop box is scaled down to the card
+      // when the column is narrower (3-4 column TV layouts); fitBomRadar() keeps it in step.
+      // `inert` keeps the Fire TV remote (spatial navigation and the embedded page's own
+      // focus() calls) out of the radar iframes, but a browser that honours it also stops
+      // hit-testing the frame, which would take pan/zoom and the BoM loop controls away
+      // from iPad fingers. Only Fire TV ("AFT" models) gets it.
+      function radarIframeInertAttr() {
+        return /\bAFT/.test(navigator.userAgent) ? 'inert ' : '';
+      }
       function bomRadarHtml() {
-        return '<div style="position:relative;width:100%;max-width:520px;margin:0 auto;overflow:hidden;border-radius:8px;height:520px;">' +
-          '<iframe src="https://reg.bom.gov.au/products/IDR663.loop.shtml" ' +
+        return '<div class="bom-radar-fit" style="position:relative;width:100%;max-width:520px;margin:0 auto;height:520px;">' +
+          '<div class="bom-radar-box" style="position:absolute;top:0;left:0;width:520px;height:520px;overflow:hidden;border-radius:8px;-webkit-transform-origin:top left;transform-origin:top left;">' +
+          '<iframe src="https://reg.bom.gov.au/products/IDR663.loop.shtml" tabindex="-1" ' + radarIframeInertAttr() +
           'style="position:absolute;top:-200px;left:-8px;width:560px;height:760px;border:none;" ' +
-          'loading="lazy" scrolling="no"></iframe></div>';
+          'loading="lazy" scrolling="no"></iframe></div></div>';
+      }
+      function fitBomRadar() {
+        var fits = document.querySelectorAll('.bom-radar-fit');
+        for (var i = 0; i < fits.length; i++) {
+          var w = fits[i].clientWidth;
+          var box = fits[i].firstChild;
+          if (!w || !box) continue;
+          var sc = Math.min(1, w / 520);
+          var t = sc < 1 ? 'scale(' + sc.toFixed(4) + ')' : '';
+          if (box.style.transform !== t) { box.style.webkitTransform = t; box.style.transform = t; }
+          var h = Math.round(520 * sc) + 'px';
+          if (fits[i].style.height !== h) fits[i].style.height = h;
+        }
       }
       var bomRadarRendered = false;
       function renderBomRadar() {
         if (!bomRadarRendered) {
           bomRadarRendered = true;
           elements.bomRadarContent.innerHTML = bomRadarHtml();
+          fitBomRadar();
         }
       }
 
@@ -7963,6 +8061,7 @@
         elements.radarShowWhenRainy.checked = config.radarShowWhenRainy;
         elements.showBomRadar.checked = config.showBomRadar;
         setMasterClass('showBomRadarMasterLabel', config.showBomRadar, config.showBomRadar);
+        elements.bomRadarDisplayMode.value = config.bomRadarDisplayMode;
         elements.bomRadarShowWhenRainy.checked = config.bomRadarShowWhenRainy;
         elements.showBus1.checked = config.showBus1;
         elements.showBus2.checked = config.showBus2;
@@ -8084,6 +8183,7 @@
         elements.financeDisplayMode.value = config.financeDisplayMode;
         elements.polymarketDisplayMode.value = config.polymarketDisplayMode;
         elements.scrollingTickerCheckbox.checked = config.scrollingTicker;
+        if (elements.displayScale) elements.displayScale.value = String(config.displayScale || 100);
         for (var spu = 0; spu < STRIP_PLACEMENT_CARDS.length; spu++) {
           loadStripChips(STRIP_PLACEMENT_CARDS[spu]);
         }
@@ -8092,8 +8192,163 @@
         elements.settingsOverlay.setAttribute('aria-hidden', 'false');
         var sc = document.getElementById('settingsScrollContent');
         if (sc) sc.scrollTop = 0;
+        // Focus a visible control, not the panel container: on Fire TV the remote
+        // drives D-pad spatial navigation, and from the container the arrow keys only scroll.
+        var closeBtn = document.getElementById('settingsClose');
         var panel = document.querySelector('.settings-panel');
-        if (panel) panel.focus();
+        if (closeBtn) closeBtn.focus(); else if (panel) panel.focus();
+      }
+
+      // Keep focus inside the settings panel while it is open. D-pad spatial navigation otherwise
+      // wanders onto elements hidden behind the overlay (no visible focus ring, so the remote looks
+      // dead). The panel container itself is redirected too, since arrows scroll instead of moving
+      // between controls while it holds focus.
+      // Only remote/keyboard focus is redirected. Safari (iPad, Mac) does not focus a tapped
+      // checkbox or button, so a tap lands focus on the panel itself (tabindex=0); redirecting
+      // that to the close button scrolled Settings back to the top on every checkbox tap.
+      var settingsPointerAt = 0;
+      function markSettingsPointer() { settingsPointerAt = Date.now(); }
+      document.addEventListener('mousedown', markSettingsPointer, true);
+      document.addEventListener('touchstart', markSettingsPointer, true);
+      document.addEventListener('focus', function(e) {
+        var overlay = elements.settingsOverlay;
+        if (!overlay || overlay.className.indexOf('active') === -1) return;
+        var t = e.target;
+        if (!t || t.nodeType !== 1) return;
+        var panel = overlay.querySelector('.settings-panel');
+        if (!panel || (t !== panel && panel.contains(t))) return;
+        if (t === panel && Date.now() - settingsPointerAt < 1000) return;
+        var closeBtn = document.getElementById('settingsClose');
+        if (closeBtn && closeBtn !== t) closeBtn.focus();
+      }, true);
+
+      // Per-device display scale. Rewrites the viewport meta so the page lays out at
+      // device-width / scale CSS px and is shrunk to fit: on the Fire TV (320 dpi, 960x540 CSS px)
+      // 50% gives a true 1920x1080 layout with four card columns. Done through the viewport rather
+      // than CSS zoom so media queries, innerWidth and masonry measurements all agree.
+      var DISPLAY_SCALE_DEFAULT_VIEWPORT = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+      function applyDisplayScale() {
+        var meta = document.querySelector('meta[name="viewport"]');
+        if (!meta) return;
+        var pct = parseInt(config.displayScale, 10) || 100;
+        if (pct < 40 || pct > 100) pct = 100;
+        var content = DISPLAY_SCALE_DEFAULT_VIEWPORT;
+        if (pct !== 100) {
+          var f = (pct / 100).toFixed(2);
+          content = 'width=device-width, initial-scale=' + f + ', minimum-scale=' + f + ', maximum-scale=' + f + ', user-scalable=no';
+        }
+        if (meta.getAttribute('content') !== content) {
+          meta.setAttribute('content', content);
+          if (typeof scheduleMasonry === 'function') scheduleMasonry();
+        }
+        if (document.body && document.body.classList) {
+          if (pct !== 100) document.body.classList.add('display-scaled');
+          else document.body.classList.remove('display-scaled');
+        }
+        document.documentElement.style.setProperty('--ds-inv', String(100 / pct));
+      }
+
+      // Fire TV remote: with nothing focused, the first arrow press lands wherever Chromium's
+      // spatial navigation guesses (a strip item, a card button...). Send it to the Settings
+      // control instead, so Down then Select always opens Settings. Any navigation key also
+      // dismisses an open card/news popup: the remote has no "tap anywhere" and Back leaves the app.
+      document.addEventListener('keydown', function(e) {
+        var k = e.keyCode;
+        if (!(k === 13 || k === 27 || (k >= 37 && k <= 40))) return;
+        var cardOverlay = document.getElementById('cardPopupOverlay');
+        if (cardOverlay && cardOverlay.className.indexOf('active') !== -1) { e.preventDefault(); hideCardPopup(); return; }
+        var newsOverlay = document.getElementById('newsStoryOverlay');
+        if (newsOverlay && newsOverlay.className.indexOf('active') !== -1) { e.preventDefault(); hideNewsStory(); return; }
+        var overlay = elements.settingsOverlay;
+        if (overlay && overlay.className.indexOf('active') !== -1) return;
+        var ae = document.activeElement;
+        // Select on a focused card (makeCardsFocusable) lifts it as a popup, the same
+        // view a ticker tap gives. Enter on a div fires no click, so it is handled here.
+        if (k === 13) {
+          var focusedCardId = (ae && ae.className && (' ' + ae.className + ' ').indexOf(' card ') !== -1) ? ae.getAttribute('data-card-id') : null;
+          if (focusedCardId) { e.preventDefault(); showCardPopup(focusedCardId); }
+          return;
+        }
+        if (k < 37) return;
+        if (ae && ae !== document.body && ae !== document.documentElement) return;
+        var btn = document.getElementById('floatingSettingsBtn');
+        if (!btn || !btn.offsetWidth) btn = document.getElementById('settingsBtn');
+        if (btn && btn.offsetWidth && btn.focus) { e.preventDefault(); btn.focus(); }
+      });
+
+      // Fire TV: Chromium spatial navigation skips the invisible chip inputs, so Card/Bar/
+      // Ticker/Banner (and the theme chips) were unreachable by remote. The chip label becomes
+      // the focus stop instead; Select on it toggles the input (settings keydown handler).
+      function makeModeChipsFocusable() {
+        var chips = document.querySelectorAll('.mode-chip');
+        for (var i = 0; i < chips.length; i++) {
+          chips[i].setAttribute('tabindex', '0');
+          var inp = chips[i].getElementsByTagName('input')[0];
+          if (inp) inp.setAttribute('tabindex', '-1');
+        }
+      }
+
+      // Visible, enabled focus stops inside the settings panel, in DOM order.
+      function settingsFocusables(panel) {
+        var nodes = panel.querySelectorAll('input, select, textarea, button, [tabindex]');
+        var list = [];
+        for (var i = 0; i < nodes.length; i++) {
+          var n = nodes[i];
+          if (n === panel || n.disabled || n.getAttribute('tabindex') === '-1') continue;
+          if (!(n.offsetWidth || n.offsetHeight)) continue;
+          list.push(n);
+        }
+        return list;
+      }
+
+      // D-pad Up/Down in Settings: move exactly one visual row, to the control in that row
+      // nearest the current column. Spatial navigation alone stuck to the right-hand column of
+      // enable checkboxes, skipped rows with nothing in that column, and sometimes only scrolled.
+      function moveSettingsRow(from, dir) {
+        var panel = document.querySelector('.settings-panel');
+        if (!panel) return false;
+        var list = settingsFocusables(panel);
+        var fr = from.getBoundingClientRect();
+        var fy = fr.top + fr.height / 2, fx = fr.left + fr.width / 2;
+        var ROW = 12, rowY = null, i, r, cy;
+        for (i = 0; i < list.length; i++) {
+          if (list[i] === from) continue;
+          r = list[i].getBoundingClientRect();
+          cy = r.top + r.height / 2;
+          var d = (cy - fy) * dir;
+          if (d > ROW && (rowY === null || d < (rowY - fy) * dir)) rowY = cy;
+        }
+        if (rowY === null) return false;
+        var best = null, bestDx = 0;
+        for (i = 0; i < list.length; i++) {
+          r = list[i].getBoundingClientRect();
+          cy = r.top + r.height / 2;
+          if (Math.abs(cy - rowY) > ROW) continue;
+          var dx = Math.abs(r.left + r.width / 2 - fx);
+          if (best === null || dx < bestDx) { best = list[i]; bestDx = dx; }
+        }
+        if (!best) return false;
+        best.focus();
+        // Keep the focused row clear of the floating up/down scroll buttons at the bottom.
+        var sc = document.getElementById('settingsScrollContent');
+        if (sc) {
+          var br = best.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+          if (br.bottom > sr.bottom - 80) sc.scrollTop = sc.scrollTop + (br.bottom - (sr.bottom - 80));
+          else if (br.top < sr.top + 12) sc.scrollTop = sc.scrollTop - (sr.top + 12 - br.top);
+        }
+        return true;
+      }
+
+      // Focus the previous/next visible control inside the settings panel, in DOM order.
+      function moveSettingsFocus(from, dir) {
+        var panel = document.querySelector('.settings-panel');
+        if (!panel) return;
+        var list = settingsFocusables(panel);
+        var idx = -1;
+        for (var j = 0; j < list.length; j++) { if (list[j] === from) { idx = j; break; } }
+        if (idx === -1) return;
+        var next = list[idx + dir];
+        if (next && next.focus) next.focus();
       }
 
       function closeSettings() {
@@ -8112,6 +8367,30 @@
         var sc = document.getElementById('settingsScrollContent');
         if (!sc) return;
         var tag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : '';
+        var panelEl = document.querySelector('.settings-panel');
+        var inPanel = panelEl && e.target !== panelEl && panelEl.contains(e.target);
+        // Select/Enter on a focused chip label toggles its (invisible) input.
+        if (e.keyCode === 13 && e.target.className && (' ' + e.target.className + ' ').indexOf(' mode-chip ') !== -1) {
+          var chipInput = e.target.getElementsByTagName('input')[0];
+          if (chipInput) { e.preventDefault(); chipInput.click(); }
+          return;
+        }
+        // Up/Down step one row at a time (moveSettingsRow); textareas keep their own lines.
+        if ((e.keyCode === 38 || e.keyCode === 40) && inPanel && tag !== 'textarea') {
+          if (moveSettingsRow(e.target, e.keyCode === 40 ? 1 : -1)) { e.preventDefault(); return; }
+        }
+        // D-pad (Fire TV): on a number input Up/Down spin the value and on a closed select every
+        // arrow changes the selection, so focus never leaves them. Move focus instead; Select/Enter
+        // still opens the picker and digits still type.
+        var isSelect = tag === 'select';
+        var isSpinInput = tag === 'input' && (e.target.type === 'number' || e.target.type === 'range');
+        var arrowDelta = (e.keyCode === 40 || (isSelect && e.keyCode === 39)) ? 1 :
+                         (e.keyCode === 38 || (isSelect && e.keyCode === 37)) ? -1 : 0;
+        if ((isSelect || isSpinInput) && arrowDelta !== 0) {
+          e.preventDefault();
+          moveSettingsFocus(e.target, arrowDelta);
+          return;
+        }
         if (tag === 'input' || tag === 'select' || tag === 'textarea' || tag === 'button') return;
         var step = 60;
         if (e.keyCode === 40) { sc.scrollTop = sc.scrollTop + step; e.preventDefault(); }
@@ -8178,6 +8457,7 @@
         config.radarZoom = parseInt(elements.radarZoom.value, 10) || 8;
         config.radarShowWhenRainy = elements.radarShowWhenRainy.checked;
         config.showBomRadar = elements.showBomRadar.checked;
+        config.bomRadarDisplayMode = elements.bomRadarDisplayMode.value;
         config.bomRadarShowWhenRainy = elements.bomRadarShowWhenRainy.checked;
         config.showBus1 = elements.showBus1.checked;
         config.showBus2 = elements.showBus2.checked;
@@ -8305,6 +8585,10 @@
         config.financeDisplayMode = elements.financeDisplayMode.value;
         config.polymarketDisplayMode = elements.polymarketDisplayMode.value;
         config.scrollingTicker = elements.scrollingTickerCheckbox.checked;
+        if (elements.displayScale) {
+          config.displayScale = parseInt(elements.displayScale.value, 10) || 100;
+          applyDisplayScale();
+        }
         // Strip cards' pickers hold "mode:placement"; split them back out.
         for (var sps = 0; sps < STRIP_PLACEMENT_CARDS.length; sps++) {
           saveStripChips(STRIP_PLACEMENT_CARDS[sps]);
@@ -8381,6 +8665,7 @@
             saveConfig();
             dashboardStatusLoaded = false;
             loadDashboardStatus();
+            applyDisplayScale();
             applyTheme();
             applyCardOrder();
             updateCardVisibility();
@@ -8441,6 +8726,7 @@
 
         // Ticker taps: headlines open the story, any other reading lifts its card
         bindTickerTaps();
+        makeCardsFocusable();
 
         // Spotlight overlay click-to-dismiss (on background, not panel)
         var spotlightOverlay = document.getElementById('spotlightOverlay');
@@ -8515,6 +8801,7 @@
           if (panel) panel.setAttribute('role', 'tabpanel');
         }
         bindStripChips();
+        makeModeChipsFocusable();
         bindThemeChips();
         var rows = document.querySelectorAll('#settingsTabContentCards .card-setting-row');
         for (var i = 0; i < rows.length; i++) {
@@ -9173,6 +9460,7 @@
       // globals before the tap bubbles up and closes the popup.
 
       var _cardPopupTimer = null;
+      var _cardPopupReturnFocus = null; // the focused card a remote opened the popup from
 
       function openCardPopupNode(node) {
         var panel = document.getElementById('cardPopupPanel');
@@ -9183,13 +9471,21 @@
         hint.className = 'card-popup-hint';
         hint.textContent = 'Tap anywhere to close';
         panel.appendChild(hint);
-        document.getElementById('cardPopupOverlay').className = 'spotlight-overlay active';
+        var overlay = document.getElementById('cardPopupOverlay');
+        overlay.className = 'spotlight-overlay active';
+        // Fire TV: park focus on the overlay so the next remote key reaches the document
+        // keydown handler (which closes the popup) rather than the card underneath or an
+        // iframe in the popup, and remember the card to hand the ring back to on close.
+        var ae = document.activeElement;
+        _cardPopupReturnFocus = (ae && ae.getAttribute && ae.getAttribute('data-card-id')) ? ae : null;
+        if (overlay.focus) overlay.focus();
         if (_cardPopupTimer) clearTimeout(_cardPopupTimer);
         _cardPopupTimer = setTimeout(hideCardPopup, 60000);
       }
 
       function showCardPopup(cardId) {
         if (cardId === 'finance') { showFinanceSpotlight(); return; }
+        if (cardId === 'bomRadar') { showRadarPopup(); return; } // ticker-only card has no iframe to clone
         var card = document.querySelector('.card[data-card-id="' + cardId + '"]');
         var inner = card ? card.querySelector('.card-inner') : null;
         if (!inner) return;
@@ -9200,9 +9496,10 @@
       }
 
       // Weather Radar popup for the storm Needs Attention item ("check the
-      // radar"). Built fresh rather than cloned from the Weather Radar card:
-      // that card is often disabled (no iframe to clone), and cloning an
-      // iframe reloads the loop anyway. Same chrome, tap-anywhere and 60 s
+      // radar") and for the Weather Radar ticker slide. Built fresh rather
+      // than cloned from the Weather Radar card: that card is often disabled
+      // or in ticker-only mode (no iframe to clone), and cloning an iframe
+      // reloads the loop anyway. Same chrome, tap-anywhere and 60 s
       // auto-close as every other card popup.
       function showRadarPopup() {
         var inner = document.createElement('div');
@@ -9210,8 +9507,20 @@
         inner.innerHTML = '<div class="card-header"><div class="card-title"><span class="card-icon">\uD83C\uDF27\uFE0F</span> Weather Radar</div></div>' +
           '<div class="card-content">' + bomRadarHtml() + '</div>';
         openCardPopupNode(inner);
+        fitBomRadar();
       }
       window.showRadarPopup = showRadarPopup;
+
+      // Fire TV: cards become D-pad focus stops so the remote can walk the grid card by
+      // card (whole-card ring via CSS :focus-visible) and Select opens the card popup
+      // (keydown handler above). Taps are unaffected: a div with tabindex gets no click
+      // behaviour of its own, and the ring only shows for key-driven focus.
+      function makeCardsFocusable() {
+        var cards = document.querySelectorAll('.card[data-card-id]');
+        for (var i = 0; i < cards.length; i++) {
+          if (!cards[i].hasAttribute('tabindex')) cards[i].setAttribute('tabindex', '0');
+        }
+      }
 
       function hideCardPopup() {
         if (_cardPopupTimer) { clearTimeout(_cardPopupTimer); _cardPopupTimer = null; }
@@ -9219,7 +9528,43 @@
         if (overlay) overlay.className = 'spotlight-overlay';
         var panel = document.getElementById('cardPopupPanel');
         if (panel) panel.innerHTML = '';
+        var back = _cardPopupReturnFocus;
+        _cardPopupReturnFocus = null;
+        if (back && back.focus && (back.offsetWidth || back.offsetHeight)) back.focus();
       }
+
+      // Embedded radar/satellite pages (BoM loop, Windy) took focus on the Fire TV, after
+      // which the parent document saw no remote keys at all (a cross-origin iframe with
+      // focus swallows them, Select followed a BoM link that replaced the whole page, and
+      // Back exits the app). On the Fire TV the iframes are `inert` (plus tabindex=-1 everywhere;
+      // see radarIframeInertAttr), which keeps D-pad spatial navigation and the embedded
+      // page's own focus() calls out of them; this blur listener + 1 s poll is the backstop
+      // for a WebView without inert support and for the touch devices that skip inert:
+      // pull focus straight back to the open popup, or to the card the iframe lives in,
+      // capped per iframe so a page that keeps refocusing itself cannot ping-pong forever.
+      function reclaimIframeFocus() {
+        var ae = document.activeElement;
+        if (!ae || !ae.tagName || ae.tagName.toLowerCase() !== 'iframe') return;
+        var n = parseInt(ae.getAttribute('data-refocus') || '0', 10);
+        if (n >= 3) return;
+        ae.setAttribute('data-refocus', String(n + 1));
+        var overlay = document.getElementById('cardPopupOverlay');
+        var panel = document.getElementById('cardPopupPanel');
+        if (overlay && overlay.className.indexOf('active') !== -1 && panel && panel.contains(ae)) {
+          if (overlay.focus) overlay.focus();
+          return;
+        }
+        var el = ae.parentNode;
+        while (el && el !== document.body) {
+          if (el.getAttribute && el.getAttribute('data-card-id') && (' ' + el.className + ' ').indexOf(' card ') !== -1) {
+            if (el.focus) el.focus();
+            return;
+          }
+          el = el.parentNode;
+        }
+      }
+      window.addEventListener('blur', function() { setTimeout(reclaimIframeFocus, 0); });
+      setInterval(reclaimIframeFocus, 1000); // the blur event is not guaranteed in the WebView
 
       function bindTickerTaps() {
         var ids = ['newsContent', 'scrollingTickerContent', 'newsTickerContent', 'statusStrip'];
@@ -11488,6 +11833,22 @@
           }
         }
 
+        // Weather Radar — a tap target for the BoM loop popup. The value is
+        // the Open-Meteo rain chance when the weather feed is running (Weather
+        // card on, or "only show when rainy"); otherwise just the loop label.
+        if (isBomRadarEligible() && isTickerDisplayMode(config.bomRadarDisplayMode)) {
+          var rdRain = getWeatherRainProbability(lastWeatherData);
+          var rdRainy = isRainyWeather(lastWeatherData);
+          slides.push({
+            cardId: 'bomRadar',
+            icon: '\uD83C\uDF27\uFE0F',
+            label: 'Radar',
+            value: rdRain !== null ? ('\uD83D\uDCA7 ' + Math.round(rdRain) + '% rain') : 'Brisbane loop',
+            changeClass: rdRainy ? 'finance-down' : '',
+            changeText: 'tap to view'
+          });
+        }
+
         // Air Quality
         if (config.showAirQuality && isTickerDisplayMode(config.airQualityDisplayMode) && lastAirQualityData && lastAirQualityData.current && lastAirQualityData.current.us_aqi !== undefined && lastAirQualityData.current.us_aqi !== null) {
           var aqVal = Math.round(lastAirQualityData.current.us_aqi);
@@ -12985,6 +13346,7 @@
         setInterval(updateClock, 1000);
         setInterval(updateCardVisibility, 60000);
         setInterval(applyTheme, 60000);
+        applyDisplayScale();
         updateCardVisibility();
         applyCollapsibleMode();
         applyCardOrder();

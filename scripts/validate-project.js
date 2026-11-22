@@ -535,6 +535,51 @@ function checkExerciseHelpers(frontend, worker) {
 // The phone app (public/exercise.html) embeds the card's shared block verbatim;
 // scripts/sync-exercise-app.js --check (run below) catches drift. Here: syntax,
 // a semver version and the "PUT only pending taps" rule.
+// Weather Radar display modes: the card and the ticker slide share one
+// eligibility rule, and the slide's tap builds the popup fresh — in ticker-only
+// mode the card has no iframe to clone.
+function checkRadarDisplayModes(frontend) {
+  if (!/var showBomRadar = isBomRadarEligible\(\) && isCardDisplayMode\(config\.bomRadarDisplayMode\);/.test(frontend)) throwFail('Weather Radar card visibility must go through isBomRadarEligible()');
+  if (!/if \(isBomRadarEligible\(\) && isTickerDisplayMode\(config\.bomRadarDisplayMode\)\) \{[\s\S]{0,400}?cardId: 'bomRadar'/.test(frontend)) throwFail('Weather Radar ticker slide must go through isBomRadarEligible() and carry cardId bomRadar');
+  if (frontend.indexOf("if (cardId === 'bomRadar') { showRadarPopup(); return; }") === -1) throwFail('showCardPopup must route the Weather Radar slide to showRadarPopup()');
+}
+
+// Display scale: importing a settings file must persist and immediately apply it.
+function checkDisplayScaleImport(frontend) {
+  var JSDOM = require('jsdom').JSDOM;
+  var dom = new JSDOM('<meta name="viewport" content="width=device-width, initial-scale=1.0"><body></body>', { url: 'https://dashboard.test/' });
+  var payload;
+  var context = {
+    document: dom.window.document,
+    localStorage: dom.window.localStorage,
+    config: { displayScale: 100 },
+    DISPLAY_SCALE_DEFAULT_VIEWPORT: 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no',
+    storageKey: function(key) { return 'brisbane_' + key; },
+    loadDashboardStatus: function() {}, applyTheme: function() {},
+    applyCardOrder: function() {}, updateCardVisibility: function() {},
+    applyCollapsibleMode: function() {}, openSettings: function() {},
+    sanitizeBirthdays: function(b) { return b; },
+    alert: function(message) { throwFail(message); }, setTimeout: function() {},
+    elements: { settingsSaved: {} },
+    FileReader: function() {
+      this.readAsText = function() { this.onload({ target: { result: JSON.stringify(payload) } }); };
+    }
+  };
+  vm.createContext(context);
+  vm.runInContext(extractBetween(frontend, 'function applyDisplayScale(', '\n      // Fire TV remote:', 'applyDisplayScale') + '\n' +
+    extractFunction(frontend, 'saveConfig') + '\n' + extractFunction(frontend, 'importSettings'), context);
+  [75, 100].forEach(function(scale) {
+    payload = { displayScale: scale };
+    vm.runInContext('importSettings({});', context);
+    var saved = JSON.parse(dom.window.localStorage.getItem('brisbane_config'));
+    var viewport = dom.window.document.querySelector('meta[name="viewport"]').content;
+    var expected = scale === 75 ? 'initial-scale=0.75' : 'initial-scale=1.0';
+    if (saved.displayScale !== scale || viewport.indexOf(expected) === -1) throwFail('import must persist and immediately apply ' + scale + '% display scale');
+    if (dom.window.document.body.classList.contains('display-scaled') !== (scale !== 100)) throwFail('import must update the scaled settings controls');
+  });
+  dom.window.close();
+}
+
 function checkExercisePhoneApp() {
   var app = fs.readFileSync(path.join(root, 'public', 'exercise.html'), 'utf8');
   var scripts = app.match(/<script[^>]*>([\s\S]*?)<\/script>/gi) || [];
@@ -719,6 +764,8 @@ try { checkExerciseSanitizerEquivalence(html, worker); } catch (e) { fail('exerc
 try { checkDashboardStatusFingerprint(worker); } catch (e) { fail('dashboard-status fingerprint: ' + e.message); }
 try { checkExerciseHelpers(html, worker); } catch (e) { fail('exercise helpers: ' + e.message); }
 try { checkExercisePhoneApp(); } catch (e) { fail('exercise phone app: ' + e.message); }
+try { checkRadarDisplayModes(html); } catch (e) { fail('radar display modes: ' + e.message); }
+try { checkDisplayScaleImport(html); } catch (e) { fail('display scale import: ' + e.message); }
 try { checkAppleHealthPush(worker, html); } catch (e) { fail('apple health push: ' + e.message); }
 try { checkPollenHelpers(html); } catch (e) { fail('pollen helpers: ' + e.message); }
 try { checkClimateHelpers(html); } catch (e) { fail('climate helpers: ' + e.message); }

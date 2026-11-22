@@ -17,7 +17,8 @@ The dashboard is designed for always-on tablets and small displays. It can run b
 - Brisbane City Council bin collection lookup and recycling/garden alternation
 - TransLink bus arrivals through the Worker proxy
 - Overhead flight tracking via ADSB.lol, with route lookup fallbacks
-- Windy satellite map and BOM Brisbane weather radar
+- Windy satellite map and BOM Brisbane weather radar (as a card, ticker slide or banner)
+- TV-friendly: per-device display scale with 3-4 column layouts on wide screens, and D-pad / remote navigation between cards and through Settings
 - Sports fixtures and standings
 - Formula 1 card: next race in local time, last winner, driver and constructor standings via Jolpica (free, no key)
 - Finance prices via Yahoo Finance, including user-defined symbols, with 30-day ticker sparklines
