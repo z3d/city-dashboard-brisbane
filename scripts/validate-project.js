@@ -447,6 +447,9 @@ function checkExerciseHelpers(frontend, worker) {
       ' var long = {"SatWalk_anytime_2026-10-10": 1, "SatWalk_anytime_2026-10-03": 1, "SatWalk_anytime_2026-09-26": 1, "SatWalk_anytime_2026-09-19": 1, "SatWalk_anytime_2026-09-12": 1};' +
       ' return [getExerciseStreak(sat, log, wed10), getExerciseStreakLabel(sat, getExerciseStreak(sat, log, wed10)), getExerciseStreakLabel(sat, getExerciseStreak(sat, long, wed10)), getExerciseStreakLabel(sat, 1),' +
       ' isExerciseWeekly({days: [6, 6]}), isExerciseWeekly({days: [2, 4]}), isExerciseWeekly({}), getExerciseStreakLabel(config.exercises[2], 2), getExerciseStreakLabel({}, 181), getExerciseStreakLabel(sat, 26)]; })(),' +
+      'weeklyStrip: (function() { var sat = {name: "SatWalk", period: "anytime", days: [6]}; var h = buildExerciseHistoryStrip(sat, "anytime", {"SatWalk_anytime_2026-10-10": 1, "SatWalk_anytime_2026-10-03_skipped": 1}, wed10);' +
+      ' var h2 = buildExerciseHistoryStrip(sat, "anytime", {"SatWalk_anytime_2026-11-28": 1}, new Date(2026, 11, 2, 10, 0, 0, 0));' +
+      ' function dots(x) { return (x.match(/title="[^"]*"/g) || []).slice(1).map(function(t) { return t.slice(7, -1); }); } return dots(h).concat(dots(h2)); })(),' +
       'labels: [getExerciseDaysLabel({}), getExerciseDaysLabel({days: [1, 2, 3, 4, 5]}), getExerciseDaysLabel({days: [0, 6]}), getExerciseDaysLabel({days: [3, 1, 5]}), getExerciseDaysLabel({days: [0, 1, 2, 3, 4, 5, 6]})],' +
       'strip: (buildExerciseHistoryStrip(config.exercises[2], "morning", doneLog, wed10).match(/<span/g) || []).length,' +
       'withIds: (function() { config.exercises = [{id: "aaaa1111", name: "Walk", period: "morning", type: "walk"}, {id: "bbbb2222", name: "Walk", period: "morning", type: "walk"}, {id: "cccc3333", name: "Renamed", period: "anytime"}];' +
@@ -474,6 +477,10 @@ function checkExerciseHelpers(frontend, worker) {
     pausedStreak: 0,
     // Once-a-week items count weeks (one scheduled day each); the 180-day log caps it at 25+.
     weeklyStreak: [3, '3-week streak', '5-week streak', '', true, false, false, '2-day streak', '180+-day streak', '25+-week streak'],
+    // Once-a-week: one dot per week, ending at the latest scheduled day (Sat 10 Oct
+    // before Wed 14); days before EXERCISE_HISTORY_EPOCH would be "no data".
+    weeklyStrip: ['Sat 2026-08-29 no data', 'Sat 2026-09-05 no data', 'Sat 2026-09-12 no data', 'Sat 2026-09-19 no data', 'Sat 2026-09-26 no data', 'Sat 2026-10-03 skipped', 'Sat 2026-10-10 done',
+      'Sat 2026-10-17 no data', 'Sat 2026-10-24 missed', 'Sat 2026-10-31 missed', 'Sat 2026-11-07 missed', 'Sat 2026-11-14 missed', 'Sat 2026-11-21 missed', 'Sat 2026-11-28 done'],
     labels: ['Every day', 'Weekdays', 'Weekends', 'Mon Wed Fri', 'Every day'],
     strip: 7,
     // Two "Walk"s: the first is done under its own id, the second is only

@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Brisbane">
   <meta name="theme-color" content="#1a1a2e">
   <!-- AI: Bump version (semver) when making changes to this file -->
-  <meta name="app-version" content="1.72.0">
+  <meta name="app-version" content="1.73.0">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%231a1a2e' width='100' height='100' rx='20'/><text x='50' y='65' font-size='40' text-anchor='middle'>🌏</text></svg>">
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Brisbane Dashboard</title>
@@ -2900,7 +2900,7 @@
               <label style="font-size:0.9em;color:var(--t2);"><input type="checkbox" id="exerciseReminders" checked> Needs Attention reminder in the last 3 hours of a window</label>
             </div>
             <div style="margin-bottom:8px;">
-              <label style="font-size:0.9em;color:var(--t2);"><input type="checkbox" id="exerciseShowHistory" checked> Show last-7-days dots and streaks (weeks for once-a-week exercises)</label>
+              <label style="font-size:0.9em;color:var(--t2);"><input type="checkbox" id="exerciseShowHistory" checked> Show last-7-days dots and streaks (last 7 weeks for once-a-week exercises)</label>
             </div>
             <div style="color:var(--t4);font-size:0.8em;margin-bottom:8px;line-height:1.4;">A <b>Walk</b> exercise can have a <b>step goal</b>: it is marked done by itself when the day's Apple Health steps reach it (pushed from your phone, see Health settings) &mdash; even if it was skipped. A Walk whose Target is just a number (10000, 10,000, 5k) uses that as its goal unless the Step goal box says otherwise. The goal applies to every scheduled period of that walk. Exercises may share a name; each is tracked by its own id.</div>
             <div id="exerciseList"></div>
@@ -9734,15 +9734,27 @@
         }
       }
 
-      // Last 7 days for one (exercise, period): filled = done, solid red =
-      // skipped, hollow amber = open now, hollow grey = later today, dim = rest
-      // day / not tracked, faded red = missed. Render-only from the done log.
+      // Entries before this date were pruned under the old 30-day retention
+      // (before 1.72.0), so their absence means "no data", not a missed session.
+      var EXERCISE_HISTORY_EPOCH = '2026-10-24';
+
+      // Seven dots for one (exercise, period): the last 7 days, or for a
+      // once-a-week exercise the last 7 scheduled days, one per week, so the dots
+      // match its week streak. Filled = done, solid red = skipped, hollow amber =
+      // open now, hollow grey = later today, dim = rest day / not tracked / no
+      // data, faded red = missed. Render-only from the done log.
       function buildExerciseHistoryStrip(ex, period, log, now) {
         var w = getExerciseWindow(period);
         var nowMin = now.getHours() * 60 + now.getMinutes();
-        var html = '<div style="margin-top:5px;font-size:0;line-height:0;">';
+        var weekly = isExerciseWeekly(ex);
+        var lastBack = 0;
+        if (weekly) {
+          while (lastBack < 6 && !isExerciseDay(ex, new Date(now.getFullYear(), now.getMonth(), now.getDate() - lastBack))) lastBack++;
+        }
+        var html = '<div style="margin-top:5px;font-size:0;line-height:0;"' + (weekly ? ' title="One dot per week"' : '') + '>';
         for (var d = 6; d >= 0; d--) {
-          var day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - d);
+          var back = weekly ? lastBack + d * 7 : d;
+          var day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
           var dateStr = getLocalDateStr(day);
           var title = EXERCISE_DAY_SHORT[day.getDay()] + ' ' + dateStr;
           var style;
@@ -9755,10 +9767,13 @@
           } else if (!isExerciseDay(ex, day) || !isExercisePeriodTracked(ex, period, day)) {
             style = 'background:var(--w08);';
             title = title + (isExerciseDay(ex, day) ? ' not tracked' : ' rest day');
-          } else if (d === 0 && nowMin < w.start) {
+          } else if (dateStr < EXERCISE_HISTORY_EPOCH) {
+            style = 'background:var(--w08);';
+            title = title + ' no data';
+          } else if (back === 0 && nowMin < w.start) {
             style = 'background:transparent;border:1px solid var(--w25);';
             title = title + ' later today';
-          } else if (d === 0 && nowMin < w.end) {
+          } else if (back === 0 && nowMin < w.end) {
             style = 'background:transparent;border:1px solid var(--warn);';
             title = title + ' open';
           } else {
